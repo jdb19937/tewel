@@ -738,12 +738,12 @@ static double *pipe_synth(
 
 
 
-static double *pipe_learn(
+void pipe_learn(
   uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf,
   double nu, double b1, double b2, double eps, uint64_t rounds
 ) {
   if (basen == 0)
-    return ((double *)kbuf);
+    return;
   assert(basen > 0);
 
   layer_header_t hdr;
@@ -1140,7 +1140,8 @@ void Pipeline::_stats(const double *kout) {
 double *Pipeline::_learn(double mul) {
   assert(is_open);
   assert(is_prep);
-  double *kfin = pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
+  double *kfin = (double *)kbuf;
   return kfin;
 }
 
