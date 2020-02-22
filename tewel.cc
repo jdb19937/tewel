@@ -314,10 +314,6 @@ int main(int argc, char **argv) {
     double *kdat;
     enkdat(datfn, iwhc, &sampn, &kdat);
 
-    const double decay = 1.0 / (double)nr;
-    double cerr = 0;
-    int i = 0;
-
     while (1) {
       unsigned int sampi = randuint() % sampn;
       double *kin = kdat + iwhc * sampi;

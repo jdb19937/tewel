@@ -1134,7 +1134,7 @@ double *Pipeline::_learn(double mul) {
 void Pipeline::learnauto(const double *kintgt, double mul) {
   assert(is_open);
   assert(is_prep);
-  learnfunc(kintgt, kintgt);
+  learnfunc(kintgt, kintgt, mul);
 }
 
 void Pipeline::learnfunc(const double *kin, const double *ktgt, double mul) {
