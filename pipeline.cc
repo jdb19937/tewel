@@ -21,7 +21,8 @@
 
 namespace makemore {
 
-#define CC4(a,b,c,d)		((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
+#define CC4(a,b,c,d) \
+  ((uint32_t)(((a) << 24) | ((b) << 16) | ((c) << 8) | (d)))
 
 const uint32_t TYPE_CON0 = CC4('c','o','n','0');
 const uint32_t TYPE_CON1 = CC4('c','o','n','1');
@@ -40,16 +41,18 @@ const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 
-const uint32_t VERSION = 1;
-const char *MAGIC = "MTewelre";
-
 static void _check_intro(uint8_t *base, size_t basen) {
   assert(basen >= 4096);
-  assert(!memcmp(base, MAGIC, 8));
+  assert(!memcmp(base, "MakeMore", 8));
   uint32_t v;
   memcpy(&v, base + 8, 4);
   v = ntohl(v);
-  assert(v <= VERSION);
+
+  assert(v != 0);
+  assert(v < 256);
+  if (v > 1)
+    fprintf(stderr, "Warning: future version %u\n", v);
+
   char blank[4076];
   memset(blank, 0, 4076);
   assert(!memcmp(blank, base + 20, 4076));
@@ -57,8 +60,8 @@ static void _check_intro(uint8_t *base, size_t basen) {
 
 static void _place_intro(uint8_t *base, size_t basen) {
   assert(basen >= 4096);
-  memcpy(base, MAGIC, 8);
-  uint32_t v = htonl(VERSION);
+  memcpy(base, "MakeMore", 8);
+  uint32_t v = htonl(1);
   memcpy(base + 8, &v, 4);
   memset(base + 12, 0, 4084);
 }
@@ -157,8 +160,8 @@ static void _make_header(
   memset(hdr, 0, sizeof(hdr));
   assert(sizeof(hdr[0]) == 4);
   assert(sizeof(hdr) >= 64);
-  memcpy((char *)hdr, MAGIC, 8);
-  hdr[2] = htonl(VERSION);
+  memcpy((char *)hdr, "MakeMore", 8);
+  hdr[2] = htonl(1);
   hdr[3] = htonl(type);
   hdr[4] = htonl(len);
   hdr[5] = htonl(ic);
@@ -171,8 +174,13 @@ static void _parse_header(
   assert(sizeof(hdr[0]) == 4);
   assert(sizeof(hdr) >= 64);
 
-  assert(!memcmp((char *)hdr, MAGIC, 8));
-  assert(ntohl(hdr[2]) <= VERSION);
+  assert(!memcmp((char *)hdr, "MakeMore", 8));
+  uint32_t v = ntohl(hdr[2]);
+
+  assert(v != 0);
+  assert(v < 256);
+  if (v > 1)
+    fprintf(stderr, "Warning: future version %u\n", v);
 
   *typep = ntohl(hdr[3]);
   *lenp = ntohl(hdr[4]);
