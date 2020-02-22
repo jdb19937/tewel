@@ -117,6 +117,13 @@ void Kleption::_load() {
   }
 }
 
+static void _addgeo(double *edat, double x, double y, double w, double h) {
+  *edat++ = x / w;
+  *edat++ = y / h;
+  *edat++ = 1.0 - fabs(2.0 * x / w - 1.0);
+  *edat++ = 1.0 - fabs(2.0 * y / h - 1.0);
+}
+
 std::string Kleption::pick(double *kdat) {
   switch (type) {
   case TYPE_DIR:
@@ -154,11 +161,7 @@ std::string Kleption::pick(double *kdat) {
           for (unsigned int x = x0; x <= x1; ++x) {
             for (unsigned int z = 0; z < c; ++z)
               *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
-
-            *edat++ = (double)x / (double)w;
-            *edat++ = (double)y / (double)h;
-            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
-            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
+            _addgeo(edat, x, y, w, h);
           }
       } else {
         for (unsigned int y = y0; y <= y1; ++y)
@@ -199,11 +202,7 @@ std::string Kleption::pick(double *kdat) {
           for (unsigned int x = 0; x < w; ++x) {
             for (unsigned int z = 0; z < c; ++z)
               *edat++ = (double)*tmpdat++ / 255.0;
-
-            *edat++ = (double)x / (double)w;
-            *edat++ = (double)y / (double)h;
-            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
-            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
+            _addgeo(edat, x, y, w, h);
           }
       } else {
         for (unsigned int i = 0; i < pwhc; ++i)
@@ -280,11 +279,7 @@ void Kleption::find(const std::string &id, double *kdat) {
           for (unsigned int x = x0; x <= x1; ++x) {
             for (unsigned int z = 0; z < c; ++z)
               *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
-
-            *edat++ = (double)x / (double)w;
-            *edat++ = (double)y / (double)h;
-            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
-            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
+            _addgeo(edat, x, y, w, h);
           }
       } else {
         for (unsigned int y = y0; y <= y1; ++y)
@@ -325,11 +320,7 @@ void Kleption::find(const std::string &id, double *kdat) {
           for (unsigned int x = 0; x < w; ++x) {
             for (unsigned int z = 0; z < c; ++z)
               *edat++ = (double)*tmpdat++ / 255.0;
-
-            *edat++ = (double)x / (double)w;
-            *edat++ = (double)y / (double)h;
-            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
-            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
+            _addgeo(edat, x, y, w, h);
           }
       } else {
         for (unsigned int i = 0; i < pwhc; ++i)
