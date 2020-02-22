@@ -15,13 +15,14 @@ namespace makemore {
 struct Kleption {
   enum Type {
     TYPE_DIR,
-    TYPE_FILE,
+    TYPE_IMG,
     TYPE_DAT
   };
 
   enum Flags {
     FLAG_SAVEMEM	= (1 << 0),
     FLAG_ADDGEO		= (1 << 1),
+
     FLAGS_NONE		= 0
   };
 

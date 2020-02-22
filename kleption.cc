@@ -55,7 +55,7 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
     if (endswith(fn, ".dat")) {
       type = TYPE_DAT;
     } else {
-      type = TYPE_FILE;
+      type = TYPE_IMG;
     }
   }
 }
@@ -72,7 +72,7 @@ Kleption::~Kleption() {
 
 void Kleption::_unload() {
   switch (type) {
-  case TYPE_FILE:
+  case TYPE_IMG:
   case TYPE_DAT:
     if (!dat)
       return;
@@ -85,7 +85,7 @@ void Kleption::_unload() {
 
 void Kleption::_load() {
   switch (type) {
-  case TYPE_FILE:
+  case TYPE_IMG:
     if (dat)
       return;
     load_img(fn, &dat, &w, &h);
@@ -126,7 +126,7 @@ std::string Kleption::pick(double *kdat) {
       assert(subkl != NULL);
       return (id + "/" + subkl->pick(kdat));
     }
-  case TYPE_FILE:
+  case TYPE_IMG:
     {
       _load();
       assert(dat);
@@ -247,7 +247,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       subkl->find(qid, kdat);
       break;
     }
-  case TYPE_FILE:
+  case TYPE_IMG:
     {
       assert(qid == "");
 
