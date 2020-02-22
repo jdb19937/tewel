@@ -156,19 +156,13 @@ std::string Kleption::pick(double *kdat) {
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
-      if (flags & FLAG_ADDGEO) {
-        for (unsigned int y = y0; y <= y1; ++y)
-          for (unsigned int x = x0; x <= x1; ++x) {
-            for (unsigned int z = 0; z < c; ++z)
-              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+      for (unsigned int y = y0; y <= y1; ++y)
+        for (unsigned int x = x0; x <= x1; ++x) {
+          for (unsigned int z = 0; z < c; ++z)
+            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          if (flags & FLAG_ADDGEO)
             _addgeo(edat, x, y, w, h);
-          }
-      } else {
-        for (unsigned int y = y0; y <= y1; ++y)
-          for (unsigned int x = x0; x <= x1; ++x)
-            for (unsigned int z = 0; z < c; ++z)
-              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
-      }
+        }
 
       enk(ddat, pwhc, kdat);
       delete[] ddat;
@@ -197,17 +191,13 @@ std::string Kleption::pick(double *kdat) {
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
-      if (flags & FLAG_ADDGEO) {
-        for (unsigned int y = 0; y < h; ++y)
-          for (unsigned int x = 0; x < w; ++x) {
-            for (unsigned int z = 0; z < c; ++z)
-              *edat++ = (double)*tmpdat++ / 255.0;
+      for (unsigned int y = 0; y < h; ++y)
+        for (unsigned int x = 0; x < w; ++x) {
+          for (unsigned int z = 0; z < c; ++z)
+            *edat++ = (double)*tmpdat++ / 255.0;
+          if (flags & FLAG_ADDGEO)
             _addgeo(edat, x, y, w, h);
-          }
-      } else {
-        for (unsigned int i = 0; i < pwhc; ++i)
-          *edat++ = (double)*tmpdat++ / 255.0;
-      }
+        }
 
       enk(ddat, pwhc, kdat);
       delete[] ddat;
@@ -274,19 +264,13 @@ void Kleption::find(const std::string &id, double *kdat) {
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
-      if (flags & FLAG_ADDGEO) {
-        for (unsigned int y = y0; y <= y1; ++y)
-          for (unsigned int x = x0; x <= x1; ++x) {
-            for (unsigned int z = 0; z < c; ++z)
-              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+      for (unsigned int y = y0; y <= y1; ++y)
+        for (unsigned int x = x0; x <= x1; ++x) {
+          for (unsigned int z = 0; z < c; ++z)
+            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          if (flags & FLAG_ADDGEO)
             _addgeo(edat, x, y, w, h);
-          }
-      } else {
-        for (unsigned int y = y0; y <= y1; ++y)
-          for (unsigned int x = x0; x <= x1; ++x)
-            for (unsigned int z = 0; z < c; ++z)
-              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
-      }
+        }
 
       enk(ddat, pwhc, kdat);
       delete[] ddat;
@@ -314,18 +298,13 @@ void Kleption::find(const std::string &id, double *kdat) {
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
-      if (flags & FLAG_ADDGEO) {
-
-        for (unsigned int y = 0; y < h; ++y)
-          for (unsigned int x = 0; x < w; ++x) {
-            for (unsigned int z = 0; z < c; ++z)
-              *edat++ = (double)*tmpdat++ / 255.0;
+      for (unsigned int y = 0; y < h; ++y)
+        for (unsigned int x = 0; x < w; ++x) {
+          for (unsigned int z = 0; z < c; ++z)
+            *edat++ = (double)*tmpdat++ / 255.0;
+          if (flags & FLAG_ADDGEO)
             _addgeo(edat, x, y, w, h);
-          }
-      } else {
-        for (unsigned int i = 0; i < pwhc; ++i)
-          *edat++ = (double)*tmpdat++ / 255.0;
-      }
+        }
 
       enk(ddat, pwhc, kdat);
       delete[] ddat;
