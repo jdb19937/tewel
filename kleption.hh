@@ -20,7 +20,7 @@ struct Kleption {
   };
 
   enum Flags {
-    FLAG_SAVEMEM	= (1 << 0),
+    FLAG_LOWMEM		= (1 << 0),
     FLAG_ADDGEO		= (1 << 1),
 
     FLAGS_NONE		= 0

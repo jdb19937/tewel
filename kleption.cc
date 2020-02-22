@@ -170,7 +170,7 @@ std::string Kleption::pick(double *kdat) {
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
-      if (flags & FLAG_SAVEMEM)
+      if (flags & FLAG_LOWMEM)
         _unload();
 
       char buf[256];
