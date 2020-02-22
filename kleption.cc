@@ -12,6 +12,8 @@
 #include "youtil.hh"
 #include "colonel.hh"
 
+#include <algorithm>
+
 namespace makemore {
 
 Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags) {
@@ -49,7 +51,7 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
     ::closedir(dp);
 
     assert(ids.size());
-    shuffle(&ids);
+    std::sort(ids.begin(), ids.end());
   } else {
     assert(errno == ENOTDIR);
     if (endswith(fn, ".dat")) {

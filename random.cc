@@ -20,8 +20,12 @@ uint32_t randuint() {
   return ru(rg);
 }
 
-void shuffle(std::vector<std::string> *x) {
-  std::shuffle(x->begin(), x->end(), rg);
+void seedrand(uint64_t seed) {
+  rg.seed(seed);
+}
+
+void seedrand() {
+  rg.seed(rd());
 }
 
 }

@@ -10,7 +10,8 @@ namespace makemore {
 
 extern double randgauss();
 extern uint32_t randuint();
-extern void shuffle(std::vector<std::string> *);
+extern void seedrand(uint64_t);
+extern void seedrand();
 
 }
 
