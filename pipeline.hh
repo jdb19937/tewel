@@ -45,7 +45,7 @@ struct Pipeline {
 
   void dump(FILE * = stdout);
   void unprepare();
-  void prepare(int _iw, int _ih);
+  bool prepare(int _iw, int _ih);
   void report(FILE * = stdout);
   void save();
 

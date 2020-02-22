@@ -233,12 +233,14 @@ static void pipe_push(
   *basenp = new_basen;
 }
 
-static void pipe_prep(uint8_t *base, size_t basen, int iw, int ih, uint8_t **kbufp, int *icp, int *owp, int *ohp, int *ocp) {
+static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp) {
   int i = 0;
   size_t kbufn = 0;
   unsigned int basei = 0;
-  int ow, oh, ic, oc;
+  int ow = 0, oh = 0, ic = 0, oc = 0;
 
+  if (basei == basen)
+    return 0;
   assert(basei < basen);
 
   while (basei < basen) {
@@ -386,7 +388,7 @@ static void pipe_prep(uint8_t *base, size_t basen, int iw, int ih, uint8_t **kbu
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);
 
-    kbufn += ow * oh * oc * sizeof(double);
+    kbufn += (size_t)ow * (size_t)oh * (size_t)oc * sizeof(double);
 
     iw = ow;
     ih = oh;
@@ -402,8 +404,7 @@ static void pipe_prep(uint8_t *base, size_t basen, int iw, int ih, uint8_t **kbu
     *ocp = ic;
 
   assert(basei == basen);
-  assert(kbufn > 0);
-  kmake(kbufp, kbufn);
+  return kbufn;
 }
 
 static void pipe_dump(const uint8_t *base, size_t basen, FILE *fp) {
@@ -996,6 +997,11 @@ void Pipeline::open(const std::string &_fn) {
   pipe_open(fn.c_str(), &fd, &base, &basen);
   assert(fd != -1);
 
+  (void) pipe_prep(
+    base, basen,
+    1 << 16, 1 << 16, &ic, NULL, NULL, &oc
+  );
+
   is_open = true;
 }
 
@@ -1055,23 +1061,29 @@ void Pipeline::unprepare() {
   is_prep = false;
 }
 
-void Pipeline::prepare(int _iw, int _ih) {
+bool Pipeline::prepare(int _iw, int _ih) {
   assert(is_open);
 
   if (is_prep) {
     if (_iw == iw && ih == _ih) {
-      return;
+      return true;
     }
     unprepare();
   }
 
   assert(!is_prep);
   assert(_iw > 0);
-  iw = _iw;
   assert(_ih > 0);
+
+  size_t kbufn = pipe_prep(base, basen, _iw, _ih, &ic, &ow, &oh, &oc);
+  if (kbufn == 0)
+    return false;
+  assert(kbufn > 0);
+  kmake(&kbuf, kbufn);
+
+  iw = _iw;
   ih = _ih;
 
-  pipe_prep(base, basen, iw, ih, &kbuf, &ic, &ow, &oh, &oc);
   assert(ic > 0);
   assert(ow > 0);
   assert(oh > 0);
@@ -1089,6 +1101,7 @@ void Pipeline::prepare(int _iw, int _ih) {
   rounds = ntohl(nrounds);
 
   is_prep = true;
+  return true;
 }
 
 double *Pipeline::_synth(const double *kin) {

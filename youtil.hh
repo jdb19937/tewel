@@ -26,16 +26,25 @@ extern void load_img(const std::string &fn, uint8_t **rgbp, unsigned int *wp, un
 extern uint8_t *slurp(const std::string &fn, size_t *np);
 
 
-inline double atod(const std::string &str) {
+inline double strtod(const std::string &str) {
   return ::strtod(str.c_str(), NULL);
 }
 
-inline unsigned int atoui(const std::string &str) {
-  return ::strtoul(str.c_str(), NULL, 0);
+inline unsigned int strtoui(const std::string &str) {
+  return (unsigned int)::strtoul(str.c_str(), NULL, 0);
 }
 
-inline int atoi(const std::string &str) {
-  return ::atoi(str.c_str());
+inline int strtoi(const std::string &str) {
+  return (int)::strtol(str.c_str(), NULL, 0);
+}
+
+inline void warning(const std::string &str) {
+  fprintf(stderr, "Warning: %s\n", str.c_str());
+}
+
+inline void error(const std::string &str) {
+  fprintf(stderr, "Error: %s\n", str.c_str());
+  exit(1);
 }
 
 }

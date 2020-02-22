@@ -16,7 +16,7 @@
 
 using namespace makemore;
 
-static int usage() {
+static void usage() {
   fprintf(stderr,
     "Usage:\n"
     "        tewel help\n"
@@ -38,17 +38,23 @@ static int usage() {
     "        tewel learnhance gen.mm -dat samples.dat -dis dis.mm ...\n"
     "                train generator on paired samples versus discriminator\n"
   );
-  return 1;
 }
 
-static void warning(const char *str) {
-  fprintf(stderr, "Warning: %s\n", str);
-}
-
-static void uerror(const char *str) {
-  fprintf(stderr, "Error: %s\n", str);
+static void uerror(const std::string &str) {
+  fprintf(stderr, "Error: %s\n", str.c_str());
   usage();
   exit(1);
+}
+
+static void parsecmd(int *argcp, char ***argvp, std::string *cmdp) {
+  assert(*argcp > 0);
+  const char *cmd = **argvp;
+  while (*cmd == '-')
+    ++cmd;
+  ++*argvp;
+  --*argcp;
+
+  *cmdp = cmd;
 }
 
 static bool parseopt(
@@ -59,28 +65,27 @@ static bool parseopt(
   if (*argcp == 0)
     return false;
 
-  char *opt = **argvp;
-  char *q = strchr(opt, '=');
-  if (*opt != '-') {
-    if (!q)
-      uerror("expected key=value option");
+  const char *opt = **argvp;
+  if (char *q = strchr(**argvp, '=')) {
     *q = 0;
     **argvp = q + 1;
   } else {
-    while (*opt == '-')
-      ++opt;
-    if (q) {
-      *q = 0;
-      **argvp = q + 1;
+    if (*opt != '-') {
+      opt = "";
     } else {
       --*argcp;
       ++*argvp;
+
+      if (*argcp == 0) {
+        warning("ignoring trailing option with no value");
+        return false;
+      }
     }
   }
+  while (*opt == '-')
+    ++opt;
 
-  if (*argcp == 0)
-    uerror("expected -key value option");
-
+  assert(*argcp > 0);
   const char *val = **argvp;
   --*argcp;
   ++*argvp;
@@ -91,191 +96,162 @@ static bool parseopt(
   return true;
 }
 
+struct Optval {
+  std::string x;
 
-static void enkdat(const char *datfn, int iowhc, unsigned int *sampnp, double **kdatp) {
-  FILE *datfp = fopen(datfn, "r");
-  assert(datfp);
-  struct stat stbuf;
-  int ret = ::stat(datfn, &stbuf);
-  assert(ret == 0);
-  size_t datn = stbuf.st_size;
-  assert(datn > 0);
-  assert(datn % iowhc == 0);
-  unsigned int sampn = datn / iowhc;
-  assert(sampn > 0);
-  uint8_t *bdat = new uint8_t[datn];
-  size_t fret = ::fread(bdat, 1, datn, datfp);
-  ::fclose(datfp);
-  assert(fret == datn);
-  double *ddat = new double[datn];
-  endub(bdat, datn, ddat);
-  delete[] bdat;
-  double *kdat = NULL;
-  kmake(&kdat, datn);
-  assert(kdat);
-  enk(ddat, datn, kdat);
-  delete[] ddat;
+  Optval() { }
+  Optval(const std::string &_x) : x(_x) { }
+  Optval(const char *_x) : x(_x) { }
 
-  *sampnp = sampn;
-  *kdatp = kdat;
-}
+  operator const std::string &() const
+    { return x; }
+  operator const char *() const
+    { return x.c_str(); }
+  operator int() const
+    { return strtoi(x); }
+  operator double() const
+    { return strtod(x); }
+};
 
-#if 0
-void foo() {
-  Kleption kl0("/home/dan/nova.tagged", 32, 32, 3);
-  Kleption kl1("/home/dan/nova.tagged", 32, 32, 3);
+struct Optmap {
+  std::map<std::string, Optval> m;
 
-  double *kdat0;
-  kmake(&kdat0, 32 * 32 * 3);
-  double *kdat1;
-  kmake(&kdat1, 32 * 32 * 3);
+  Optmap(int *argcp, char ***argvp) {
+    std::string opt, val;
+    while (parseopt(argcp, argvp, &opt, &val)) {
+      if (opt == "")
+        opt = "gen";
+      put(opt, val);
+    }
+  }
 
-  std::string id = Kleption::pick_pair(&kl0, kdat0, &kl1, kdat1);
-  fprintf(stderr, "%s\n", id.c_str());
-}
-#endif
+  void put(const std::string &opt, const std::string &val) {
+    if (m.count(opt)) 
+      warning(std::string("ignoring repeated option -") + opt + "=" + val);
+    else
+      m[opt] = val;
+  }
+
+  const Optval &get(const std::string &opt) {
+    if (m.count(opt))
+      return m[opt];
+    uerror("no value for required option -" + opt);
+  }
+
+  const Optval &get(const std::string &opt, const std::string &dval) {
+    if (!m.count(opt))
+      m[opt] = dval;
+    return m[opt];
+  }
+};
 
 int main(int argc, char **argv) {
   setbuf(stdout, NULL);
-
-  if (argc < 2)
-    return usage();
   ++argv;
   --argc;
 
-  const char *cmd = *argv;
-  while (*cmd == '-')
-    ++cmd;
-  ++argv;
-  --argc;
+  if (argc < 1) {
+    usage();
+    return 1;
+  }
 
-  if (!strcmp(cmd, "help")) {
+  std::string cmd;
+  parsecmd(&argc, &argv, &cmd);
+
+  Optmap arg(&argc, &argv);
+  assert(argc == 0);
+
+  if (cmd == "help" || cmd == "h") {
     usage();
     return 0;
   }
 
-  if (!strcmp(cmd, "new")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    if (argc > 1)
-      warning("ignoring extra arguments");
-
-    const char *fn = *argv;
-    Pipeline pipe;
-    pipe.create(fn);
+  if (cmd == "new") {
+    std::string gen = arg.get("gen");
+    Pipeline genpipe;
+    genpipe.create(gen);
     return 0;
   }
 
-  if (!strcmp(cmd, "dump")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    if (argc > 1)
-      warning("ignoring extra arguments");
-    const char *fn = *argv;
-
-    Pipeline pipe(fn);
-    pipe.dump(stdout);
+  if (cmd == "dump") {
+    std::string gen = arg.get("gen");
+    Pipeline genpipe(gen);
+    genpipe.dump(stdout);
     return 0;
   }
 
-  if (!strcmp(cmd, "scram")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    const char *fn = *argv;
-    --argc;
-    ++argv;
-
-    double dev = 1.0;
-    if (argc > 0)
-      dev = strtod(*argv, NULL);
-
-    Pipeline pipe(fn);
-    pipe.scram(dev);
+  if (cmd == "scram") {
+    std::string gen = arg.get("gen");
+    double dev = arg.get("dev", "1.0");
+    Pipeline genpipe(gen);
+    genpipe.scram(dev);
     return 0;
   }
 
-  if (!strcmp(cmd, "push")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    const char *fn = *argv;
-    ++argv;
-    --argc;
+  if (cmd == "push") {
+    std::string gen = arg.get("gen");
+    std::string t = arg.get("t");
+    int ic = arg.get("ic", "0");
+    int oc = arg.get("oc", "0");
 
-    std::string stype = "";
-    int ic = -1, oc = -1, d = -1, s = -1;
+    if (ic < 0)
+      uerror("input channels can't be negative");
+    if (oc < 0)
+      uerror("output channels can't be negative");
 
-    while (argc > 0) {
-      const char *opt = *argv;
-      if (*opt != '-')
-        uerror("expected option name prefixed by -");
-      while (*opt == '-')
-        ++opt;
-      --argc;
-      ++argv;
-
-      if (argc == 0)
-        uerror("expected option value");
-      const char *val = *argv;
-      --argc;
-      ++argv;
-      
-      if (!strcmp(opt, "t")) {
-        stype = val;
-      } else if (!strcmp(opt, "ic")) {
-        ic = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "oc")) {
-        oc = (int)strtoul(val, NULL, 0);
-      } else {
-        uerror("unknown option");
-      }
+    Pipeline genpipe(gen);
+    if (genpipe.oc > 0) {
+      if (ic == 0)
+        ic = genpipe.oc;
+      if (ic != genpipe.oc)
+        uerror("input channels don't match output channels of last layer");
+    } else {
+      if (ic == 0)
+        uerror("number of input channels required (-ic)");
     }
+    assert(ic > 0);
 
-    if (stype == "") {
-      uerror("layer type required (-t)");
-    }
-    if (ic < 0) {
-      uerror("number of input channels required (-ic)");
-    }
-    if (oc < 0) {
-      oc = ic;
-    }
+    if (oc <= 0) {
+      int ric = ic;
 
-    Pipeline pipe(fn);
-    pipe.push(stype, ic, oc);
+      if      (t == "dns1")	oc = (ic << 2);
+      else if (t == "dns2")	oc = (ic << 4);
+      else if (t == "dns3")	oc = (ic << 6);
+      else if (t == "dns4")	oc = (ic << 8);
+      else if (t == "ups1")	{ oc = (ic >> 2); ric = (oc << 2); }
+      else if (t == "ups2")	{ oc = (ic >> 4); ric = (oc << 4); }
+      else if (t == "ups3")	{ oc = (ic >> 6); ric = (oc << 6); }
+      else if (t == "ups4")	{ oc = (ic >> 8); ric = (oc << 8); }
+      else if (t == "grnd")	oc = (ic + 1);
+      else if (t == "lrnd")	oc = (ic + 1);
+      else if (t == "pad1")	oc = (ic + 1);
+      else                      oc = ic;
+
+      if (ric != ic)
+        uerror("number of input channels can't divide to upscale");
+    }
+    assert(oc > 0);
+
+    genpipe.push(t, ic, oc);
     return 0;
   }
 
 
 
-  if (!strcmp(cmd, "ppmsynth")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    const char *fn = *argv;
-    ++argv;
-    --argc;
-
-
-    const char *ppmfn;
-    if (argc < 1)
-      ppmfn = "-";
-    else {
-      ppmfn = *argv;
-      ++argv;
-      --argc;
-    }
-    if (!strcmp(ppmfn, "-"))
-      ppmfn = "/dev/stdin";
+  if (cmd == "synth") {
+    std::string gen = arg.get("gen");
+    std::string img = arg.get("img", "/dev/stdin");
 
     uint8_t *rgb;
     unsigned int w, h;
-    load_img(ppmfn, &rgb, &w, &h);
+    load_img(img, &rgb, &w, &h);
 
-    Pipeline pipe(fn);
-    pipe.prepare(w, h);
-    assert(pipe.iw == w);
-    assert(pipe.ih == h);
-    assert(pipe.ic == 3);
-    assert(pipe.oc == 3);
+    Pipeline genpipe(gen);
+    genpipe.prepare(w, h);
+    assert(genpipe.iw == w);
+    assert(genpipe.ih == h);
+    assert(genpipe.ic == 3);
+    assert(genpipe.oc == 3);
 
     int rgbn = w * h * 3;
     double *drgb = new double[rgbn];
@@ -285,75 +261,52 @@ int main(int argc, char **argv) {
     enk(drgb, rgbn, kin);
     delete[] drgb;
 
-    const double *kout = pipe.synth(kin);
+    const double *kout = genpipe.synth(kin);
 
     kfree(kin);
 
-    int orgbn = pipe.ow * pipe.oh * 3;
+    int orgbn = genpipe.ow * genpipe.oh * 3;
     double *dorgb = new double[orgbn];
     dek(kout, orgbn, dorgb);
     uint8_t *orgb = new uint8_t[orgbn];
     dedub(dorgb, orgbn, orgb);
     delete[] dorgb;
 
-    save_ppm(stdout, orgb, pipe.ow, pipe.oh);
+    save_ppm(stdout, orgb, genpipe.ow, genpipe.oh);
     delete[] orgb;
     return 0;
   }
 
 
-  if (!strcmp(cmd, "learnauto")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    const char *fn = *argv;
-    ++argv;
-    --argc;
+  if (cmd == "learnauto") {
+    std::string gen = arg.get("gen");
+    std::string inp = arg.get("inp");
+    int iw = arg.get("iw");
+    int ih = arg.get("ih");
+    int nr = arg.get("nr", "256");
+    double nu = arg.get("nu", "1e-4");
+    double b1 = arg.get("b1", "1e-1");
+    double b2 = arg.get("b1", "1e-3");
+    double eps = arg.get("eps", "1e-8");
 
-    std::string datfn;
-    int iw = -1, ih = -1, ic = 3;
-    double nu = 0.0001, b1 = 0.1, b2 = 0.001, eps = 1e-8;
-    int nr = 256;
+    Pipeline genpipe(gen);
+    genpipe.prepare(iw, ih);
 
-    std::string opt, val;
-    while (parseopt(&argc, &argv, &opt, &val)) {
-//fprintf(stderr, "[%s=%s]\n", opt.c_str(), val.c_str());
-      if      (opt == "dat") datfn = val;
-      else if (opt == "nr")  nr = atoi(val);
-      else if (opt == "iw")  iw = atoi(val);
-      else if (opt == "ih")  ih = atoi(val);
-      else if (opt == "ic")  ic = atoi(val);
-      else if (opt == "nu")  nu = atod(val);
-      else if (opt == "b1")  b1 = atod(val);
-      else if (opt == "b2")  b2 = atod(val);
-      else if (opt == "eps") eps = atod(val);
-      else                   uerror("unknown option");
-    }
-
-    if (datfn == "")
-      uerror("required option -dat missing");
-    if (iw < 0)
-      uerror("required option -iw missing");
-    if (ih < 0)
-      uerror("required option -ih missing");
-    if (ic < 0)
-      uerror("required option -ic missing");
-
+    int ic = genpipe.ic;
+    assert(ic > 0);
     int iwhc = iw * ih * ic;
 
-    Pipeline pipe(fn);
-    pipe.prepare(iw, ih);
-
-    Kleption klep(datfn, iw, ih, ic);
+    Kleption klep(inp, iw, ih, ic);
     double *kin;
     kmake(&kin, iwhc);
 
     while (1) {
       klep.pick(kin);
-      pipe.learnauto(kin);
+      genpipe.learnauto(kin);
 
-      if (pipe.rounds % nr == 0) {
-        pipe.report();
-        pipe.save();
+      if (genpipe.rounds % nr == 0) {
+        genpipe.report();
+        genpipe.save();
       }
     }
 
@@ -363,176 +316,87 @@ int main(int argc, char **argv) {
 
 
 
-  if (!strcmp(cmd, "learnfunc")) {
-    if (argc < 1)
-      uerror("expected mmfile");
-    const char *fn = *argv;
-    ++argv;
-    --argc;
+  if (cmd == "learnfunc") {
+    std::string gen = arg.get("gen");
+    std::string inp = arg.get("inp");
+    std::string tgt = arg.get("tgt");
+    int iw = arg.get("iw");
+    int ih = arg.get("ih");
+    int nr = arg.get("nr", "256");
+    double nu = arg.get("nu", "1e-4");
+    double b1 = arg.get("b1", "1e-1");
+    double b2 = arg.get("b1", "1e-3");
+    double eps = arg.get("eps", "1e-8");
 
-    const char *datfn = NULL;
-    int iw = -1, ih = -1, ic = 3;
-    int ow = -1, oh = -1, oc = -1;
-    double nu = 0.0001, b1 = 0.1, b2 = 0.001, eps = 1e-8;
-    int nr = 256;
+    Pipeline genpipe(gen);
+    genpipe.prepare(iw, ih);
 
-    while (argc > 0) {
-      const char *opt = *argv;
-      if (*opt != '-')
-        uerror("expected option name prefixed by -");
-      while (*opt == '-')
-        ++opt;
-      --argc;
-      ++argv;
-
-      if (argc == 0)
-        uerror("expected option value");
-      const char *val = *argv;
-      --argc;
-      ++argv;
-      
-      if (!strcmp(opt, "dat")) {
-        datfn = val;
-      } else if (!strcmp(opt, "nr")) {
-        nr = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "iw")) {
-        iw = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ih")) {
-        ih = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ic")) {
-        ic = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ow")) {
-        ow = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "oh")) {
-        oh = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "oc")) {
-        oc = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "nu")) {
-        nu = strtod(val, NULL);
-      } else if (!strcmp(opt, "b1")) {
-        b1 = strtod(val, NULL);
-      } else if (!strcmp(opt, "b2")) {
-        b2 = strtod(val, NULL);
-      } else if (!strcmp(opt, "eps")) {
-        eps = strtod(val, NULL);
-      } else {
-        uerror("unknown option");
-      }
-    }
-
-    if (!datfn)
-      uerror("required option -dat missing");
-    if (iw < 0)
-      uerror("required option -iw missing");
-    if (ih < 0)
-      uerror("required option -ih missing");
-    if (ic < 0)
-      uerror("required option -ic missing");
-    if (ow < 0)
-      ow = iw;
-    if (oh < 0)
-      oh = ih;
-    if (oc < 0)
-      oc = ic;
+    int ic = genpipe.ic;
+    assert(ic > 0);
     int iwhc = iw * ih * ic;
+
+    int ow = genpipe.ow;
+    int oh = genpipe.oh;
+    int oc = genpipe.oc;
     int owhc = ow * oh * oc;
-    int iowhc = iwhc + owhc;
 
-    Pipeline pipe(fn);
-    pipe.prepare(iw, ih);
+    Kleption inpklep(inp, iw, ih, ic);
+    double *kin;
+    kmake(&kin, iwhc);
 
-    unsigned int sampn;
-    double *kdat;
-    enkdat(datfn, iowhc, &sampn, &kdat);
-
-    const double decay = 1.0 / (double)nr;
-    double cerr = 0;
-    int i = 0;
+    Kleption tgtklep(tgt, ow, oh, oc);
+    double *ktgt;
+    kmake(&ktgt, owhc);
 
     while (1) {
-      unsigned int sampi = randuint() % sampn;
-      double *kin = kdat + iowhc * sampi;
-      double *ktgt = kin + iwhc;
-      pipe.learnfunc(kin, ktgt);
+      genpipe.learnfunc(kin, ktgt);
 
-      if (pipe.rounds % nr == 0) {
-        pipe.report();
-        pipe.save();
+      if (genpipe.rounds % nr == 0) {
+        genpipe.report();
+        genpipe.save();
       }
     }
 
-    kfree(kdat);
+    kfree(kin);
+    kfree(ktgt);
     return 0;
   }
 
 
 
-  if (!strcmp(cmd, "learnhans")) {
+#if 0
+  if (cmd == "learnhans") {
     if (argc < 1)
       uerror("expected mmfile");
     const char *fn = *argv;
     ++argv;
     --argc;
 
-    const char *datfn = NULL;
-    const char *disfn = NULL;
+    std::string datfn, disfn;
     int iw = -1, ih = -1, ic = 3;
     int ow = -1, oh = -1, oc = -1;
     double nu = 0.0001, b1 = 0.1, b2 = 0.001, eps = 1e-8;
     int nr = 256;
     double nz = 0.5;
 
-    while (argc > 0) {
-      const char *opt = *argv;
-      if (*opt != '-')
-        uerror("expected option name prefixed by -");
-      while (*opt == '-')
-        ++opt;
-      --argc;
-      ++argv;
-
-      if (argc == 0)
-        uerror("expected option value");
-      const char *val = *argv;
-      --argc;
-      ++argv;
-      
-      if (!strcmp(opt, "dat")) {
-        datfn = val;
-      } else if (!strcmp(opt, "dis")) {
-        disfn = val;
-      } else if (!strcmp(opt, "nz")) {
-        nz = strtod(val, NULL);
-      } else if (!strcmp(opt, "nr")) {
-        nr = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "iw")) {
-        iw = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ih")) {
-        ih = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ic")) {
-        ic = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ow")) {
-        ow = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "oh")) {
-        oh = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "oc")) {
-        oc = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "nu")) {
-        nu = strtod(val, NULL);
-      } else if (!strcmp(opt, "b1")) {
-        b1 = strtod(val, NULL);
-      } else if (!strcmp(opt, "b2")) {
-        b2 = strtod(val, NULL);
-      } else if (!strcmp(opt, "eps")) {
-        eps = strtod(val, NULL);
-      } else {
-        uerror("unknown option");
-      }
+    std::string opt, val;
+    while (parseopt(&argc, &argv, &opt, &val)) {
+      if      (opt == "dat") datfn = val;
+      if      (opt == "dis") disfn = val;
+      else if (opt == "nr")  nr = strtoi(val);
+      else if (opt == "iw")  iw = strtoi(val);
+      else if (opt == "ih")  ih = strtoi(val);
+      else if (opt == "ic")  ic = strtoi(val);
+      else if (opt == "nu")  nu = strtod(val);
+      else if (opt == "b1")  b1 = strtod(val);
+      else if (opt == "b2")  b2 = strtod(val);
+      else if (opt == "eps") eps = strtod(val);
+      else                   uerror("unknown option");
     }
 
-    if (!datfn)
+    if (datfn == "")
       uerror("required option -dat missing");
-    if (!disfn)
+    if (disfn == "")
       uerror("required option -dis missing");
     if (iw < 0)
       uerror("required option -iw missing");
@@ -558,7 +422,7 @@ int main(int argc, char **argv) {
 
     unsigned int sampn;
     double *kdat;
-    enkdat(datfn, iowhc, &sampn, &kdat);
+    enkdat(datfn.c_str(), iowhc, &sampn, &kdat);
 
     const double decay = 1.0 / (double)nr;
     double cerr = 0;
@@ -580,6 +444,7 @@ int main(int argc, char **argv) {
     kfree(kdat);
     return 0;
   }
+#endif
 
 
   uerror("unknown command");
