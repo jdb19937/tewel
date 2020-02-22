@@ -10,6 +10,7 @@
 #include "kleption.hh"
 #include "random.hh"
 #include "youtil.hh"
+#include "colonel.hh"
 
 namespace makemore {
 
@@ -41,14 +42,14 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       std::string subfn = de->d_name;
 
       Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc);
-      path_sub.insert(std::make_pair(subfn, subkl));
-      paths.push_back(subfn);
+      id_sub.insert(std::make_pair(subfn, subkl));
+      ids.push_back(subfn);
     }
   
     ::closedir(dp);
 
-    assert(paths.size());
-    shuffle(&paths);
+    assert(ids.size());
+    shuffle(&ids);
   } else {
     assert(errno == ENOTDIR);
     if (endswith(fn, ".dat")) {
@@ -63,7 +64,7 @@ Kleption::~Kleption() {
   if (dat)
     delete[] dat;
 
-  for (auto psi = path_sub.begin(); psi != path_sub.end(); ++psi) {
+  for (auto psi = id_sub.begin(); psi != id_sub.end(); ++psi) {
     Kleption *subkl = psi->second;
     delete subkl;
   }
@@ -114,16 +115,16 @@ void Kleption::_load() {
   }
 }
 
-std::string Kleption::pick(uint8_t *rgb) {
+std::string Kleption::pick(double *kdat) {
   switch (type) {
   case TYPE_DIR:
     {
-      unsigned int pathn = paths.size();
-      unsigned int pathi = randuint() % pathn;
-      std::string path = paths[pathi];
-      Kleption *subkl = path_sub[path];
+      unsigned int idn = ids.size();
+      unsigned int idi = randuint() % idn;
+      std::string id = ids[idi];
+      Kleption *subkl = id_sub[id];
       assert(subkl != NULL);
-      return (path + "/" + subkl->pick(rgb));
+      return (id + "/" + subkl->pick(kdat));
     }
   case TYPE_FILE:
     {
@@ -139,10 +140,37 @@ std::string Kleption::pick(uint8_t *rgb) {
       unsigned int x1 = x0 + pw - 1;
       unsigned int y1 = y0 + ph - 1;
 
-      for (unsigned int y = y0; y <= y1; ++y)
-        for (unsigned int x = x0; x <= x1; ++x)
-          for (unsigned int z = 0; z < c; ++z)
-            *rgb++ = dat[z + c * (x + w * y)];
+      if (flags & FLAG_ADDGEO) {
+        unsigned int pwhc4 = pw * ph * (pc + 4);
+        double *ddat = new double[pwhc4];
+        double *edat = ddat;
+
+        for (unsigned int y = y0; y <= y1; ++y)
+          for (unsigned int x = x0; x <= x1; ++x) {
+            for (unsigned int z = 0; z < c; ++z)
+              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+
+            *edat++ = (double)x / (double)w;
+            *edat++ = (double)y / (double)h;
+            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
+            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
+          }
+
+        enk(ddat, pwhc4, kdat);
+        delete[] ddat;
+      } else {
+        unsigned int pwhc = pw * ph * pc;
+        double *ddat = new double[pwhc];
+        double *edat = ddat;
+
+        for (unsigned int y = y0; y <= y1; ++y)
+          for (unsigned int x = x0; x <= x1; ++x)
+            for (unsigned int z = 0; z < c; ++z)
+              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+
+        enk(ddat, pwhc, kdat);
+        delete[] ddat;
+      }
 
       if (flags & FLAG_SAVEMEM)
         _unload();
@@ -159,9 +187,38 @@ std::string Kleption::pick(uint8_t *rgb) {
       assert(h == ph);
       assert(c == pc);
 
-      unsigned int whc = w * h * c;
+      unsigned int pwhc = pw * ph * pc;
       unsigned int v = randuint() % b;
-      memcpy(rgb, dat + v * whc, whc);
+      const uint8_t *tmpdat = dat + v * pwhc;
+
+      if (flags & FLAG_ADDGEO) {
+        unsigned int pwhc4 = pw * ph * (pc + 4);
+        double *ddat = new double[pwhc4];
+        double *edat = ddat;
+
+        for (unsigned int y = 0; y < h; ++y)
+          for (unsigned int x = 0; x < w; ++x) {
+            for (unsigned int z = 0; z < c; ++z)
+              *edat++ = (double)*tmpdat++ / 255.0;
+
+            *edat++ = (double)x / (double)w;
+            *edat++ = (double)y / (double)h;
+            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
+            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
+          }
+
+        enk(ddat, pwhc4, kdat);
+        delete[] ddat;
+      } else {
+        double *ddat = new double[pwhc];
+        double *edat = ddat;
+
+        for (unsigned int i = 0; i < pwhc; ++i)
+          *edat++ = (double)*tmpdat++ / 255.0;
+
+        enk(ddat, pwhc, kdat);
+        delete[] ddat;
+      }
 
       char buf[256];
       sprintf(buf, "%u", v);
@@ -172,27 +229,27 @@ std::string Kleption::pick(uint8_t *rgb) {
   }
 }
 
-void Kleption::find(const std::string &path, uint8_t *rgb) {
-  const char *cpath = path.c_str();
-  std::string ppath, qpath;
-  if (const char *p = ::strchr(cpath, '/')) {
-    ppath = std::string(cpath, p - cpath);
-    qpath = p + 1;
+void Kleption::find(const std::string &id, double *kdat) {
+  const char *cid = id.c_str();
+  std::string pid, qid;
+  if (const char *p = ::strchr(cid, '/')) {
+    pid = std::string(cid, p - cid);
+    qid = p + 1;
   } else {
-    ppath = path;
+    pid = id;
   }
 
   switch (type) {
   case TYPE_DIR:
     {
-      Kleption *subkl = path_sub[ppath];
+      Kleption *subkl = id_sub[pid];
       assert(subkl != NULL);
-      subkl->find(qpath, rgb);
+      subkl->find(qid, kdat);
       break;
     }
   case TYPE_FILE:
     {
-      assert(qpath == "");
+      assert(qid == "");
 
       _load();
       assert(dat);
@@ -200,7 +257,7 @@ void Kleption::find(const std::string &path, uint8_t *rgb) {
       assert(h >= ph);
 
       unsigned int vpw, vph, vpc, x0, y0;
-      sscanf(ppath.c_str(), "%ux%ux%u+%u+%u", &vpw, &vph, &vpc, &x0, &y0);
+      sscanf(pid.c_str(), "%ux%ux%u+%u+%u", &vpw, &vph, &vpc, &x0, &y0);
       assert(vpw == pw);
       assert(vph == ph);
       assert(vpc == pc);
@@ -218,27 +275,42 @@ void Kleption::find(const std::string &path, uint8_t *rgb) {
       assert(y1 < h);
 
       if (flags & FLAG_ADDGEO) {
+        unsigned int pwhc4 = pw * ph * (pc + 4);
+        double *ddat = new double[pwhc4];
+        double *edat = ddat;
+
         for (unsigned int y = y0; y <= y1; ++y)
           for (unsigned int x = x0; x <= x1; ++x) {
             for (unsigned int z = 0; z < c; ++z)
-              *rgb++ = dat[z + c * (x + w * y)];
+              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
 
-            *rgb++ = (x * 255) / w;
-            *rgb++ = (y * 255) / h;
-            *rgb++ = 255 - abs(255 * ((int)w - 2 * (int)x) / (int)w);
-            *rgb++ = 255 - abs(255 * ((int)h - 2 * (int)y) / (int)h);
+            *edat++ = (double)x / (double)w;
+            *edat++ = (double)y / (double)h;
+            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
+            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
           }
+
+        enk(ddat, pwhc4, kdat);
+        delete[] ddat;
       } else {
+        unsigned int pwhc = pw * ph * pc;
+        double *ddat = new double[pwhc];
+        double *edat = ddat;
+
         for (unsigned int y = y0; y <= y1; ++y)
           for (unsigned int x = x0; x <= x1; ++x)
             for (unsigned int z = 0; z < c; ++z)
-              *rgb++ = dat[z + c * (x + w * y)];
+              *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+
+        enk(ddat, pwhc, kdat);
+        delete[] ddat;
       }
+
       break;
     }
   case TYPE_DAT:
     {
-      assert(qpath == "");
+      assert(qid == "");
 
       _load();
       assert(dat);
@@ -246,25 +318,41 @@ void Kleption::find(const std::string &path, uint8_t *rgb) {
       assert(h == ph);
       assert(c == pc);
 
-      assert(isdigit(ppath[0]));
-      unsigned int v = strtoul(ppath.c_str(), NULL, 0);
+      assert(isdigit(pid[0]));
+      unsigned int v = strtoul(pid.c_str(), NULL, 0);
 
-      unsigned int whc = w * h * c;
-      const uint8_t *tmpdat = dat + v * whc;
+      unsigned int pwhc = pw * ph * pc;
+      const uint8_t *tmpdat = dat + v * pwhc;
 
       if (flags & FLAG_ADDGEO) {
+        unsigned int pwhc4 = pw * ph * (pc + 4);
+        double *ddat = new double[pwhc4];
+        double *edat = ddat;
+
         for (unsigned int y = 0; y < h; ++y)
           for (unsigned int x = 0; x < w; ++x) {
             for (unsigned int z = 0; z < c; ++z)
-              *rgb++ = *tmpdat++;
-            *rgb++ = (x * 255) / w;
-            *rgb++ = (y * 255) / h;
-            *rgb++ = 255 - abs(255 * ((int)w - 2 * (int)x) / (int)w);
-            *rgb++ = 255 - abs(255 * ((int)h - 2 * (int)y) / (int)h);
+              *edat++ = (double)*tmpdat++ / 255.0;
+
+            *edat++ = (double)x / (double)w;
+            *edat++ = (double)y / (double)h;
+            *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
+            *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
           }
+
+        enk(ddat, pwhc4, kdat);
+        delete[] ddat;
       } else {
-        memcpy(rgb, tmpdat, whc);
+        double *ddat = new double[pwhc];
+        double *edat = ddat;
+
+        for (unsigned int i = 0; i < pwhc; ++i)
+          *edat++ = (double)*tmpdat++ / 255.0;
+
+        enk(ddat, pwhc, kdat);
+        delete[] ddat;
       }
+
       break;
     }
   default:

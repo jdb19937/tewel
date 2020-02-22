@@ -12,6 +12,7 @@
 #include "pipeline.hh"
 #include "youtil.hh"
 #include "random.hh"
+#include "kleption.hh"
 
 using namespace makemore;
 
@@ -310,13 +311,12 @@ int main(int argc, char **argv) {
     Pipeline pipe(fn);
     pipe.prepare(iw, ih);
 
-    unsigned int sampn;
-    double *kdat;
-    enkdat(datfn, iwhc, &sampn, &kdat);
+    Kleption klep(datfn, iw, ih, ic);
+    double *kin;
+    kmake(&kin, iwhc);
 
     while (1) {
-      unsigned int sampi = randuint() % sampn;
-      double *kin = kdat + iwhc * sampi;
+      klep.pick(kin);
       pipe.learnauto(kin);
 
       if (pipe.rounds % nr == 0) {
@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
       }
     }
 
-    kfree(kdat);
+    kfree(kin);
     return 0;
   }
 

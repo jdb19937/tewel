@@ -33,17 +33,21 @@ struct Kleption {
   uint8_t *dat;
   unsigned int w, h, c, b;
 
-  std::vector<std::string> paths;
-  std::map<std::string, Kleption *> path_sub;
+  std::vector<std::string> ids;
+  std::map<std::string, Kleption *> id_sub;
 
-  Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc = 3, Flags _flags = FLAGS_NONE);
+  Kleption(
+    const std::string &_fn,
+    unsigned int _pw, unsigned int _ph, unsigned int _pc,
+    Flags _flags = FLAGS_NONE
+  );
   ~Kleption();
 
   void _load();
   void _unload();
 
-  std::string pick(uint8_t *rgb);
-  void find(const std::string &path, uint8_t *rgb);
+  std::string pick(double *kdat);
+  void find(const std::string &id, double *kdat);
 };
 
 }
