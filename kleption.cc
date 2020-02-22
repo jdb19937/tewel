@@ -134,19 +134,22 @@ std::string Kleption::pick(double *kdat) {
       assert(dat);
       assert(w >= pw);
       assert(h >= ph);
-      assert(c == pc);
       assert(c == 3);
+      if (flags & FLAG_ADDGEO)
+        assert(pc == c + 4);
+      else
+        assert(pc == c);
 
       unsigned int x0 = randuint() % (w - pw + 1);
       unsigned int y0 = randuint() % (h - ph + 1);
       unsigned int x1 = x0 + pw - 1;
       unsigned int y1 = y0 + ph - 1;
 
-      if (flags & FLAG_ADDGEO) {
-        unsigned int pwhc4 = pw * ph * (pc + 4);
-        double *ddat = new double[pwhc4];
-        double *edat = ddat;
+      unsigned int pwhc = pw * ph * pc;
+      double *ddat = new double[pwhc];
+      double *edat = ddat;
 
+      if (flags & FLAG_ADDGEO) {
         for (unsigned int y = y0; y <= y1; ++y)
           for (unsigned int x = x0; x <= x1; ++x) {
             for (unsigned int z = 0; z < c; ++z)
@@ -157,22 +160,15 @@ std::string Kleption::pick(double *kdat) {
             *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
             *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
           }
-
-        enk(ddat, pwhc4, kdat);
-        delete[] ddat;
       } else {
-        unsigned int pwhc = pw * ph * pc;
-        double *ddat = new double[pwhc];
-        double *edat = ddat;
-
         for (unsigned int y = y0; y <= y1; ++y)
           for (unsigned int x = x0; x <= x1; ++x)
             for (unsigned int z = 0; z < c; ++z)
               *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
-
-        enk(ddat, pwhc, kdat);
-        delete[] ddat;
       }
+
+      enk(ddat, pwhc, kdat);
+      delete[] ddat;
 
       if (flags & FLAG_SAVEMEM)
         _unload();
@@ -187,17 +183,18 @@ std::string Kleption::pick(double *kdat) {
       assert(dat);
       assert(w == pw);
       assert(h == ph);
-      assert(c == pc);
+      if (flags & FLAG_ADDGEO)
+        assert(pc == c + 4);
+      else
+        assert(pc == c);
 
       unsigned int pwhc = pw * ph * pc;
       unsigned int v = randuint() % b;
       const uint8_t *tmpdat = dat + v * pwhc;
+      double *ddat = new double[pwhc];
+      double *edat = ddat;
 
       if (flags & FLAG_ADDGEO) {
-        unsigned int pwhc4 = pw * ph * (pc + 4);
-        double *ddat = new double[pwhc4];
-        double *edat = ddat;
-
         for (unsigned int y = 0; y < h; ++y)
           for (unsigned int x = 0; x < w; ++x) {
             for (unsigned int z = 0; z < c; ++z)
@@ -208,19 +205,13 @@ std::string Kleption::pick(double *kdat) {
             *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
             *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
           }
-
-        enk(ddat, pwhc4, kdat);
-        delete[] ddat;
       } else {
-        double *ddat = new double[pwhc];
-        double *edat = ddat;
-
         for (unsigned int i = 0; i < pwhc; ++i)
           *edat++ = (double)*tmpdat++ / 255.0;
-
-        enk(ddat, pwhc, kdat);
-        delete[] ddat;
       }
+
+      enk(ddat, pwhc, kdat);
+      delete[] ddat;
 
       char buf[256];
       sprintf(buf, "%u", v);
@@ -263,7 +254,11 @@ void Kleption::find(const std::string &id, double *kdat) {
       assert(vpw == pw);
       assert(vph == ph);
       assert(vpc == pc);
-      assert(pc == 3);
+      assert(c == 3);
+      if (flags & FLAG_ADDGEO)
+        assert(pc == c + 4);
+      else
+        assert(pc == c);
       assert(x0 > 0);
       assert(x0 < w);
       assert(y0 > 0);
@@ -276,11 +271,11 @@ void Kleption::find(const std::string &id, double *kdat) {
       assert(y1 >= y0);
       assert(y1 < h);
 
-      if (flags & FLAG_ADDGEO) {
-        unsigned int pwhc4 = pw * ph * (pc + 4);
-        double *ddat = new double[pwhc4];
-        double *edat = ddat;
+      unsigned int pwhc = pw * ph * pc;
+      double *ddat = new double[pwhc];
+      double *edat = ddat;
 
+      if (flags & FLAG_ADDGEO) {
         for (unsigned int y = y0; y <= y1; ++y)
           for (unsigned int x = x0; x <= x1; ++x) {
             for (unsigned int z = 0; z < c; ++z)
@@ -291,22 +286,15 @@ void Kleption::find(const std::string &id, double *kdat) {
             *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
             *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
           }
-
-        enk(ddat, pwhc4, kdat);
-        delete[] ddat;
       } else {
-        unsigned int pwhc = pw * ph * pc;
-        double *ddat = new double[pwhc];
-        double *edat = ddat;
-
         for (unsigned int y = y0; y <= y1; ++y)
           for (unsigned int x = x0; x <= x1; ++x)
             for (unsigned int z = 0; z < c; ++z)
               *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
-
-        enk(ddat, pwhc, kdat);
-        delete[] ddat;
       }
+
+      enk(ddat, pwhc, kdat);
+      delete[] ddat;
 
       break;
     }
@@ -318,18 +306,20 @@ void Kleption::find(const std::string &id, double *kdat) {
       assert(dat);
       assert(w == pw);
       assert(h == ph);
-      assert(c == pc);
+      if (flags & FLAG_ADDGEO)
+        assert(pc == c + 4);
+      else
+        assert(pc == c);
 
       assert(isdigit(pid[0]));
       unsigned int v = strtoul(pid.c_str(), NULL, 0);
 
       unsigned int pwhc = pw * ph * pc;
       const uint8_t *tmpdat = dat + v * pwhc;
+      double *ddat = new double[pwhc];
+      double *edat = ddat;
 
       if (flags & FLAG_ADDGEO) {
-        unsigned int pwhc4 = pw * ph * (pc + 4);
-        double *ddat = new double[pwhc4];
-        double *edat = ddat;
 
         for (unsigned int y = 0; y < h; ++y)
           for (unsigned int x = 0; x < w; ++x) {
@@ -341,19 +331,13 @@ void Kleption::find(const std::string &id, double *kdat) {
             *edat++ = 1.0 - fabs(2.0 * (double)x / (double)w - 1.0);
             *edat++ = 1.0 - fabs(2.0 * (double)y / (double)h - 1.0);
           }
-
-        enk(ddat, pwhc4, kdat);
-        delete[] ddat;
       } else {
-        double *ddat = new double[pwhc];
-        double *edat = ddat;
-
         for (unsigned int i = 0; i < pwhc; ++i)
           *edat++ = (double)*tmpdat++ / 255.0;
-
-        enk(ddat, pwhc, kdat);
-        delete[] ddat;
       }
+
+      enk(ddat, pwhc, kdat);
+      delete[] ddat;
 
       break;
     }
