@@ -17,8 +17,9 @@ void dekv(const void *da, unsigned int n, void *a) {
 
 void kmakev(void **dp, unsigned int n) {
   void *d = NULL;
+  assert(n > 0);
   int ret = cudaMalloc((void **)&d, n);
-  //fprintf(stderr, "kmake %lu -> %lu\n", (unsigned long)n, (unsigned long)d);
+  assert(d != NULL);
   assert(ret == 0);
   *dp = d;
 }
