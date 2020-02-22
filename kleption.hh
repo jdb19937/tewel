@@ -49,6 +49,11 @@ struct Kleption {
 
   std::string pick(double *kdat);
   void find(const std::string &id, double *kdat);
+
+  static std::string pick_pair(
+    Kleption *kl0, double *kdat0,
+    Kleption *kl1, double *kdat1
+  );
 };
 
 }

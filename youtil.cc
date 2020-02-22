@@ -117,6 +117,10 @@ void load_img(const std::string& fn, uint8_t **rgbp, unsigned int *wp, unsigned 
     return;
   }
 
+  const char *magick = getenv("TEWEL_MAGICK");
+  if (!magick)
+    magick = "convert";
+
   int fds[2];
   int ret = ::pipe(fds);
   pid_t pid = ::fork();
@@ -126,7 +130,13 @@ void load_img(const std::string& fn, uint8_t **rgbp, unsigned int *wp, unsigned 
     ::close(1);
     assert(1 == ::dup2(fds[1], 1));
     ::close(fds[1]);
-    ::execlp("convert", "convert", fn.c_str(), "-depth", "8", "ppm:-", NULL);
+    ::execlp(
+      magick, magick,
+      fn.c_str(),
+      "-depth", "8", "+set", "comment",
+      "ppm:-",
+      NULL
+    );
     assert(0);
   }
 

@@ -219,11 +219,13 @@ void Kleption::find(const std::string &id, double *kdat) {
     qid = p + 1;
   } else {
     pid = id;
+    qid = "";
   }
 
   switch (type) {
   case TYPE_DIR:
     {
+      assert(qid != "");
       Kleption *subkl = id_sub[pid];
       assert(subkl != NULL);
       subkl->find(qid, kdat);
@@ -314,6 +316,16 @@ void Kleption::find(const std::string &id, double *kdat) {
   default:
     assert(0);
   }
+}
+
+// static 
+std::string Kleption::pick_pair(
+  Kleption *kl0, double *kdat0,
+  Kleption *kl1, double *kdat1
+) {
+  std::string id = kl0->pick(kdat0);
+  kl1->find(id, kdat1);
+  return id;
 }
 
 }

@@ -45,10 +45,50 @@ static void warning(const char *str) {
   fprintf(stderr, "Warning: %s\n", str);
 }
 
-static int uerror(const char *str) {
+static void uerror(const char *str) {
   fprintf(stderr, "Error: %s\n", str);
   usage();
-  return 1;
+  exit(1);
+}
+
+static bool parseopt(
+  int *argcp, char ***argvp,
+  std::string *optp, std::string *valp
+) {
+  assert(*argcp >= 0);
+  if (*argcp == 0)
+    return false;
+
+  char *opt = **argvp;
+  char *q = strchr(opt, '=');
+  if (*opt != '-') {
+    if (!q)
+      uerror("expected key=value option");
+    *q = 0;
+    **argvp = q + 1;
+  } else {
+    while (*opt == '-')
+      ++opt;
+    if (q) {
+      *q = 0;
+      **argvp = q + 1;
+    } else {
+      --*argcp;
+      ++*argvp;
+    }
+  }
+
+  if (*argcp == 0)
+    uerror("expected -key value option");
+
+  const char *val = **argvp;
+  --*argcp;
+  ++*argvp;
+
+  *optp = opt;
+  *valp = val;
+
+  return true;
 }
 
 
@@ -80,6 +120,21 @@ static void enkdat(const char *datfn, int iowhc, unsigned int *sampnp, double **
   *kdatp = kdat;
 }
 
+#if 0
+void foo() {
+  Kleption kl0("/home/dan/nova.tagged", 32, 32, 3);
+  Kleption kl1("/home/dan/nova.tagged", 32, 32, 3);
+
+  double *kdat0;
+  kmake(&kdat0, 32 * 32 * 3);
+  double *kdat1;
+  kmake(&kdat1, 32 * 32 * 3);
+
+  std::string id = Kleption::pick_pair(&kl0, kdat0, &kl1, kdat1);
+  fprintf(stderr, "%s\n", id.c_str());
+}
+#endif
+
 int main(int argc, char **argv) {
   setbuf(stdout, NULL);
 
@@ -101,7 +156,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "new")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     if (argc > 1)
       warning("ignoring extra arguments");
 
@@ -113,7 +168,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "dump")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     if (argc > 1)
       warning("ignoring extra arguments");
     const char *fn = *argv;
@@ -125,7 +180,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "scram")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     const char *fn = *argv;
     --argc;
     ++argv;
@@ -141,7 +196,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "push")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     const char *fn = *argv;
     ++argv;
     --argc;
@@ -152,14 +207,14 @@ int main(int argc, char **argv) {
     while (argc > 0) {
       const char *opt = *argv;
       if (*opt != '-')
-        return uerror("expected option name prefixed by -");
+        uerror("expected option name prefixed by -");
       while (*opt == '-')
         ++opt;
       --argc;
       ++argv;
 
       if (argc == 0)
-        return uerror("expected option value");
+        uerror("expected option value");
       const char *val = *argv;
       --argc;
       ++argv;
@@ -171,15 +226,15 @@ int main(int argc, char **argv) {
       } else if (!strcmp(opt, "oc")) {
         oc = (int)strtoul(val, NULL, 0);
       } else {
-        return uerror("unknown option");
+        uerror("unknown option");
       }
     }
 
     if (stype == "") {
-      return uerror("layer type required (-t)");
+      uerror("layer type required (-t)");
     }
     if (ic < 0) {
-      return uerror("number of input channels required (-ic)");
+      uerror("number of input channels required (-ic)");
     }
     if (oc < 0) {
       oc = ic;
@@ -194,7 +249,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "ppmsynth")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     const char *fn = *argv;
     ++argv;
     --argc;
@@ -249,62 +304,39 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "learnauto")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     const char *fn = *argv;
     ++argv;
     --argc;
 
-    const char *datfn = NULL;
+    std::string datfn;
     int iw = -1, ih = -1, ic = 3;
     double nu = 0.0001, b1 = 0.1, b2 = 0.001, eps = 1e-8;
     int nr = 256;
 
-    while (argc > 0) {
-      const char *opt = *argv;
-      if (*opt != '-')
-        return uerror("expected option name prefixed by -");
-      while (*opt == '-')
-        ++opt;
-      --argc;
-      ++argv;
-
-      if (argc == 0)
-        return uerror("expected option value");
-      const char *val = *argv;
-      --argc;
-      ++argv;
-      
-      if (!strcmp(opt, "dat")) {
-        datfn = val;
-      } else if (!strcmp(opt, "nr")) {
-        nr = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "iw")) {
-        iw = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ih")) {
-        ih = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "ic")) {
-        ic = (int)strtoul(val, NULL, 0);
-      } else if (!strcmp(opt, "nu")) {
-        nu = strtod(val, NULL);
-      } else if (!strcmp(opt, "b1")) {
-        b1 = strtod(val, NULL);
-      } else if (!strcmp(opt, "b2")) {
-        b2 = strtod(val, NULL);
-      } else if (!strcmp(opt, "eps")) {
-        eps = strtod(val, NULL);
-      } else {
-        return uerror("unknown option");
-      }
+    std::string opt, val;
+    while (parseopt(&argc, &argv, &opt, &val)) {
+//fprintf(stderr, "[%s=%s]\n", opt.c_str(), val.c_str());
+      if      (opt == "dat") datfn = val;
+      else if (opt == "nr")  nr = atoi(val);
+      else if (opt == "iw")  iw = atoi(val);
+      else if (opt == "ih")  ih = atoi(val);
+      else if (opt == "ic")  ic = atoi(val);
+      else if (opt == "nu")  nu = atod(val);
+      else if (opt == "b1")  b1 = atod(val);
+      else if (opt == "b2")  b2 = atod(val);
+      else if (opt == "eps") eps = atod(val);
+      else                   uerror("unknown option");
     }
 
-    if (!datfn)
-      return uerror("required option -dat missing");
+    if (datfn == "")
+      uerror("required option -dat missing");
     if (iw < 0)
-      return uerror("required option -iw missing");
+      uerror("required option -iw missing");
     if (ih < 0)
-      return uerror("required option -ih missing");
+      uerror("required option -ih missing");
     if (ic < 0)
-      return uerror("required option -ic missing");
+      uerror("required option -ic missing");
 
     int iwhc = iw * ih * ic;
 
@@ -333,7 +365,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "learnfunc")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     const char *fn = *argv;
     ++argv;
     --argc;
@@ -347,14 +379,14 @@ int main(int argc, char **argv) {
     while (argc > 0) {
       const char *opt = *argv;
       if (*opt != '-')
-        return uerror("expected option name prefixed by -");
+        uerror("expected option name prefixed by -");
       while (*opt == '-')
         ++opt;
       --argc;
       ++argv;
 
       if (argc == 0)
-        return uerror("expected option value");
+        uerror("expected option value");
       const char *val = *argv;
       --argc;
       ++argv;
@@ -384,18 +416,18 @@ int main(int argc, char **argv) {
       } else if (!strcmp(opt, "eps")) {
         eps = strtod(val, NULL);
       } else {
-        return uerror("unknown option");
+        uerror("unknown option");
       }
     }
 
     if (!datfn)
-      return uerror("required option -dat missing");
+      uerror("required option -dat missing");
     if (iw < 0)
-      return uerror("required option -iw missing");
+      uerror("required option -iw missing");
     if (ih < 0)
-      return uerror("required option -ih missing");
+      uerror("required option -ih missing");
     if (ic < 0)
-      return uerror("required option -ic missing");
+      uerror("required option -ic missing");
     if (ow < 0)
       ow = iw;
     if (oh < 0)
@@ -437,7 +469,7 @@ int main(int argc, char **argv) {
 
   if (!strcmp(cmd, "learnhans")) {
     if (argc < 1)
-      return uerror("expected mmfile");
+      uerror("expected mmfile");
     const char *fn = *argv;
     ++argv;
     --argc;
@@ -453,14 +485,14 @@ int main(int argc, char **argv) {
     while (argc > 0) {
       const char *opt = *argv;
       if (*opt != '-')
-        return uerror("expected option name prefixed by -");
+        uerror("expected option name prefixed by -");
       while (*opt == '-')
         ++opt;
       --argc;
       ++argv;
 
       if (argc == 0)
-        return uerror("expected option value");
+        uerror("expected option value");
       const char *val = *argv;
       --argc;
       ++argv;
@@ -494,20 +526,20 @@ int main(int argc, char **argv) {
       } else if (!strcmp(opt, "eps")) {
         eps = strtod(val, NULL);
       } else {
-        return uerror("unknown option");
+        uerror("unknown option");
       }
     }
 
     if (!datfn)
-      return uerror("required option -dat missing");
+      uerror("required option -dat missing");
     if (!disfn)
-      return uerror("required option -dis missing");
+      uerror("required option -dis missing");
     if (iw < 0)
-      return uerror("required option -iw missing");
+      uerror("required option -iw missing");
     if (ih < 0)
-      return uerror("required option -ih missing");
+      uerror("required option -ih missing");
     if (ic < 0)
-      return uerror("required option -ic missing");
+      uerror("required option -ic missing");
     if (ow < 0)
       ow = iw;
     if (oh < 0)
@@ -550,5 +582,5 @@ int main(int argc, char **argv) {
   }
 
 
-  return uerror("unknown command");
+  uerror("unknown command");
 }
