@@ -1047,14 +1047,21 @@ bool Cortex::prepare(int _iw, int _ih) {
   return true;
 }
 
-double *Cortex::_synth() {
+double *Cortex::synth() {
   assert(is_open);
   assert(is_prep);
   kout = pipe_synth(base, basen, kbase, iw, ih, kbuf);
   return kout;
 }
 
-void Cortex::_stats() {
+double *Cortex::synth(const double *_kinp) {
+  assert(is_open);
+  assert(is_prep);
+  kcopy(_kinp, iwhc, kinp);
+  return synth();
+}
+
+void Cortex::stats() {
   double nrms = sqrt(ksumsq(kout, owhc) / (double)owhc);
 
   double z = pow(1.0 - decay, (double)rounds);
@@ -1072,11 +1079,29 @@ void Cortex::_stats() {
   ++rounds;
 }
 
-double *Cortex::_learn(double mul) {
+void Cortex::target(const double *ktgt) {
   assert(is_open);
   assert(is_prep);
+  assert(kout);
+  assert(owhc > 0);
+  ksubvec(ktgt, kout, owhc, kout);
+}
+
+double *Cortex::learn(double mul) {
+  assert(is_open);
+  assert(is_prep);
+  if (mul > 0)
+    stats();
   pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
   return kinp;
+}
+
+double *Cortex::learn(const double *_kout, double mul) {
+  assert(is_open);
+  assert(is_prep);
+  assert(kout);
+  kcopy(_kout, owhc, kout);
+  return learn(mul);
 }
 
 #if 0

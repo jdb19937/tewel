@@ -5,8 +5,8 @@ CXXFLAGS = -O3 -g -fPIC
 LDFLAGS = -lm -lcudart
 
 TGT = tewel
-OBJ = colonel.o cortex.o tewel.o random.o youtil.o kleption.o
-HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh
+OBJ = colonel.o cortex.o tewel.o random.o youtil.o kleption.o cmdline.o
+HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh
 
 .PHONY: all
 all: $(TGT)

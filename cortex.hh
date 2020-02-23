@@ -54,24 +54,12 @@ struct Cortex {
   void push(const std::string &type, int ic, int oc);
   void scram(double dev = 1.0);
 
-  double *synth(const double *kin);
-
-  double *_synth();
-  void _stats();
-  double *_learn(double mul = 1.0);
-
-#if 0
-  void learnauto(const double *kintgt, double mul = 1.0);
-  void learnfunc(const double *kin, const double *ktgt, double mul = 1.0);
-  void learnreal(const double *kfake, const double *kreal, double mul = 1.0);
-  void learnstyl(const double *kin, const double *kreal, Cortex *dis, double mul = 1.0, double dismul = 1.0);
-  void learnhans(const double *kin, const double *ktgt, Cortex *dis, double nz, double mul = 1.0, double dismul = 1.0);
-
-  double *helpfake(const double *kfake);
-
-  void _target_real(double *kout);
-  void _target_fake(double *kout);
-#endif
+  void target(const double *ktgt);
+  double *synth(const double *_kinp);
+  double *synth();
+  void stats();
+  double *learn(double mul);
+  double *learn(const double *_kout, double mul);
 };
 
 }

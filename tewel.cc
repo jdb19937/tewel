@@ -13,6 +13,7 @@
 #include "youtil.hh"
 #include "random.hh"
 #include "kleption.hh"
+#include "cmdline.hh"
 
 using namespace makemore;
 
@@ -29,13 +30,15 @@ static void usage() {
     "                randomize generator state\n"
     "        tewel push gen.mm -t type [...]\n"
     "                append a layer to a generator\n"
-    "        tewel ppmsynth gen.mm in.ppm > out.ppm\n"
+    "        tewel synth gen.mm in.ppm > out.ppm\n"
     "                input ppm to a generator\n"
-    "        tewel learnauto gen.mm -dat samples.dat ...\n"
+    "        tewel learnauto gen.mm -src samples.dat ...\n"
     "                train generator on sample paired with self\n"
-    "        tewel learnfunc gen.mm -dat samples.dat ...\n"
+    "        tewel learnfunc gen.mm -src samples.dat ...\n"
     "                train generator on paired samples\n"
-    "        tewel learnhance gen.mm -dat samples.dat -dis dis.mm ...\n"
+    "        tewel learnstyl gen.mm -src samples.dat -dis dis.mm ...\n"
+    "                train generator on paired samples versus discriminator\n"
+    "        tewel learnhans gen.mm -src samples.dat -dis dis.mm ...\n"
     "                train generator on paired samples versus discriminator\n"
   );
 }
@@ -46,108 +49,8 @@ static void uerror(const std::string &str) {
   exit(1);
 }
 
-static void parsecmd(int *argcp, char ***argvp, std::string *cmdp) {
-  assert(*argcp > 0);
-  const char *cmd = **argvp;
-  while (*cmd == '-')
-    ++cmd;
-  ++*argvp;
-  --*argcp;
-
-  *cmdp = cmd;
-}
-
-static bool parseopt(
-  int *argcp, char ***argvp,
-  std::string *optp, std::string *valp
-) {
-  assert(*argcp >= 0);
-  if (*argcp == 0)
-    return false;
-
-  const char *opt = **argvp;
-  if (char *q = strchr(**argvp, '=')) {
-    *q = 0;
-    **argvp = q + 1;
-  } else {
-    if (*opt != '-') {
-      opt = "";
-    } else {
-      --*argcp;
-      ++*argvp;
-
-      if (*argcp == 0) {
-        warning("ignoring trailing option with no value");
-        return false;
-      }
-    }
-  }
-  while (*opt == '-')
-    ++opt;
-
-  assert(*argcp > 0);
-  const char *val = **argvp;
-  --*argcp;
-  ++*argvp;
-
-  *optp = opt;
-  *valp = val;
-
-  return true;
-}
-
-struct Optval {
-  std::string x;
-
-  Optval() { }
-  Optval(const std::string &_x) : x(_x) { }
-  Optval(const char *_x) : x(_x) { }
-
-  operator const std::string &() const
-    { return x; }
-  operator const char *() const
-    { return x.c_str(); }
-  operator int() const
-    { return strtoi(x); }
-  operator double() const
-    { return strtod(x); }
-};
-
-struct Optmap {
-  std::map<std::string, Optval> m;
-
-  Optmap(int *argcp, char ***argvp) {
-    std::string opt, val;
-    while (parseopt(argcp, argvp, &opt, &val)) {
-      if (opt == "")
-        opt = "gen";
-      put(opt, val);
-    }
-  }
-
-  void put(const std::string &opt, const std::string &val) {
-    if (m.count(opt)) 
-      warning(std::string("ignoring repeated option -") + opt + "=" + val);
-    else
-      m[opt] = val;
-  }
-
-  const Optval &get(const std::string &opt) {
-    if (m.count(opt))
-      return m[opt];
-    uerror("no value for required option -" + opt);
-  }
-
-  const Optval &get(const std::string &opt, const std::string &dval) {
-    if (!m.count(opt))
-      m[opt] = dval;
-    return m[opt];
-  }
-};
-
-
 void learnauto(
-  Kleption *inp,
+  Kleption *src,
   Cortex *gen,
   Cortex *enc,
   int repint,
@@ -168,24 +71,17 @@ void learnauto(
 
   while (1) {
     if (enc) {
-      inp->pick(enc->kinp);
-      enc->_synth();
-      kcopy(enc->kout, gen->iwhc, gen->kinp);
-
-      gen->_synth();
-      ksubvec(enc->kinp, gen->kout, gen->owhc, gen->kout);
-      gen->_stats();
-      gen->_learn(mul);
-
-      kcopy(gen->kinp, gen->iwhc, enc->kout);
-      enc->_stats();
-      enc->_learn(mul);
+      src->pick(enc->kinp);
+      enc->synth();
+      gen->synth(enc->kout);
+      gen->target(enc->kinp);
+      gen->learn(mul);
+      enc->learn(gen->kinp, mul);
     } else {
-      inp->pick(gen->kinp);
-      gen->_synth();
-      ksubvec(gen->kinp, gen->kout, gen->owhc, gen->kout);
-      gen->_stats();
-      gen->_learn(mul);
+      src->pick(gen->kinp);
+      gen->synth();
+      gen->target(gen->kinp);
+      gen->learn(mul);
     }
 
     if (gen->rounds % repint == 0) {
@@ -201,7 +97,7 @@ void learnauto(
 }
 
 void learnfunc(
-  Kleption *inp,
+  Kleption *src,
   Kleption *tgt,
   Cortex *gen,
   Cortex *enc,
@@ -219,22 +115,19 @@ void learnfunc(
 
   while (1) {
     if (enc) {
-      Kleption::pick_pair(inp, enc->kinp, tgt, ktgt);
-      enc->_synth();
-      kcopy(enc->kout, gen->iwhc, gen->kinp);
+      Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
+      enc->synth();
+      gen->synth(enc->kout);
     } else {
-      Kleption::pick_pair(inp, gen->kinp, tgt, ktgt);
+      Kleption::pick_pair(src, gen->kinp, tgt, ktgt);
+      gen->synth();
     }
 
-    gen->_synth();
-    ksubvec(ktgt, gen->kout, gen->owhc, gen->kout);
-    gen->_stats();
-    gen->_learn(mul);
+    gen->target(ktgt);
+    gen->learn(mul);
 
     if (enc) {
-      kcopy(gen->kinp, gen->iwhc, enc->kout);
-      enc->_stats();
-      enc->_learn(mul);
+      enc->learn(gen->kinp, mul);
     } 
 
     if (gen->rounds % repint == 0) {
@@ -252,7 +145,7 @@ void learnfunc(
 }
 
 void learnstyl(
-  Kleption *inp,
+  Kleption *src,
   Kleption *tgt,
   Cortex *gen,
   Cortex *dis,
@@ -290,42 +183,33 @@ void learnstyl(
     }
  
     if (enc) {
-      inp->pick(enc->kinp);
-      enc->_synth();
-      kcopy(enc->kout, gen->iwhc, gen->kinp);
+      src->pick(enc->kinp);
+      enc->synth();
+      gen->synth(enc->kout);
     } else {
-      inp->pick(gen->kinp);
+      src->pick(gen->kinp);
+      gen->synth();
     }
 
-    gen->_synth();
     kcopy(gen->kout, gen->owhc, ktmp);
 
-    kcopy(ktmp, gen->owhc, dis->kinp);
-    dis->_synth();
-    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
-    dis->_learn(0);
-    kcopy(dis->kinp, dis->iwhc, gen->kout);
-
-    gen->_stats();
-    gen->_learn(genmul);
+    dis->synth(ktmp);
+    dis->target(kreal);
+    dis->learn(0);
+    gen->learn(dis->kinp, genmul);
 
     if (enc) {
-      kcopy(gen->kinp, gen->iwhc, enc->kout);
-      enc->_stats();
-      enc->_learn(genmul);
+      enc->learn(gen->kinp, genmul);
     } 
 
-    kcopy(ktmp, gen->owhc, dis->kinp);
-    dis->_synth();
-    ksubvec(kfake, dis->kout, dis->owhc, dis->kout);
-    dis->_stats();
-    dis->_learn(dismul);
+    dis->synth(ktmp);
+    dis->target(kfake);
+    dis->learn(dismul);
 
     tgt->pick(dis->kinp);
-    dis->_synth();
-    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
-    dis->_stats();
-    dis->_learn(dismul);
+    dis->synth();
+    dis->target(kreal);
+    dis->learn(dismul);
 
     if (gen->rounds % repint == 0) {
       if (enc) {
@@ -345,7 +229,7 @@ void learnstyl(
 }
 
 void learnhans(
-  Kleption *inp,
+  Kleption *src,
   Kleption *tgt,
   Cortex *gen,
   Cortex *dis,
@@ -397,16 +281,14 @@ void learnhans(
       dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
     }
  
-    Kleption::pick_pair(inp, kinp, tgt, ktgt);
+    Kleption::pick_pair(src, kinp, tgt, ktgt);
     if (enc) {
-      kcopy(kinp, enc->iwhc, enc->kinp);
-      enc->_synth();
-      kcopy(enc->kout, gen->iwhc, gen->kinp);
+      enc->synth(kinp);
+      gen->synth(enc->kout);
     } else {
-      kcopy(kinp, gen->iwhc, gen->kinp);
+      gen->synth(kinp);
     }
 
-    gen->_synth();
     kcopy(gen->kout, gen->owhc, ktmp);
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
@@ -417,20 +299,14 @@ void learnhans(
     }
     // addnoise
 
-    dis->_synth();
-    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
-    dis->_learn(0);
-    kcopy(dis->kinp, dis->iwhc, gen->kout);
-
-    gen->_stats();
-    gen->_learn(genmul);
+    dis->synth();
+    dis->target(kreal);
+    dis->learn(0);
+    gen->learn(dis->kinp, genmul);
     if (enc) {
-      kcopy(gen->kinp, gen->iwhc, enc->kout);
-      enc->_stats();
-      enc->_learn(genmul);
+      enc->learn(gen->kinp, genmul);
     } 
 
-    kcopy(ktmp, gen->owhc, dis->kinp);
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     if (enc) {
       ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
@@ -439,13 +315,11 @@ void learnhans(
     }
 
     // addnoise
-    dis->_synth();
-    ksubvec(kfake, dis->kout, dis->owhc, dis->kout);
-    dis->_stats();
-    dis->_learn(dismul);
+    dis->synth();
+    dis->target(kfake);
+    dis->learn(dismul);
 
-    kcopy(ktgt, gen->owhc, dis->kinp);
-    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     if (enc) {
       ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
     } else {
@@ -453,10 +327,9 @@ void learnhans(
     }
     // addnoise
 
-    dis->_synth();
-    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
-    dis->_stats();
-    dis->_learn(dismul);
+    dis->synth();
+    dis->target(kreal);
+    dis->learn(dismul);
 
     if (gen->rounds % repint == 0) {
       if (enc) {
@@ -487,11 +360,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  std::string cmd;
-  parsecmd(&argc, &argv, &cmd);
-
-  Optmap arg(&argc, &argv);
-  assert(argc == 0);
+  Cmdline arg(&argc, &argv, "gen");
+  std::string cmd = arg.cmd;
 
   if (cmd == "help" || cmd == "h") {
     usage();
@@ -499,7 +369,10 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "new") {
-    Cortex::create(arg.get("gen"));
+    std::string genfn = arg.get("gen");
+    if (!arg.unused.empty())
+      error("unrecognized options");
+    Cortex::create(genfn);
     return 0;
   }
 
@@ -513,6 +386,9 @@ int main(int argc, char **argv) {
   if (cmd == "scram") {
     Cortex *gen = new Cortex(arg.get("gen"));
     double dev = arg.get("dev", "1.0");
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
     gen->scram(dev);
     delete gen;
     return 0;
@@ -562,17 +438,24 @@ int main(int argc, char **argv) {
     }
     assert(oc > 0);
 
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
     gen->push(t, ic, oc);
     delete gen;
     return 0;
   }
 
   if (cmd == "synth") {
-    std::string img = arg.get("img", "/dev/stdin");
+    std::string pic = arg.get("pic", "/dev/stdin");
+
+    std::string format = arg.get("format", "ppm");
+    if (format != "ppm" && format != "dat")
+      error("unknown format");
 
     uint8_t *rgb;
     unsigned int w, h;
-    load_pic(img, &rgb, &w, &h);
+    load_pic(pic, &rgb, &w, &h);
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
@@ -581,16 +464,26 @@ int main(int argc, char **argv) {
     if (encfn != "")
       enc = new Cortex(encfn);
 
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    int ic;
     if (enc) {
       enc->prepare(w, h);
-      gen->prepare(enc->ow, enc->oh);
+      if (enc->ic != 3)
+        error("encoder must have ic=3");
 
+      gen->prepare(enc->ow, enc->oh);
       if (enc->oc != gen->ic)
         error("encoder oc doesn't match generator ic");
+      ic = enc->ic;
     } else {
       gen->prepare(w, h);
+      if (gen->ic != 3)
+        error("generator must have ic=3");
+      ic = gen->ic;
     }
-    if (gen->oc != 3)
+    if (gen->oc != 3 && format == "ppm")
       error("generator must have 3 output channels");
 
     int rgbn = w * h * 3;
@@ -599,24 +492,32 @@ int main(int argc, char **argv) {
 
     if (enc) {
       enk(drgb, rgbn, enc->kinp);
-      enc->_synth();
+      enc->synth();
       kcopy(enc->kout, enc->owhc, gen->kinp);
     } else {
       enk(drgb, rgbn, gen->kinp);
     }
     delete[] drgb;
 
-    gen->_synth();
+    gen->synth();
 
-    int orgbn = gen->ow * gen->oh * 3;
-    double *dorgb = new double[orgbn];
-    dek(gen->kout, orgbn, dorgb);
-    uint8_t *orgb = new uint8_t[orgbn];
-    dedub(dorgb, orgbn, orgb);
-    delete[] dorgb;
-
-    save_ppm(stdout, orgb, gen->ow, gen->oh);
-    delete[] orgb;
+    if (format == "ppm") {
+      int orgbn = gen->ow * gen->oh * 3;
+      double *dorgb = new double[orgbn];
+      dek(gen->kout, orgbn, dorgb);
+      uint8_t *orgb = new uint8_t[orgbn];
+      dedub(dorgb, orgbn, orgb);
+      delete[] dorgb;
+      save_ppm(stdout, orgb, gen->ow, gen->oh);
+      delete[] orgb;
+    } else if (format == "dat") {
+      double *dodat = new double[gen->owhc];
+      dek(gen->kout, gen->owhc, dodat);
+      fwrite(dodat, sizeof(double), gen->owhc, stdout);
+      delete[] dodat;
+    } else {
+      assert(0);
+    }
 
     delete gen;
     if (enc)
@@ -656,11 +557,14 @@ int main(int argc, char **argv) {
     if (ic != gen->oc)
       error("input and output channels don't match");
 
-    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
+    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
 
-    learnauto(inp, gen, enc, repint, mul);
+    if (!arg.unused.empty())
+      error("unrecognized options");
 
-    delete inp;
+    learnauto(src, gen, enc, repint, mul);
+
+    delete src;
     delete gen;
     if (enc)
       delete enc;
@@ -693,12 +597,15 @@ int main(int argc, char **argv) {
       ic = gen->ic;
     }
 
-    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
+    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
     Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
 
-    learnfunc(inp, tgt, gen, enc, repint, mul);
+    if (!arg.unused.empty())
+      error("unrecognized options");
 
-    delete inp;
+    learnfunc(src, tgt, gen, enc, repint, mul);
+
+    delete src;
     delete tgt;
     delete gen;
     if (enc)
@@ -742,12 +649,15 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
+    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
     Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
 
-    learnstyl(inp, tgt, gen, dis, enc, repint, mul, lossreg);
+    if (!arg.unused.empty())
+      error("unrecognized options");
 
-    delete inp;
+    learnstyl(src, tgt, gen, dis, enc, repint, mul, lossreg);
+
+    delete src;
     delete tgt;
 
     delete gen;
@@ -801,12 +711,15 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
+    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
     Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
 
-    learnhans(inp, tgt, gen, dis, enc, repint, mul, lossreg, noise);
+    if (!arg.unused.empty())
+      error("unrecognized options");
 
-    delete inp;
+    learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise);
+
+    delete src;
     delete tgt;
 
     delete gen;
