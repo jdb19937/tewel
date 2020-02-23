@@ -159,6 +159,7 @@ void learnstyl(
     assert(enc->oh == gen->ih);
     assert(enc->oc == gen->ic);
   }
+
   assert(gen->ow == dis->iw);
   assert(gen->oh == dis->ih);
   assert(gen->oc == dis->ic);
@@ -195,8 +196,7 @@ void learnstyl(
 
     dis->synth(ktmp);
     dis->target(kreal);
-    dis->learn(0);
-    gen->learn(dis->kinp, genmul);
+    gen->learn(dis->propback(), genmul);
 
     if (enc) {
       enc->learn(gen->kinp, genmul);
@@ -240,27 +240,34 @@ void learnhans(
   double noise
 ) {
 
+  int iw, ih, ic, iwhc;
   if (enc) {
     assert(enc->ow == gen->iw);
     assert(enc->oh == gen->ih);
     assert(enc->oc == gen->ic);
-
-    assert(enc->iw == gen->ow);
-    assert(enc->ih == gen->oh);
-    assert(dis->ic == enc->ic + gen->oc);
+    iw = enc->iw;
+    ih = enc->ih;
+    ic = enc->ic;
   } else {
-    assert(gen->iw == gen->ow);
-    assert(gen->ih == gen->oh);
-    assert(dis->ic == gen->ic + gen->oc);
+    iw = gen->iw;
+    ih = gen->ih;
+    ic = gen->ic;
   }
+  iwhc = iw * ih * ic;
+
+  assert(iw == gen->ow);
+  assert(ih == gen->oh);
   assert(dis->iw == gen->ow);
   assert(dis->ih == gen->oh);
+  assert(dis->ic == ic + gen->oc);
 
   double *ktmp;
   kmake(&ktmp, gen->owhc);
 
   double *kinp;
-  kmake(&kinp, enc ? enc->iwhc : gen->iwhc);
+  kmake(&kinp, iwhc);
+  double *kinpn;
+  kmake(&kinp, iwhc);
 
   double *ktgt;
   kmake(&ktgt, gen->owhc);
@@ -292,12 +299,10 @@ void learnhans(
     kcopy(gen->kout, gen->owhc, ktmp);
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    if (enc) {
-      ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
-    } else {
-      ksplice(kinp, gen->iw * gen->ih, gen->ic, 0, gen->ic, dis->kinp, dis->ic, gen->oc);
-    }
-    // addnoise
+    kcopy(kinp, iwhc, kinpn);
+    kaddnoise(kinpn, iwhc, noise);
+    ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+
 
     dis->synth();
     dis->target(kreal);
@@ -307,29 +312,30 @@ void learnhans(
       enc->learn(gen->kinp, genmul);
     } 
 
-    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    if (enc) {
-      ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
-    } else {
-      ksplice(kinp, gen->iw * gen->ih, gen->ic, 0, gen->ic, dis->kinp, dis->ic, gen->oc);
-    }
 
-    // addnoise
+    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    kcopy(kinp, iwhc, kinpn);
+    kaddnoise(kinpn, iwhc, noise);
+    ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+
     dis->synth();
     dis->target(kfake);
     dis->learn(dismul);
 
+
+
+
     ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    if (enc) {
-      ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
-    } else {
-      ksplice(kinp, gen->iw * gen->ih, gen->ic, 0, gen->ic, dis->kinp, dis->ic, gen->oc);
-    }
-    // addnoise
+    kcopy(kinp, iwhc, kinpn);
+    kaddnoise(kinpn, iwhc, noise);
+    ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
     dis->learn(dismul);
+
+
+
 
     if (gen->rounds % repint == 0) {
       if (enc) {

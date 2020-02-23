@@ -4,6 +4,7 @@
 #include <random>
 
 #include "random.hh"
+#include "colonel.hh"
 
 namespace makemore {
 
@@ -26,6 +27,22 @@ void seedrand(uint64_t seed) {
 
 void seedrand() {
   rg.seed(rd());
+}
+
+void kaddnoise(double *kdat, unsigned int n, double dev) {
+  if (dev == 0.0)
+    return;
+
+  double *noise = new double[n];
+  for (unsigned int j = 0; j < n; ++j)
+    noise[j] = randgauss() * dev;
+  double *knoise;
+  kmake(&knoise, n);
+  enk(noise, n, knoise);
+  delete[] noise;
+
+  kaddvec(kdat, knoise, n, kdat);
+  kfree(knoise);
 }
 
 }

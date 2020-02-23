@@ -1087,11 +1087,17 @@ void Cortex::target(const double *ktgt) {
   ksubvec(ktgt, kout, owhc, kout);
 }
 
+double *Cortex::propback() {
+  assert(is_open);
+  assert(is_prep);
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, rounds);
+  return kinp;
+}
+
 double *Cortex::learn(double mul) {
   assert(is_open);
   assert(is_prep);
-  if (mul > 0)
-    stats();
+  stats();
   pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
   return kinp;
 }

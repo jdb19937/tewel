@@ -13,6 +13,8 @@ extern uint32_t randuint();
 extern void seedrand(uint64_t);
 extern void seedrand();
 
+extern void kaddnoise(double *kdat, unsigned int n, double dev);
+
 }
 
 #endif

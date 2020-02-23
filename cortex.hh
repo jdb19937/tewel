@@ -58,6 +58,7 @@ struct Cortex {
   double *synth(const double *_kinp);
   double *synth();
   void stats();
+  double *propback();
   double *learn(double mul);
   double *learn(const double *_kout, double mul);
 };
