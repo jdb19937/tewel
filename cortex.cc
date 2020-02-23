@@ -1191,6 +1191,12 @@ void Cortex::report() {
   fprintf(stderr, "fn=%s rounds=%lu rms=%lf max=%lf\n", fn.c_str(), rounds, rms, max);
 }
 
+void Cortex::load() {
+  assert(is_open);
+  assert(is_prep);
+  enk(base, basen, kbase);
+}
+
 void Cortex::save() {
   assert(is_open);
   assert(is_prep);

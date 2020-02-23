@@ -49,6 +49,7 @@ struct Cortex {
   void unprepare();
   bool prepare(int _iw, int _ih);
   void report();
+  void load();
   void save();
 
   void push(const std::string &type, int ic, int oc);

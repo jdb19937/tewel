@@ -17,9 +17,6 @@
 
 namespace makemore {
 
-static bool is_dir(const std::string &fn) {
-}
-
 Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags) {
   w = 0;
   h = 0;
@@ -36,18 +33,17 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   pc = _pc;
   assert(pc > 0);
 
-  struct dirent *de;
-
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
   assert(ret == 0);
-
+ 
   if (S_ISDIR(buf.st_mode)) {
     DIR *dp = ::opendir(fn.c_str());
     assert(dp);
 
     type = TYPE_DIR;
 
+    struct dirent *de;
     while ((de = ::readdir(dp))) {
       if (*de->d_name == '.')
         continue;

@@ -12,6 +12,13 @@ namespace makemore {
 extern void endub(const uint8_t *x, unsigned int n, double *y);
 extern void dedub(const double *y, unsigned int n, uint8_t *x);
 
+inline bool startswith(const std::string &str, const std::string &suf) {
+  return (
+    suf.length() <= str.length() &&
+    suf == str.substr(0, suf.length())
+  );
+}
+
 inline bool endswith(const std::string &str, const std::string &suf) {
   return (
     suf.length() <= str.length() &&

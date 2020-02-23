@@ -14,6 +14,8 @@
 #include "random.hh"
 #include "kleption.hh"
 #include "cmdline.hh"
+#include "display.hh"
+#include "camera.hh"
 
 using namespace makemore;
 
@@ -456,12 +458,22 @@ int main(int argc, char **argv) {
     std::string pic = arg.get("pic", "/dev/stdin");
 
     std::string format = arg.get("format", "ppm");
-    if (format != "ppm" && format != "dat")
+    if (format != "ppm" && format != "dat" && format != "sdl")
       error("unknown format");
 
+    Camera *cam = NULL;
     uint8_t *rgb;
     unsigned int w, h;
-    load_pic(pic, &rgb, &w, &h);
+    if (pic == "/dev/video0") {
+      cam = new Camera;
+      cam->open();
+      w = cam->w;
+      h = cam->h;
+      rgb = new uint8_t[w * h * 3];
+      cam->read(rgb);
+    } else {
+      load_pic(pic, &rgb, &w, &h);
+    }
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
@@ -489,7 +501,7 @@ int main(int argc, char **argv) {
         error("generator must have ic=3");
       ic = gen->ic;
     }
-    if (gen->oc != 3 && format == "ppm")
+    if (gen->oc != 3 && (format == "ppm" || format == "sdl"))
       error("generator must have 3 output channels");
 
     int rgbn = w * h * 3;
@@ -503,11 +515,9 @@ int main(int argc, char **argv) {
     } else {
       enk(drgb, rgbn, gen->kinp);
     }
-    delete[] drgb;
-
-    gen->synth();
 
     if (format == "ppm") {
+      gen->synth();
       int orgbn = gen->ow * gen->oh * 3;
       double *dorgb = new double[orgbn];
       dek(gen->kout, orgbn, dorgb);
@@ -517,13 +527,50 @@ int main(int argc, char **argv) {
       save_ppm(stdout, orgb, gen->ow, gen->oh);
       delete[] orgb;
     } else if (format == "dat") {
+      gen->synth();
       double *dodat = new double[gen->owhc];
       dek(gen->kout, gen->owhc, dodat);
       fwrite(dodat, sizeof(double), gen->owhc, stdout);
       delete[] dodat;
+    } else if (format == "sdl") {
+      int orgbn = gen->ow * gen->oh * 3;
+      double *dorgb = new double[orgbn];
+      uint8_t *orgb = new uint8_t[orgbn];
+
+      Display disp;
+      disp.open();
+
+      while (!disp.escpressed()) {
+        gen->synth();
+        dek(gen->kout, orgbn, dorgb);
+        dedub(dorgb, orgbn, orgb);
+
+        disp.update(orgb, gen->ow, gen->oh);
+        disp.present();
+
+        gen->load();
+        if (cam) {
+          cam->read(rgb);
+          endub(rgb, rgbn, drgb);
+
+          if (enc) {
+            enk(drgb, rgbn, enc->kinp);
+            enc->synth();
+            kcopy(enc->kout, enc->owhc, gen->kinp);
+          } else {
+            enk(drgb, rgbn, gen->kinp);
+          }
+        }
+      }
+
+      delete[] dorgb;
+      delete[] orgb;
     } else {
       assert(0);
     }
+
+    delete[] rgb;
+    delete[] drgb;
 
     delete gen;
     if (enc)
