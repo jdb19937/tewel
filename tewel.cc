@@ -9,7 +9,7 @@
 #include <math.h>
 
 #include "colonel.hh"
-#include "pipeline.hh"
+#include "cortex.hh"
 #include "youtil.hh"
 #include "random.hh"
 #include "kleption.hh"
@@ -146,42 +146,98 @@ struct Optmap {
 };
 
 
+void learnauto(
+  Kleption *inp,
+  Cortex *gen,
+  Cortex *enc,
+  int repint,
+  double mul
+) {
+  if (enc) {
+    assert(enc->ow == gen->iw);
+    assert(enc->oh == gen->ih);
+    assert(enc->oc == gen->ic);
+    assert(enc->iw == gen->ow);
+    assert(enc->ih == gen->oh);
+    assert(enc->ic == gen->oc);
+  } else {
+    assert(gen->iw == gen->ow);
+    assert(gen->ih == gen->oh);
+    assert(gen->ic == gen->oc);
+  }
+
+  while (1) {
+    if (enc) {
+      inp->pick(enc->kinp);
+      enc->_synth();
+      kcopy(enc->kout, gen->iwhc, gen->kinp);
+
+      gen->_synth();
+      ksubvec(enc->kinp, gen->kout, gen->owhc, gen->kout);
+      gen->_stats();
+      gen->_learn(mul);
+
+      kcopy(gen->kinp, gen->iwhc, enc->kout);
+      enc->_stats();
+      enc->_learn(mul);
+    } else {
+      inp->pick(gen->kinp);
+      gen->_synth();
+      ksubvec(gen->kinp, gen->kout, gen->owhc, gen->kout);
+      gen->_stats();
+      gen->_learn(mul);
+    }
+
+    if (gen->rounds % repint == 0) {
+      if (enc) {
+        enc->report();
+        enc->save();
+      }
+
+      gen->report();
+      gen->save();
+    }
+  }
+}
+
 void learnfunc(
   Kleption *inp,
   Kleption *tgt,
-  Pipeline *gen,
-  Pipeline *enc,
-  unsigned int ri,
+  Cortex *gen,
+  Cortex *enc,
+  int repint,
   double mul
 ) {
-  double *kinp;
-  kmake(&kinp, enc ? enc->iwhc : gen->iwhc);
+  if (enc) {
+    assert(enc->ow == gen->iw);
+    assert(enc->oh == gen->ih);
+    assert(enc->oc == gen->ic);
+  }
 
   double *ktgt;
   kmake(&ktgt, gen->owhc);
 
   while (1) {
-    Kleption::pick_pair(inp, kinp, tgt, ktgt);
-
     if (enc) {
-      double *fout = enc->_synth(kinp);
-
-      double *kout = gen->_synth(fout);
-      ksubvec(ktgt, kout, gen->owhc, kout);
-      gen->_stats(kout);
-
-      assert(gen->iwhc == enc->owhc);
-      kcopy(gen->_learn(mul), gen->iwhc, fout);
-      enc->_stats(fout);
-      enc->_learn(mul);
+      Kleption::pick_pair(inp, enc->kinp, tgt, ktgt);
+      enc->_synth();
+      kcopy(enc->kout, gen->iwhc, gen->kinp);
     } else {
-      double *kout = gen->_synth(kinp);
-      ksubvec(ktgt, kout, gen->owhc, kout);
-      gen->_stats(kout);
-      gen->_learn(mul);
+      Kleption::pick_pair(inp, gen->kinp, tgt, ktgt);
     }
 
-    if (gen->rounds % ri == 0) {
+    gen->_synth();
+    ksubvec(ktgt, gen->kout, gen->owhc, gen->kout);
+    gen->_stats();
+    gen->_learn(mul);
+
+    if (enc) {
+      kcopy(gen->kinp, gen->iwhc, enc->kout);
+      enc->_stats();
+      enc->_learn(mul);
+    } 
+
+    if (gen->rounds % repint == 0) {
       if (enc) {
         enc->report();
         enc->save();
@@ -192,8 +248,233 @@ void learnfunc(
     }
   }
 
-  kfree(kinp);
   kfree(ktgt);
+}
+
+void learnstyl(
+  Kleption *inp,
+  Kleption *tgt,
+  Cortex *gen,
+  Cortex *dis,
+  Cortex *enc,
+  int repint,
+  double mul,
+  bool lossreg
+) {
+  if (enc) {
+    assert(enc->ow == gen->iw);
+    assert(enc->oh == gen->ih);
+    assert(enc->oc == gen->ic);
+  }
+  assert(gen->ow == dis->iw);
+  assert(gen->oh == dis->ih);
+  assert(gen->oc == dis->ic);
+
+  double *ktmp;
+  kmake(&ktmp, gen->owhc);
+
+  double *kreal;
+  kmake(&kreal, dis->owhc);
+  kfill(kreal, dis->owhc, 0.0);
+
+  double *kfake;
+  kmake(&kfake, dis->owhc);
+  kfill(kfake, dis->owhc, 1.0);
+
+  while (1) {
+    double genmul = mul;
+    double dismul = mul;
+    if (lossreg) {
+      genmul *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
+      dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
+    }
+ 
+    if (enc) {
+      inp->pick(enc->kinp);
+      enc->_synth();
+      kcopy(enc->kout, gen->iwhc, gen->kinp);
+    } else {
+      inp->pick(gen->kinp);
+    }
+
+    gen->_synth();
+    kcopy(gen->kout, gen->owhc, ktmp);
+
+    kcopy(ktmp, gen->owhc, dis->kinp);
+    dis->_synth();
+    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
+    dis->_learn(0);
+    kcopy(dis->kinp, dis->iwhc, gen->kout);
+
+    gen->_stats();
+    gen->_learn(genmul);
+
+    if (enc) {
+      kcopy(gen->kinp, gen->iwhc, enc->kout);
+      enc->_stats();
+      enc->_learn(genmul);
+    } 
+
+    kcopy(ktmp, gen->owhc, dis->kinp);
+    dis->_synth();
+    ksubvec(kfake, dis->kout, dis->owhc, dis->kout);
+    dis->_stats();
+    dis->_learn(dismul);
+
+    tgt->pick(dis->kinp);
+    dis->_synth();
+    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
+    dis->_stats();
+    dis->_learn(dismul);
+
+    if (gen->rounds % repint == 0) {
+      if (enc) {
+        enc->report();
+        enc->save();
+      }
+
+      gen->report();
+      gen->save();
+
+      dis->report();
+      dis->save();
+    }
+  }
+
+  kfree(ktmp);
+}
+
+void learnhans(
+  Kleption *inp,
+  Kleption *tgt,
+  Cortex *gen,
+  Cortex *dis,
+  Cortex *enc,
+  int repint,
+  double mul,
+  bool lossreg,
+  double noise
+) {
+
+  if (enc) {
+    assert(enc->ow == gen->iw);
+    assert(enc->oh == gen->ih);
+    assert(enc->oc == gen->ic);
+
+    assert(enc->iw == gen->ow);
+    assert(enc->ih == gen->oh);
+    assert(dis->ic == enc->ic + gen->oc);
+  } else {
+    assert(gen->iw == gen->ow);
+    assert(gen->ih == gen->oh);
+    assert(dis->ic == gen->ic + gen->oc);
+  }
+  assert(dis->iw == gen->ow);
+  assert(dis->ih == gen->oh);
+
+  double *ktmp;
+  kmake(&ktmp, gen->owhc);
+
+  double *kinp;
+  kmake(&kinp, enc ? enc->iwhc : gen->iwhc);
+
+  double *ktgt;
+  kmake(&ktgt, gen->owhc);
+
+  double *kreal;
+  kmake(&kreal, dis->owhc);
+  kfill(kreal, dis->owhc, 0.0);
+
+  double *kfake;
+  kmake(&kfake, dis->owhc);
+  kfill(kfake, dis->owhc, 1.0);
+
+  while (1) {
+    double genmul = mul;
+    double dismul = mul;
+    if (lossreg) {
+      genmul *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
+      dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
+    }
+ 
+    Kleption::pick_pair(inp, kinp, tgt, ktgt);
+    if (enc) {
+      kcopy(kinp, enc->iwhc, enc->kinp);
+      enc->_synth();
+      kcopy(enc->kout, gen->iwhc, gen->kinp);
+    } else {
+      kcopy(kinp, gen->iwhc, gen->kinp);
+    }
+
+    gen->_synth();
+    kcopy(gen->kout, gen->owhc, ktmp);
+
+    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    if (enc) {
+      ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
+    } else {
+      ksplice(kinp, gen->iw * gen->ih, gen->ic, 0, gen->ic, dis->kinp, dis->ic, gen->oc);
+    }
+    // addnoise
+
+    dis->_synth();
+    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
+    dis->_learn(0);
+    kcopy(dis->kinp, dis->iwhc, gen->kout);
+
+    gen->_stats();
+    gen->_learn(genmul);
+    if (enc) {
+      kcopy(gen->kinp, gen->iwhc, enc->kout);
+      enc->_stats();
+      enc->_learn(genmul);
+    } 
+
+    kcopy(ktmp, gen->owhc, dis->kinp);
+    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    if (enc) {
+      ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
+    } else {
+      ksplice(kinp, gen->iw * gen->ih, gen->ic, 0, gen->ic, dis->kinp, dis->ic, gen->oc);
+    }
+
+    // addnoise
+    dis->_synth();
+    ksubvec(kfake, dis->kout, dis->owhc, dis->kout);
+    dis->_stats();
+    dis->_learn(dismul);
+
+    kcopy(ktgt, gen->owhc, dis->kinp);
+    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    if (enc) {
+      ksplice(kinp, enc->iw * enc->ih, enc->ic, 0, enc->ic, dis->kinp, dis->ic, gen->oc);
+    } else {
+      ksplice(kinp, gen->iw * gen->ih, gen->ic, 0, gen->ic, dis->kinp, dis->ic, gen->oc);
+    }
+    // addnoise
+
+    dis->_synth();
+    ksubvec(kreal, dis->kout, dis->owhc, dis->kout);
+    dis->_stats();
+    dis->_learn(dismul);
+
+    if (gen->rounds % repint == 0) {
+      if (enc) {
+        enc->report();
+        enc->save();
+      }
+
+      gen->report();
+      gen->save();
+
+      dis->report();
+      dis->save();
+    }
+  }
+
+  kfree(ktmp);
+  kfree(ktgt);
+  kfree(kinp);
 }
 
 int main(int argc, char **argv) {
@@ -218,21 +499,19 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "new") {
-    Pipeline *gen = new Pipeline;
-    gen->create(arg.get("gen"));
-    delete gen;
+    Cortex::create(arg.get("gen"));
     return 0;
   }
 
   if (cmd == "dump") {
-    Pipeline *gen = new Pipeline(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("gen"));
     gen->dump(stdout);
     delete gen;
     return 0;
   }
 
   if (cmd == "scram") {
-    Pipeline *gen = new Pipeline(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("gen"));
     double dev = arg.get("dev", "1.0");
     gen->scram(dev);
     delete gen;
@@ -249,7 +528,7 @@ int main(int argc, char **argv) {
     if (oc < 0)
       uerror("output channels can't be negative");
 
-    Pipeline *gen = new Pipeline(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("gen"));
 
     if (gen->oc > 0) {
       if (ic == 0)
@@ -293,15 +572,14 @@ int main(int argc, char **argv) {
 
     uint8_t *rgb;
     unsigned int w, h;
-    load_img(img, &rgb, &w, &h);
+    load_pic(img, &rgb, &w, &h);
 
-    Pipeline *gen = new Pipeline(arg.get("gen"));
-    gen->prepare(w, h);
+    Cortex *gen = new Cortex(arg.get("gen"));
 
-    Pipeline *enc = NULL;
+    Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
     if (encfn != "")
-      enc = new Pipeline(encfn);
+      enc = new Cortex(encfn);
 
     if (enc) {
       enc->prepare(w, h);
@@ -318,23 +596,21 @@ int main(int argc, char **argv) {
     int rgbn = w * h * 3;
     double *drgb = new double[rgbn];
     endub(rgb, rgbn, drgb);
-    double *kinp;
-    kmake(&kinp, rgbn);
-    enk(drgb, rgbn, kinp);
+
+    if (enc) {
+      enk(drgb, rgbn, enc->kinp);
+      enc->_synth();
+      kcopy(enc->kout, enc->owhc, gen->kinp);
+    } else {
+      enk(drgb, rgbn, gen->kinp);
+    }
     delete[] drgb;
 
-    const double *kout;
-    if (enc) {
-      kout = gen->_synth(enc->_synth(kinp));
-    } else {
-      kout = gen->_synth(kinp);
-    }
-
-    kfree(kinp);
+    gen->_synth();
 
     int orgbn = gen->ow * gen->oh * 3;
     double *dorgb = new double[orgbn];
-    dek(kout, orgbn, dorgb);
+    dek(gen->kout, orgbn, dorgb);
     uint8_t *orgb = new uint8_t[orgbn];
     dedub(dorgb, orgbn, orgb);
     delete[] dorgb;
@@ -343,45 +619,90 @@ int main(int argc, char **argv) {
     delete[] orgb;
 
     delete gen;
+    if (enc)
+      delete enc;
     return 0;
   }
 
-  if (cmd == "learnfunc") {
+  if (cmd == "learnauto") {
     int iw = arg.get("iw");
     int ih = arg.get("ih");
-    int ri = arg.get("ri", "256");
+    int repint = arg.get("repint", "256");
     double mul = arg.get("mul", "1.0");
 
-    Pipeline *gen = new Pipeline(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("gen"));
 
-    Pipeline *enc = NULL;
+    Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
     if (encfn != "")
-      enc = new Pipeline(encfn);
+      enc = new Cortex(encfn);
 
+    int ic;
     if (enc) {
       if (enc->oc != gen->ic)
         error("enc oc doesn't match gen ic");
       enc->prepare(iw, ih);
       gen->prepare(enc->ow, enc->oh);
+      ic = enc->ic;
     } else {
       gen->prepare(iw, ih);
+      ic = gen->ic;
     }
 
-    Kleption *inp;
+    if (iw != gen->ow)
+      error("input and output width don't match");
+    if (ih != gen->oh)
+      error("input and output height don't match");
+    if (ic != gen->oc)
+      error("input and output channels don't match");
+
+    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
+
+    learnauto(inp, gen, enc, repint, mul);
+
+    delete inp;
+    delete gen;
+    if (enc)
+      delete enc;
+    return 0;
+  }
+
+
+  if (cmd == "learnfunc") {
+    int iw = arg.get("iw");
+    int ih = arg.get("ih");
+    int repint = arg.get("repint", "256");
+    double mul = arg.get("mul", "1.0");
+
+    Cortex *gen = new Cortex(arg.get("gen"));
+
+    Cortex *enc = NULL;
+    std::string encfn = arg.get("enc", "");
+    if (encfn != "")
+      enc = new Cortex(encfn);
+
+    int ic;
     if (enc) {
-      inp = new Kleption(arg.get("inp"), enc->iw, enc->ih, enc->ic);
+      if (enc->oc != gen->ic)
+        error("enc oc doesn't match gen ic");
+      enc->prepare(iw, ih);
+      gen->prepare(enc->ow, enc->oh);
+      ic = enc->ic;
     } else {
-      inp = new Kleption(arg.get("inp"), gen->iw, gen->ih, gen->ic);
+      gen->prepare(iw, ih);
+      ic = gen->ic;
     }
 
+    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
     Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
 
-    learnfunc(inp, tgt, gen, enc, ri, mul);
+    learnfunc(inp, tgt, gen, enc, repint, mul);
 
     delete inp;
     delete tgt;
     delete gen;
+    if (enc)
+      delete enc;
     return 0;
   }
 
@@ -393,41 +714,104 @@ int main(int argc, char **argv) {
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int ri = arg.get("ri", "256");
+    int repint = arg.get("repint", "256");
     double mul = arg.get("mul", "1.0");
+    int lossreg = arg.get("lossreg", "1");
 
-    Pipeline *gen = new Pipeline(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("gen"));
 
-    Pipeline *enc = NULL;
+    Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
     if (encfn != "")
-      enc = new Pipeline(encfn);
+      enc = new Cortex(encfn);
 
+    int ic;
     if (enc) {
       if (enc->oc != gen->ic)
         error("enc oc doesn't match gen ic");
       enc->prepare(iw, ih);
       gen->prepare(enc->ow, enc->oh);
+      ic = enc->ic;
     } else {
       gen->prepare(iw, ih);
+      ic = gen->ic;
     }
 
-    Pipeline *dis = new Pipeline(arg.get("dis"));
+    Cortex *dis = new Cortex(arg.get("dis"));
     dis->prepare(gen->ow, gen->oh);
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-#if 0
-    Kleption *inp = new Kleption(arg.get("inp"), gen->iw, gen->ih, gen->ic);
+    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
     Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
 
-    learnfunc(&inp, &tgt, &gen, ri, mul);
+    learnstyl(inp, tgt, gen, dis, enc, repint, mul, lossreg);
 
     delete inp;
     delete tgt;
-#endif
 
     delete gen;
+    if (enc)
+      delete enc;
+    delete dis;
+    return 0;
+  }
+
+
+
+  if (cmd == "learnhans") {
+    int iw = arg.get("iw");
+    int ih = arg.get("ih");
+
+    if (iw <= 0)
+      uerror("input width must be positive");
+    if (ih <= 0)
+      uerror("input height must be positive");
+    int repint = arg.get("repint", "256");
+    double mul = arg.get("mul", "1.0");
+    int lossreg = arg.get("lossreg", "1");
+    double noise = arg.get("noise", "0.33");
+
+    Cortex *gen = new Cortex(arg.get("gen"));
+
+    Cortex *enc = NULL;
+    std::string encfn = arg.get("enc", "");
+    if (encfn != "")
+      enc = new Cortex(encfn);
+
+    int ic;
+    if (enc) {
+      if (enc->oc != gen->ic)
+        error("enc oc doesn't match gen ic");
+      enc->prepare(iw, ih);
+      gen->prepare(enc->ow, enc->oh);
+      ic = enc->ic;
+    } else {
+      gen->prepare(iw, ih);
+      ic = gen->ic;
+    }
+
+    if (iw != gen->ow)
+      error("iw differs from ow");
+    if (ih != gen->oh)
+      error("iw differs from oh");
+
+    Cortex *dis = new Cortex(arg.get("dis"));
+    dis->prepare(gen->ow, gen->oh);
+    if (dis->ic != gen->oc)
+      error("gen oc doesn't match dis ic");
+
+    Kleption *inp = new Kleption(arg.get("inp"), iw, ih, ic);
+    Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
+
+    learnhans(inp, tgt, gen, dis, enc, repint, mul, lossreg, noise);
+
+    delete inp;
+    delete tgt;
+
+    delete gen;
+    if (enc)
+      delete enc;
     delete dis;
     return 0;
   }

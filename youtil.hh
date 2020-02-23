@@ -21,7 +21,7 @@ inline bool endswith(const std::string &str, const std::string &suf) {
 
 extern bool load_ppm(FILE *fp, uint8_t **rgbp, unsigned int *wp, unsigned int *hp);
 extern void save_ppm(FILE *fp, uint8_t *rgb, unsigned int w, unsigned int h);
-extern void load_img(const std::string &fn, uint8_t **rgbp, unsigned int *wp, unsigned int *hp);
+extern void load_pic(const std::string &fn, uint8_t **rgbp, unsigned int *wp, unsigned int *hp);
 
 extern uint8_t *slurp(const std::string &fn, size_t *np);
 

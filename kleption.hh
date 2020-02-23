@@ -15,7 +15,7 @@ namespace makemore {
 struct Kleption {
   enum Type {
     TYPE_DIR,
-    TYPE_IMG,
+    TYPE_PIC,
     TYPE_DAT
   };
 

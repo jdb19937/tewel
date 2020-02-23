@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/stat.h>
 #include <dirent.h>
 
 #include "kleption.hh"
@@ -15,6 +16,9 @@
 #include <algorithm>
 
 namespace makemore {
+
+static bool is_dir(const std::string &fn) {
+}
 
 Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags) {
   w = 0;
@@ -33,9 +37,15 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   assert(pc > 0);
 
   struct dirent *de;
-  DIR *dp = ::opendir(fn.c_str());
 
-  if (dp) {
+  struct stat buf;
+  int ret = ::stat(fn.c_str(), &buf);
+  assert(ret == 0);
+
+  if (S_ISDIR(buf.st_mode)) {
+    DIR *dp = ::opendir(fn.c_str());
+    assert(dp);
+
     type = TYPE_DIR;
 
     while ((de = ::readdir(dp))) {
@@ -53,11 +63,10 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
     assert(ids.size());
     std::sort(ids.begin(), ids.end());
   } else {
-    assert(errno == ENOTDIR);
     if (endswith(fn, ".dat")) {
       type = TYPE_DAT;
     } else {
-      type = TYPE_IMG;
+      type = TYPE_PIC;
     }
   }
 }
@@ -74,7 +83,7 @@ Kleption::~Kleption() {
 
 void Kleption::_unload() {
   switch (type) {
-  case TYPE_IMG:
+  case TYPE_PIC:
   case TYPE_DAT:
     if (!dat)
       return;
@@ -87,10 +96,10 @@ void Kleption::_unload() {
 
 void Kleption::_load() {
   switch (type) {
-  case TYPE_IMG:
+  case TYPE_PIC:
     if (dat)
       return;
-    load_img(fn, &dat, &w, &h);
+    load_pic(fn, &dat, &w, &h);
     c = 3;
     b = 1;
     break;
@@ -135,7 +144,7 @@ std::string Kleption::pick(double *kdat) {
       assert(subkl != NULL);
       return (id + "/" + subkl->pick(kdat));
     }
-  case TYPE_IMG:
+  case TYPE_PIC:
     {
       _load();
       assert(dat);
@@ -231,7 +240,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       subkl->find(qid, kdat);
       break;
     }
-  case TYPE_IMG:
+  case TYPE_PIC:
     {
       assert(qid == "");
 
@@ -250,9 +259,9 @@ void Kleption::find(const std::string &id, double *kdat) {
         assert(pc == c + 4);
       else
         assert(pc == c);
-      assert(x0 > 0);
+      assert(x0 >= 0);
       assert(x0 < w);
-      assert(y0 > 0);
+      assert(y0 >= 0);
       assert(y0 < h);
 
       unsigned int x1 = x0 + pw - 1;

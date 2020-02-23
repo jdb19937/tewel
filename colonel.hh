@@ -27,7 +27,7 @@ template <class T> void kfree(T *x)
 extern void kzerov(void *, unsigned int);
 template <class T> inline void kzero(T *x, unsigned int n)
   { kzerov(x, n * sizeof(T)); }
-extern void kunit(double *, unsigned int);
+extern void kfill(double *, unsigned int, double v);
   
 extern void kcopyv(const void *, unsigned int, void *);
 template <class T> inline void kcopy(const T *da, unsigned int n, T *db)

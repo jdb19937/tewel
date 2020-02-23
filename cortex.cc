@@ -1,4 +1,4 @@
-#define __MAKEMORE_PIPELINE_CC__ 1
+#define __MAKEMORE_CORTEX_CC__ 1
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -15,7 +15,7 @@
 #include <math.h>
 
 #include "colonel.hh"
-#include "pipeline.hh"
+#include "cortex.hh"
 #include "random.hh"
 #include "youtil.hh"
 
@@ -58,60 +58,13 @@ static void _check_intro(uint8_t *base, size_t basen) {
   assert(!memcmp(blank, base + 20, 4076));
 }
 
+
 static void _place_intro(uint8_t *base, size_t basen) {
   assert(basen >= 4096);
   memcpy(base, "MakeMore", 8);
   uint32_t v = htonl(1);
   memcpy(base + 8, &v, 4);
   memset(base + 12, 0, 4084);
-}
-
-static void pipe_new(const char *fn) {
-  int fd = ::open(fn, O_RDWR | O_CREAT | O_EXCL, 0700);
-  assert(fd >= 0);
-
-  int ret = ::ftruncate(fd, 4096);
-  assert(ret == 0);
-
-  void *vbase = ::mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  assert(vbase != NULL && vbase != MAP_FAILED);
-  uint8_t *base = (uint8_t *)vbase;
-
-  _place_intro(base, 4096);
-  _check_intro(base, 4096);
-
-  ret = ::munmap(base, 4096);
-  assert(ret == 0);
-
-  ret = ::close(fd);
-  assert(ret == 0);
-}
-
-static void pipe_open(const char *fn, int *fdp, uint8_t **basep, size_t *basenp) {
-  int fd = ::open(fn, O_RDWR, 0700);
-  assert(fd >= 0);
-
-  struct stat stbuf;
-  int ret = ::fstat(fd, &stbuf);
-  assert(ret == 0);
-  size_t basen = stbuf.st_size;
-  assert(basen >= 4096);
-
-  void *vbase = ::mmap(
-    NULL, (basen + 4095) & ~4095,
-    PROT_READ | PROT_WRITE, MAP_SHARED,
-    fd, 0
-  );
-  assert(vbase != NULL && vbase != MAP_FAILED);
-  uint8_t *base = (uint8_t *)vbase;
-
-  _check_intro(base, basen);
-  base += 4096;
-  basen -= 4096;
-
-  *fdp = fd;
-  *basep = (uint8_t *)base;
-  *basenp = basen;
 }
 
 static void pipe_grow(int fd, uint8_t **basep, size_t basen, size_t new_basen) {
@@ -131,27 +84,6 @@ static void pipe_grow(int fd, uint8_t **basep, size_t basen, size_t new_basen) {
   base += 4096;
 
   *basep = (uint8_t *)base;
-}
-
-static void pipe_close(int fd, uint8_t *base, size_t basen, uint8_t *kbase, uint8_t *kbuf) {
-  int ret = ::munmap(base - 4096, (basen + 4096 + 4095) & ~4095);
-  assert(ret == 0);
-
-  if (kbase)
-    kfree(kbase);
-  if (kbuf)
-    kfree(kbuf);
-
-  ::close(fd);
-}
-
-static void pipe_load(const uint8_t *base, size_t basen, uint8_t *kbase) {
-  enk(base, basen, kbase);
-}
-
-static void pipe_save(uint8_t *base, size_t basen, const uint8_t *kbase) {
-  dek(kbase, basen, base);
-  ::msync(base - 4096, (basen + 4096 + 4095) & ~4095, MS_ASYNC);
 }
 
 static void _make_header(
@@ -405,66 +337,6 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 
   assert(basei == basen);
   return kbufn;
-}
-
-static void pipe_dump(const uint8_t *base, size_t basen, FILE *fp) {
-  int i = 0;
-  unsigned int basei = 0;
-
-  while (basei < basen) {
-    layer_header_t hdr;
-    assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
-    basei += sizeof(hdr);
-
-    uint32_t type;
-    int len, ic, oc;
-    _parse_header(hdr, &type, &len, &ic, &oc);
-
-    uint32_t ntype = htonl(type);
-    char stype[5];
-    memcpy(stype, &ntype, 4);
-    stype[4] = 0;
-
-    fprintf(fp, "t=%s len=%d ic=%d oc=%d\n", stype, len, ic, oc);
-
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
-  }
-  assert(basei == basen);
-}
-
-static void pipe_rand(uint8_t *base, size_t basen, double dev) {
-  unsigned int basei = 0;
-
-  while (basei < basen) {
-    layer_header_t hdr;
-    assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
-    basei += sizeof(hdr);
-
-    uint32_t type;
-    int len, ic, oc;
-    _parse_header(hdr, &type, &len, &ic, &oc);
-
-    if (len == 0)
-      continue;
-    assert(len > 0);
-
-    uint8_t *bwmv = base + basei;
-    double *wmv = (double *)bwmv;
-    assert(len % 3 == 0);
-
-    for (int i = 0; i < len; i += 3) {
-      wmv[i + 0] = randgauss() * dev;
-      wmv[i + 1] = 0.0;
-      wmv[i + 2] = 1.0;
-    }
-
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
-  }
-  assert(basei == basen);
 }
 
 
@@ -950,21 +822,21 @@ void pipe_learn(
 
 
 
-Pipeline::Pipeline() {
+Cortex::Cortex() {
   _clear();
 }
 
-Pipeline::Pipeline(const std::string &_fn) {
+Cortex::Cortex(const std::string &_fn) {
   _clear();
   open(_fn);
 }
 
-Pipeline::~Pipeline() {
+Cortex::~Cortex() {
   if (is_open)
     close();
 }
 
-void Pipeline::_clear() {
+void Cortex::_clear() {
   is_open = false;
   is_prep = false;
   fn = "";
@@ -979,6 +851,8 @@ void Pipeline::_clear() {
 
   kbuf = NULL;
   kfakebuf = NULL;
+  kinp = NULL;
+  kout = NULL;
 
   nu = 1e-4;
   b1 = 0.1;
@@ -991,11 +865,31 @@ void Pipeline::_clear() {
   rounds = 0;
 }
 
-void Pipeline::open(const std::string &_fn) {
+void Cortex::open(const std::string &_fn) {
   assert(!is_open);
   fn = _fn;
-  pipe_open(fn.c_str(), &fd, &base, &basen);
-  assert(fd != -1);
+
+  fd = ::open(fn.c_str(), O_RDWR, 0700);
+  assert(fd >= 0);
+
+  struct stat stbuf;
+  int ret = ::fstat(fd, &stbuf);
+  assert(ret == 0);
+
+  basen = stbuf.st_size;
+  assert(basen >= 4096);
+
+  void *vbase = ::mmap(
+    NULL, (basen + 4095) & ~4095,
+    PROT_READ | PROT_WRITE, MAP_SHARED,
+    fd, 0
+  );
+  assert(vbase != NULL && vbase != MAP_FAILED);
+  base = (uint8_t *)vbase;
+
+  _check_intro(base, basen);
+  base += 4096;
+  basen -= 4096;
 
   (void) pipe_prep(
     base, basen,
@@ -1005,45 +899,92 @@ void Pipeline::open(const std::string &_fn) {
   is_open = true;
 }
 
-void Pipeline::close() {
+void Cortex::close() {
   assert(is_open);
 
   if (is_prep)
     unprepare();
   assert(!is_prep);
 
-  assert(fd != -1);
-  pipe_close(fd, base, basen, kbase, kbuf);
-
-  fd = -1;
+  int ret = ::munmap(base - 4096, (basen + 4096 + 4095) & ~4095);
+  assert(ret == 0);
   base = NULL;
+
+  if (kbase)
+    kfree(kbase);
   kbase = NULL;
+
+  if (kbuf)
+    kfree(kbuf);
   kbuf = NULL;
+
+  assert(fd != -1);
+  ::close(fd);
+  fd = -1;
+
+  kinp = NULL;
+  kout = NULL;
   fn = "";
 
   is_open = false;
 }
 
-void Pipeline::create(const std::string &_fn) {
-  assert(!is_open);
-  pipe_new(_fn.c_str());
-  open(_fn);
+// static
+void Cortex::create(const std::string &fn) {
+  int fd = ::open(fn.c_str(), O_RDWR | O_CREAT | O_EXCL, 0700);
+  assert(fd != -1);
+
+  int ret = ::write(fd, "MakeMore", 8);
+  assert(ret == 8);
+
+  uint32_t v = htonl(1);
+  ret = ::write(fd, &v, 4);
+  assert(ret == 4);
+
+  char rest[4084];
+  memset(rest, 0, sizeof(rest));
+  ret = ::write(fd, rest, sizeof(rest));
+  assert(ret == sizeof(rest));
+
+  ret = ::close(fd);
+  assert(ret == 0);
 }
 
-void Pipeline::dump(FILE *outfp) {
-  pipe_dump(base, basen, outfp);
+void Cortex::dump(FILE *outfp) {
+  int i = 0;
+  unsigned int basei = 0;
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, ic, oc;
+    _parse_header(hdr, &type, &len, &ic, &oc);
+
+    uint32_t ntype = htonl(type);
+    char stype[5];
+    memcpy(stype, &ntype, 4);
+    stype[4] = 0;
+
+    fprintf(outfp, "t=%s len=%d ic=%d oc=%d\n", stype, len, ic, oc);
+
+    assert(basei + len * sizeof(double) <= basen);
+    basei += len * sizeof(double);
+  }
+  assert(basei == basen);
 }
 
-void Pipeline::report(FILE *outfp) {
-  fprintf(stderr, "fn=%s rounds=%lu rms=%lf max=%lf\n", fn.c_str(), rounds, rms, max);
-}
-
-void Pipeline::unprepare() {
+void Cortex::unprepare() {
   assert(is_prep);
 
   assert(kbuf);
   kfree(kbuf);
   kbuf = NULL;
+  kinp = NULL;
+  kout = NULL;
 
   assert(kbase);
   kfree(kbase);
@@ -1061,7 +1002,7 @@ void Pipeline::unprepare() {
   is_prep = false;
 }
 
-bool Pipeline::prepare(int _iw, int _ih) {
+bool Cortex::prepare(int _iw, int _ih) {
   assert(is_open);
 
   if (is_prep) {
@@ -1080,6 +1021,8 @@ bool Pipeline::prepare(int _iw, int _ih) {
     return false;
   assert(kbufn > 0);
   kmake(&kbuf, kbufn);
+  kinp = (double *)kbuf;
+  kout = NULL;
 
   iw = _iw;
   ih = _ih;
@@ -1094,7 +1037,7 @@ bool Pipeline::prepare(int _iw, int _ih) {
 
   assert(!kbase);
   kmake(&kbase, basen);
-  pipe_load(base, basen, kbase);
+  enk(base, basen, kbase);
 
   uint64_t nrounds;
   memcpy(&nrounds, base - 4096 + 12, 8);
@@ -1104,22 +1047,14 @@ bool Pipeline::prepare(int _iw, int _ih) {
   return true;
 }
 
-double *Pipeline::_synth(const double *kin) {
+double *Cortex::_synth() {
   assert(is_open);
   assert(is_prep);
-  if (kin)
-    kcopy(kin, iw * ih * ic, (double *)kbuf);
-  double *kout = pipe_synth(base, basen, kbase, iw, ih, kbuf);
+  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf);
   return kout;
 }
 
-double *Pipeline::synth(const double *kin) {
-  assert(is_open);
-  assert(is_prep);
-  return _synth(kin);
-}
-
-void Pipeline::_stats(const double *kout) {
+void Cortex::_stats() {
   double nrms = sqrt(ksumsq(kout, owhc) / (double)owhc);
 
   double z = pow(1.0 - decay, (double)rounds);
@@ -1137,21 +1072,21 @@ void Pipeline::_stats(const double *kout) {
   ++rounds;
 }
 
-double *Pipeline::_learn(double mul) {
+double *Cortex::_learn(double mul) {
   assert(is_open);
   assert(is_prep);
   pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
-  double *kfin = (double *)kbuf;
-  return kfin;
+  return kinp;
 }
 
-void Pipeline::learnauto(const double *kintgt, double mul) {
+#if 0
+void Cortex::learnauto(const double *kintgt, double mul) {
   assert(is_open);
   assert(is_prep);
   learnfunc(kintgt, kintgt, mul);
 }
 
-void Pipeline::learnfunc(const double *kin, const double *ktgt, double mul) {
+void Cortex::learnfunc(const double *kin, const double *ktgt, double mul) {
   assert(is_open);
   assert(is_prep);
 
@@ -1162,7 +1097,7 @@ void Pipeline::learnfunc(const double *kin, const double *ktgt, double mul) {
 }
 
 
-void Pipeline::_target_fake(double *kfakeout) {
+void Cortex::_target_fake(double *kfakeout) {
   double *kfaketgt;
   kmake(&kfaketgt, owhc);
   kunit(kfaketgt, owhc);
@@ -1172,7 +1107,7 @@ void Pipeline::_target_fake(double *kfakeout) {
   _stats(kfakeout);
 }
 
-void Pipeline::_target_real(double *krealout) {
+void Cortex::_target_real(double *krealout) {
   double *krealtgt;
   kmake(&krealtgt, owhc);
   kzero(krealtgt, owhc);
@@ -1182,19 +1117,19 @@ void Pipeline::_target_real(double *krealout) {
   _stats(krealout);
 }
 
-void Pipeline::learnreal(const double *kfake, const double *kreal, double mul) {
+void Cortex::learnreal(const double *kfake, const double *kreal, double mul) {
   _target_fake(_synth(kfake));
   _learn(mul);
   _target_real(_synth(kreal));
   _learn(mul);
 }
 
-double *Pipeline::helpfake(const double *kfake) {
+double *Cortex::helpfake(const double *kfake) {
   _target_real(_synth(kfake));
   return _learn(0);
 }
 
-void Pipeline::learnstyl(const double *kin, const double *kreal, Pipeline *dis, double mul, double dismul) {
+void Cortex::learnstyl(const double *kin, const double *kreal, Cortex *dis, double mul, double dismul) {
   if (!kfakebuf)
     kmake(&kfakebuf, owhc);
 
@@ -1206,7 +1141,7 @@ void Pipeline::learnstyl(const double *kin, const double *kreal, Pipeline *dis, 
   learnreal(kfakebuf, kreal, dismul);
 }
 
-void Pipeline::learnhans(const double *kin, const double *ktgt, Pipeline *dis, double nz, double mul, double dismul) {
+void Cortex::learnhans(const double *kin, const double *ktgt, Cortex *dis, double nz, double mul, double dismul) {
 #if 0
   if (!kfakebuf)
     kmake(&kfakebuf, owhc);
@@ -1219,24 +1154,61 @@ void Pipeline::learnhans(const double *kin, const double *ktgt, Pipeline *dis, d
   learnreal(kfakebuf +++ kin, ktgt +++ kin, dismul);
 #endif
 }
+#endif
 
-void Pipeline::save() {
+void Cortex::report() {
+  fprintf(stderr, "fn=%s rounds=%lu rms=%lf max=%lf\n", fn.c_str(), rounds, rms, max);
+}
+
+void Cortex::save() {
   assert(is_open);
   assert(is_prep);
 
   uint64_t nrounds = htonl(rounds);
   memcpy(base - 4096 + 12, &nrounds, 8);
 
-  pipe_save(base, basen, kbase);
+  dek(kbase, basen, base);
+  ::msync(base - 4096, (basen + 4096 + 4095) & ~4095, MS_ASYNC);
 }
 
-void Pipeline::scram(double dev) {
+void Cortex::scram(double dev) {
   assert(is_open);
   assert(!is_prep);
-  pipe_rand(base, basen, dev);
+
+  unsigned int basei = 0;
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, ic, oc;
+    _parse_header(hdr, &type, &len, &ic, &oc);
+
+    if (len == 0)
+      continue;
+    assert(len > 0);
+
+    uint8_t *bwmv = base + basei;
+    double *wmv = (double *)bwmv;
+    assert(len % 3 == 0);
+
+    for (int i = 0; i < len; i += 3) {
+      wmv[i + 0] = randgauss() * dev;
+      wmv[i + 1] = 0.0;
+      wmv[i + 2] = 1.0;
+    }
+
+    assert(basei + len * sizeof(double) <= basen);
+    basei += len * sizeof(double);
+  }
+
+  assert(basei == basen);
 }
 
-void Pipeline::push(const std::string &stype, int ic, int oc) {
+void Cortex::push(const std::string &stype, int ic, int oc) {
   assert(stype.length() == 4);
   uint32_t type;
   memcpy(&type, stype.data(), 4);

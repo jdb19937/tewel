@@ -1,5 +1,5 @@
-#ifndef __MAKEMORE_PIPELINE_HH__
-#define __MAKEMORE_PIPELINE_HH__ 1
+#ifndef __MAKEMORE_CORTEX_HH__
+#define __MAKEMORE_CORTEX_HH__ 1
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -11,7 +11,7 @@ namespace makemore {
 
 typedef uint32_t layer_header_t[16];
 
-struct Pipeline {
+struct Cortex {
   bool is_open, is_prep;
   std::string fn;
 
@@ -28,25 +28,27 @@ struct Pipeline {
 
   double *kfakebuf;
 
+  double *kinp, *kout;
+
   double rms;
   double max;
   double decay;
   uint64_t rounds;
 
-  Pipeline();
-  Pipeline(const std::string &_fn);
-  ~Pipeline();
+  Cortex();
+  Cortex(const std::string &_fn);
+  ~Cortex();
 
   void _clear();
 
-  void create(const std::string &_fn);
+  static void create(const std::string &);
   void open(const std::string &_fn);
   void close();
 
   void dump(FILE * = stdout);
   void unprepare();
   bool prepare(int _iw, int _ih);
-  void report(FILE * = stdout);
+  void report();
   void save();
 
   void push(const std::string &type, int ic, int oc);
@@ -54,20 +56,22 @@ struct Pipeline {
 
   double *synth(const double *kin);
 
-  double *_synth(const double *kin = NULL);
-  void _stats(const double *kout);
+  double *_synth();
+  void _stats();
   double *_learn(double mul = 1.0);
 
+#if 0
   void learnauto(const double *kintgt, double mul = 1.0);
   void learnfunc(const double *kin, const double *ktgt, double mul = 1.0);
   void learnreal(const double *kfake, const double *kreal, double mul = 1.0);
-  void learnstyl(const double *kin, const double *kreal, Pipeline *dis, double mul = 1.0, double dismul = 1.0);
-  void learnhans(const double *kin, const double *ktgt, Pipeline *dis, double nz, double mul = 1.0, double dismul = 1.0);
+  void learnstyl(const double *kin, const double *kreal, Cortex *dis, double mul = 1.0, double dismul = 1.0);
+  void learnhans(const double *kin, const double *ktgt, Cortex *dis, double nz, double mul = 1.0, double dismul = 1.0);
 
   double *helpfake(const double *kfake);
 
   void _target_real(double *kout);
   void _target_fake(double *kout);
+#endif
 };
 
 }

@@ -32,10 +32,10 @@ void kzerov(void *x, unsigned int n) {
   cudaMemset((void *)x, 0, n);
 }
 
-void kunit(double *x, unsigned int n) {
+void kfill(double *x, unsigned int n, double v) {
   double *y = new double[n];
   for (unsigned int i = 0; i < n; ++i)
-    y[i] = 1.0;
+    y[i] = v;
   enk(y, n, x);
   delete[] y;
 }

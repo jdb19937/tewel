@@ -106,7 +106,7 @@ bool load_ppm(FILE *fp, uint8_t **rgbp, unsigned int *wp, unsigned int *hp) {
   return true;
 }
 
-void load_img(const std::string& fn, uint8_t **rgbp, unsigned int *wp, unsigned int *hp) {
+void load_pic(const std::string& fn, uint8_t **rgbp, unsigned int *wp, unsigned int *hp) {
   assert(fn[0] != '-');
 
   if (endswith(fn, ".ppm")) {
