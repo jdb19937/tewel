@@ -24,6 +24,7 @@ struct Kleption {
   enum Flags {
     FLAG_LOWMEM		= (1 << 0),
     FLAG_ADDGEO		= (1 << 1),
+    FLAG_NOLOOP		= (1 << 2),
 
     FLAGS_NONE		= 0
   };
@@ -59,7 +60,7 @@ struct Kleption {
   void load();
   void unload();
 
-  std::string pick(double *kdat);
+  bool pick(double *kdat, std::string *idp = NULL);
   void find(const std::string &id, double *kdat);
 
   static std::string pick_pair(

@@ -81,9 +81,10 @@ void Kleption::unload() {
     w = h = c = 0; b = 0;
     break;
   case TYPE_VID:
-    assert(vidreader);
-    delete vidreader;
-    vidreader = NULL;
+    if (vidreader) {
+      delete vidreader;
+      vidreader = NULL;
+    }
     assert(dat);
     delete[] dat;
     dat = NULL;
@@ -251,12 +252,15 @@ static void _addgeo(double *edat, double x, double y, double w, double h) {
   *edat++ = 1.0 - fabs(2.0 * y / h - 1.0);
 }
 
-std::string Kleption::pick(double *kdat) {
+bool Kleption::pick(double *kdat, std::string *idp) {
   load();
 
   switch (type) {
   case TYPE_VID:
     {
+      if (!vidreader)
+        return false;
+
       unsigned int x0 = randuint() % (w - pw + 1);
       unsigned int y0 = randuint() % (h - ph + 1);
       unsigned int x1 = x0 + pw - 1;
@@ -279,14 +283,22 @@ std::string Kleption::pick(double *kdat) {
 
       assert(vidreader);
       if (!vidreader->read(dat, w, h)) {
-        unload();
-        load();
+        if (flags & FLAG_NOLOOP) {
+          delete(vidreader);
+          vidreader = NULL;
+        } else {
+          unload();
+          load();
+        }
       }
 
-      char buf[256];
-      sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+      if (idp) {
+        char buf[256];
+        sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+        *idp = buf;
+      }
       ++frames;
-      return std::string(buf);
+      return true;
     }
   case TYPE_CAM:
     {
@@ -320,10 +332,13 @@ std::string Kleption::pick(double *kdat) {
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
-      char buf[256];
-      sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+      if (idp) {
+        char buf[256];
+        sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+        *idp = buf;
+      }
       ++frames;
-      return std::string(buf);
+      return true;
     }
  
   case TYPE_DIR:
@@ -333,7 +348,15 @@ std::string Kleption::pick(double *kdat) {
       std::string id = ids[idi];
       Kleption *subkl = id_sub[id];
       assert(subkl != NULL);
-      return (id + "/" + subkl->pick(kdat));
+      if (idp) {
+        bool ret = subkl->pick(kdat, idp);
+        assert(ret);
+        *idp = id + "/" + *idp;
+      } else {
+        bool ret = subkl->pick(kdat);
+        assert(ret);
+      }
+      return true;
     }
   case TYPE_PIC:
     {
@@ -369,9 +392,12 @@ std::string Kleption::pick(double *kdat) {
       if ((flags & FLAG_LOWMEM) && type == TYPE_PIC)
         unload();
 
-      char buf[256];
-      sprintf(buf, "%ux%ux%u+%u+%u", pw, ph, pc, x0, y0);
-      return std::string(buf);
+      if (idp) {
+        char buf[256];
+        sprintf(buf, "%ux%ux%u+%u+%u", pw, ph, pc, x0, y0);
+        *idp = buf;
+      }
+      return true;
     }
   case TYPE_DAT:
     {
@@ -400,13 +426,18 @@ std::string Kleption::pick(double *kdat) {
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
-      char buf[256];
-      sprintf(buf, "%u", v);
-      return std::string(buf);
+      if (idp) {
+        char buf[256];
+        sprintf(buf, "%u", v);
+        *idp = buf;
+      }
+      return true;
     }
   default:
     assert(0);
   }
+
+  assert(0);
 }
 
 void Kleption::find(const std::string &id, double *kdat) {
@@ -524,7 +555,9 @@ std::string Kleption::pick_pair(
   Kleption *kl0, double *kdat0,
   Kleption *kl1, double *kdat1
 ) {
-  std::string id = kl0->pick(kdat0);
+  std::string id;
+  bool ret = kl0->pick(kdat0, &id);
+  assert(ret);
   kl1->find(id, kdat1);
   return id;
 }

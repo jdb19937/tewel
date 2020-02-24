@@ -74,14 +74,14 @@ void learnauto(
 
   while (1) {
     if (enc) {
-      src->pick(enc->kinp);
+      assert(src->pick(enc->kinp));
       enc->synth();
       gen->synth(enc->kout);
       gen->target(enc->kinp);
       gen->learn(mul);
       enc->learn(gen->kinp, mul);
     } else {
-      src->pick(gen->kinp);
+      assert(src->pick(gen->kinp));
       gen->synth();
       gen->target(gen->kinp);
       gen->learn(mul);
@@ -187,11 +187,11 @@ void learnstyl(
     }
  
     if (enc) {
-      src->pick(enc->kinp);
+      assert(src->pick(enc->kinp));
       enc->synth();
       gen->synth(enc->kout);
     } else {
-      src->pick(gen->kinp);
+      assert(src->pick(gen->kinp));
       gen->synth();
     }
 
@@ -209,7 +209,7 @@ void learnstyl(
     dis->target(kfake);
     dis->learn(dismul);
 
-    tgt->pick(dis->kinp);
+    assert(tgt->pick(dis->kinp));
     dis->synth();
     dis->target(kreal);
     dis->learn(dismul);
@@ -465,7 +465,14 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "synth") {
-    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), 0, 0, 0);
+    int loop = arg.get("loop", "0");
+    loop = loop ? 1 : 0;
+
+    Kleption::Flags flags = Kleption::FLAGS_NONE;
+    if (!loop)
+      flags = (Kleption::Flags)(flags | Kleption::FLAG_NOLOOP);
+
+    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), 0, 0, 0, flags);
 
     std::string format = arg.get("format", "ppm");
     if (format != "ppm" && format != "dat" && format != "sdl")
@@ -507,11 +514,11 @@ int main(int argc, char **argv) {
       error("generator must have 3 output channels");
 
     if (enc) {
-      src->pick(enc->kinp);
+      assert( src->pick(enc->kinp) );
       enc->synth();
       kcopy(enc->kout, enc->owhc, gen->kinp);
     } else {
-      src->pick(gen->kinp);
+      assert( src->pick(gen->kinp) );
     }
 
     if (format == "ppm") {
@@ -555,11 +562,13 @@ int main(int argc, char **argv) {
         gen->load();
 
         if (enc) {
-          src->pick(enc->kinp);
+          if (!src->pick(enc->kinp))
+            break;
           enc->synth();
           kcopy(enc->kout, enc->owhc, gen->kinp);
         } else {
-          src->pick(gen->kinp);
+          if (!src->pick(gen->kinp))
+            break;
         }
       }
 
