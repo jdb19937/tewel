@@ -1,2 +1,7 @@
 *.o
+.*.sw*
 tewel
+tewel-cuda-nosdl
+tewel-cuda-sdl
+tewel-nocuda-nosdl
+tewel-nocuda-sdl

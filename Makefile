@@ -7,7 +7,6 @@ LDFLAGS = -lm
 
 VERSION = 0.1
 
-
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o video.o
 HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh video.hh
@@ -17,13 +16,17 @@ SRC = \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE colonel.inc picreader-sample.pl picwriter-sample.pl \
 
+PACKAGE = tewel_$(VERSION)-1_amd64.deb
+TARBALL = tewel-$(VERSION).tar.gz
+
 .PHONY: all
 all: $(TGT)
 
 .PHONY: clean
 clean:
 	rm -f $(OBJ) $(TGT) colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
-	rm -rf package tewel_*.deb
+	rm -rf package tarball
+	rm -f $(PACKAGE) $(TARBALL)
 
 .PHONY: install
 install: tewel
@@ -44,17 +47,30 @@ uninstall:
 	rm -f $(DESTDIR)/opt/makemore/share/tewel/picwriter-sample.pl
 
 .PHONY: package
-package: tewel_0.1-1_amd64.deb
+package: $(PACKAGE)
 
-tewel_0.1-1_amd64.deb: clean
+$(PACKAGE): $(TARBALL)
+	rm -rf package
 	mkdir package
-	mkdir package/tewel-$(VERSION)
-	cp -f $(SRC) package/tewel-$(VERSION)/
-	cp -rpf debian package/tewel-$(VERSION)/
-	cd package; tar -czvf tewel_$(VERSION).orig.tar.gz tewel-$(VERSION)
-	# cd package; cp -rpf ../debian tewel-$(VERSION)/debian
+	cp tewel-$(VERSION).tar.gz package/
+	cd package; tar -xzvf tewel-$(VERSION).tar.gz
+	cd package; mv tewel-$(VERSION).tar.gz tewel_$(VERSION).orig.tar.gz
 	cd package/tewel-$(VERSION); debuild -us -uc
-	cp -f package/$@ $@
+
+
+.PHONY: tarball
+tarball: $(TARBALL)
+
+$(TARBALL):
+	rm -rf tarball
+	mkdir tarball
+	mkdir tarball/tewel-$(VERSION)
+	cp -f $(SRC) tarball/tewel-$(VERSION)/
+	cp -rpf debian tarball/tewel-$(VERSION)/
+	cd tarball; tar -czvf tewel-$(VERSION).tar.gz tewel-$(VERSION)
+	cp -f tarball/tewel-$(VERSION).tar.gz $@
+	
+
 
 %.o: %.cc
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
