@@ -13,7 +13,6 @@ struct Camera {
     void *start;
     size_t length;
   } *buffers;
-  uint8_t *tmp;
 
   unsigned int n_buffers;
 

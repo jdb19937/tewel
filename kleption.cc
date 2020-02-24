@@ -6,61 +6,55 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <dirent.h>
 
 #include "kleption.hh"
 #include "random.hh"
 #include "youtil.hh"
 #include "colonel.hh"
+#include "camera.hh"
+#include "video.hh"
 
 #include <algorithm>
 
 namespace makemore {
 
 Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags) {
-  w = 0;
-  h = 0;
-  c = 0;
-  b = 1;
-  dat = NULL;
-
   fn = _fn;
   flags = _flags;
   pw = _pw;
-  assert(pw > 0);
   ph = _ph;
-  assert(ph > 0);
   pc = _pc;
-  assert(pc > 0);
+
+  loaded = false;
+
+  w = 0;
+  h = 0;
+  c = 0;
+  b = 0;
+  dat = NULL;
+
+  cam = NULL;
+  frames = 0;
 
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
   assert(ret == 0);
  
   if (S_ISDIR(buf.st_mode)) {
-    DIR *dp = ::opendir(fn.c_str());
-    assert(dp);
-
     type = TYPE_DIR;
-
-    struct dirent *de;
-    while ((de = ::readdir(dp))) {
-      if (*de->d_name == '.')
-        continue;
-      std::string subfn = de->d_name;
-
-      Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc);
-      id_sub.insert(std::make_pair(subfn, subkl));
-      ids.push_back(subfn);
-    }
-  
-    ::closedir(dp);
-
-    assert(ids.size());
-    std::sort(ids.begin(), ids.end());
+  } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
+    type = TYPE_CAM;
   } else {
     if (endswith(fn, ".dat")) {
       type = TYPE_DAT;
+    } else if (
+      endswith(fn, ".mp4") ||
+      endswith(fn, ".avi") ||
+      endswith(fn, ".mkv")
+    ) {
+      type = TYPE_VID;
     } else {
       type = TYPE_PIC;
     }
@@ -68,45 +62,161 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
 }
 
 Kleption::~Kleption() {
-  if (dat)
-    delete[] dat;
-
-  for (auto psi = id_sub.begin(); psi != id_sub.end(); ++psi) {
-    Kleption *subkl = psi->second;
-    delete subkl;
-  }
+  if (loaded)
+    unload();
 }
 
-void Kleption::_unload() {
+void Kleption::unload() {
+  if (!loaded)
+    return;
+
   switch (type) {
-  case TYPE_PIC:
-  case TYPE_DAT:
-    if (!dat)
-      return;
+  case TYPE_CAM:
+    assert(cam);
+    delete cam;
+    cam = NULL;
+    assert(dat);
     delete[] dat;
     dat = NULL;
-    w = h = c = 0; b = 1;
+    w = h = c = 0; b = 0;
+    break;
+  case TYPE_VID:
+    assert(vid);
+    delete vid;
+    vid = NULL;
+    assert(dat);
+    delete[] dat;
+    dat = NULL;
+    w = h = c = 0; b = 0;
+    break;
+  case TYPE_DIR:
+    for (auto psi = id_sub.begin(); psi != id_sub.end(); ++psi) {
+      Kleption *subkl = psi->second;
+      delete subkl;
+    }
+    ids.clear();
+    id_sub.clear();
+    break;
+  case TYPE_PIC:
+  case TYPE_DAT:
+    assert(dat);
+    delete[] dat;
+    dat = NULL;
+    w = h = c = 0; b = 0;
     break;
   }
+
+  loaded = false;
 }
 
-void Kleption::_load() {
+void Kleption::load() {
+  if (loaded)
+    return;
+
   switch (type) {
-  case TYPE_PIC:
-    if (dat)
-      return;
-    load_pic(fn, &dat, &w, &h);
+  case TYPE_VID:
+    {
+      assert(!vid);
+      vid = new Video;
+      vid->open_read(fn);
+
+      assert(!dat);
+      unsigned int vw, vh;
+      assert(vid->read(&dat, &w, &h));
+
+      if (pw == 0)
+        pw = w;
+      if (ph == 0)
+        ph = h;
+      if (pc == 0)
+        pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
+      assert(pw == w);
+      assert(ph == h);
+      assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+
+      c = 3;
+      b = 1;
+    }
+    break;
+  case TYPE_CAM:
+    assert(!cam);
+    cam = new Camera(fn, pw, ph);
+    cam->open();
+    w = cam->w;
+    h = cam->h;
+    if (pw == 0)
+      pw = w;
+    if (ph == 0)
+      ph = h;
+    if (pc == 0)
+      pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+    assert(pw == w);
+    assert(ph == h);
+    assert(pw > 0);
+    assert(ph > 0);
+    assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+
+    assert(!dat);
+    dat = new uint8_t[w * h * 3];
+
     c = 3;
     b = 1;
     break;
+  case TYPE_DIR:
+    {
+      assert(ids.empty());
+      assert(id_sub.empty());
+
+      DIR *dp = ::opendir(fn.c_str());
+      assert(dp);
+
+      struct dirent *de;
+      while ((de = ::readdir(dp))) {
+        if (*de->d_name == '.')
+          continue;
+        std::string subfn = de->d_name;
+
+        Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc);
+        id_sub.insert(std::make_pair(subfn, subkl));
+        ids.push_back(subfn);
+      }
+  
+      ::closedir(dp);
+
+      assert(ids.size());
+      std::sort(ids.begin(), ids.end());
+    }
+    break;
+  case TYPE_PIC:
+    assert(!dat);
+    load_pic(fn, &dat, &w, &h);
+    c = 3;
+    b = 1;
+
+    if (pw == 0)
+      pw = w;
+    if (ph == 0)
+      ph = h;
+    if (pc == 0)
+      pc = c + ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+    assert(pw <= w);
+    assert(ph <= h);
+    assert(pc == c + ((flags & FLAG_ADDGEO) ? 4 : 0));
+
+    break;
   case TYPE_DAT:
     {
-      if (dat)
-        return;
+      assert(!dat);
+      assert(pw > 0);
+      assert(ph > 0);
+      assert(pc > 0);
 
       w = pw;
       h = ph;
-      c = pc;
+      c = pc - ((flags & FLAG_ADDGEO) ? 4 : 0);
+      assert(c > 0);
 
       size_t datn;
       dat = slurp(fn, &datn);
@@ -118,8 +228,10 @@ void Kleption::_load() {
       break;
     }
   default:
-    break;
+    assert(0);
   }
+
+  loaded = true;
 }
 
 static void _addgeo(double *edat, double x, double y, double w, double h) {
@@ -130,7 +242,76 @@ static void _addgeo(double *edat, double x, double y, double w, double h) {
 }
 
 std::string Kleption::pick(double *kdat) {
+  load();
+
   switch (type) {
+  case TYPE_VID:
+    {
+      unsigned int x0 = randuint() % (w - pw + 1);
+      unsigned int y0 = randuint() % (h - ph + 1);
+      unsigned int x1 = x0 + pw - 1;
+      unsigned int y1 = y0 + ph - 1;
+
+      unsigned int pwhc = pw * ph * pc;
+      double *ddat = new double[pwhc];
+      double *edat = ddat;
+
+      for (unsigned int y = y0; y <= y1; ++y)
+        for (unsigned int x = x0; x <= x1; ++x) {
+          for (unsigned int z = 0; z < c; ++z)
+            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          if (flags & FLAG_ADDGEO)
+            _addgeo(edat, x, y, w, h);
+        }
+
+      enk(ddat, pwhc, kdat);
+      delete[] ddat;
+
+      assert(vid);
+      vid->read(dat, w, h);
+
+      char buf[256];
+      sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+      ++frames;
+      return std::string(buf);
+    }
+  case TYPE_CAM:
+    {
+      assert(cam);
+      assert(cam->w == pw);
+      assert(cam->h == ph);
+      if (flags & FLAG_ADDGEO)
+        assert(pc == 3 + 4);
+      else
+        assert(pc == 3);
+      cam->read(dat);
+
+      unsigned int x0 = randuint() % (w - pw + 1);
+      unsigned int y0 = randuint() % (h - ph + 1);
+      unsigned int x1 = x0 + pw - 1;
+      unsigned int y1 = y0 + ph - 1;
+
+      unsigned int pwhc = pw * ph * pc;
+      double *ddat = new double[pwhc];
+      double *edat = ddat;
+
+      for (unsigned int y = y0; y <= y1; ++y)
+        for (unsigned int x = x0; x <= x1; ++x) {
+          for (unsigned int z = 0; z < c; ++z)
+            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          if (flags & FLAG_ADDGEO)
+            _addgeo(edat, x, y, w, h);
+        }
+
+      enk(ddat, pwhc, kdat);
+      delete[] ddat;
+
+      char buf[256];
+      sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+      ++frames;
+      return std::string(buf);
+    }
+ 
   case TYPE_DIR:
     {
       unsigned int idn = ids.size();
@@ -142,7 +323,6 @@ std::string Kleption::pick(double *kdat) {
     }
   case TYPE_PIC:
     {
-      _load();
       assert(dat);
       assert(w >= pw);
       assert(h >= ph);
@@ -172,8 +352,8 @@ std::string Kleption::pick(double *kdat) {
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
-      if (flags & FLAG_LOWMEM)
-        _unload();
+      if ((flags & FLAG_LOWMEM) && type == TYPE_PIC)
+        unload();
 
       char buf[256];
       sprintf(buf, "%ux%ux%u+%u+%u", pw, ph, pc, x0, y0);
@@ -181,7 +361,6 @@ std::string Kleption::pick(double *kdat) {
     }
   case TYPE_DAT:
     {
-      _load();
       assert(dat);
       assert(w == pw);
       assert(h == ph);
@@ -227,7 +406,12 @@ void Kleption::find(const std::string &id, double *kdat) {
     qid = "";
   }
 
+  load();
+
   switch (type) {
+  case TYPE_CAM:
+  case TYPE_VID:
+    assert(0);
   case TYPE_DIR:
     {
       assert(qid != "");
@@ -239,8 +423,6 @@ void Kleption::find(const std::string &id, double *kdat) {
   case TYPE_PIC:
     {
       assert(qid == "");
-
-      _load();
       assert(dat);
       assert(w >= pw);
       assert(h >= ph);
@@ -288,7 +470,7 @@ void Kleption::find(const std::string &id, double *kdat) {
     {
       assert(qid == "");
 
-      _load();
+      load();
       assert(dat);
       assert(w == pw);
       assert(h == ph);

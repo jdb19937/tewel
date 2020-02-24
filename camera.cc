@@ -23,8 +23,12 @@ namespace makemore {
 
 Camera::Camera(const std::string &_devfn, int _w, int _h) {
   w = _w;
+  if (w == 0)
+    w = 640;
   h = _h;
-  tmp = new uint8_t[w * h * 3];
+  if (h == 0)
+    h = 480;
+
   devfn = _devfn;
   fd = -1;
   buffers = NULL;
@@ -33,7 +37,6 @@ Camera::Camera(const std::string &_devfn, int _w, int _h) {
 
 Camera::~Camera() {
   close();
-  delete[] tmp;
 }
 
 void Camera::open() {

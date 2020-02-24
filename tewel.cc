@@ -455,25 +455,11 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "synth") {
-    std::string pic = arg.get("pic", "/dev/stdin");
+    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), 0, 0, 0);
 
     std::string format = arg.get("format", "ppm");
     if (format != "ppm" && format != "dat" && format != "sdl")
       error("unknown format");
-
-    Camera *cam = NULL;
-    uint8_t *rgb;
-    unsigned int w, h;
-    if (pic == "/dev/video0") {
-      cam = new Camera;
-      cam->open();
-      w = cam->w;
-      h = cam->h;
-      rgb = new uint8_t[w * h * 3];
-      cam->read(rgb);
-    } else {
-      load_pic(pic, &rgb, &w, &h);
-    }
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
@@ -485,9 +471,15 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
+
+    src->load();
+    assert(src->pw > 0);
+    assert(src->ph > 0);
+    assert(src->pc == 3);
+
     int ic;
     if (enc) {
-      enc->prepare(w, h);
+      enc->prepare(src->pw, src->ph);
       if (enc->ic != 3)
         error("encoder must have ic=3");
 
@@ -496,7 +488,7 @@ int main(int argc, char **argv) {
         error("encoder oc doesn't match generator ic");
       ic = enc->ic;
     } else {
-      gen->prepare(w, h);
+      gen->prepare(src->pw, src->ph);
       if (gen->ic != 3)
         error("generator must have ic=3");
       ic = gen->ic;
@@ -504,20 +496,17 @@ int main(int argc, char **argv) {
     if (gen->oc != 3 && (format == "ppm" || format == "sdl"))
       error("generator must have 3 output channels");
 
-    int rgbn = w * h * 3;
-    double *drgb = new double[rgbn];
-    endub(rgb, rgbn, drgb);
-
     if (enc) {
-      enk(drgb, rgbn, enc->kinp);
+      src->pick(enc->kinp);
       enc->synth();
       kcopy(enc->kout, enc->owhc, gen->kinp);
     } else {
-      enk(drgb, rgbn, gen->kinp);
+      src->pick(gen->kinp);
     }
 
     if (format == "ppm") {
       gen->synth();
+
       int orgbn = gen->ow * gen->oh * 3;
       double *dorgb = new double[orgbn];
       dek(gen->kout, orgbn, dorgb);
@@ -537,44 +526,41 @@ int main(int argc, char **argv) {
       double *dorgb = new double[orgbn];
       uint8_t *orgb = new uint8_t[orgbn];
 
-      Display disp;
-      disp.open();
+      Display *disp = new Display;
+      disp->open();
 
-      while (!disp.escpressed()) {
+      while (!disp->escpressed()) {
         gen->synth();
         dek(gen->kout, orgbn, dorgb);
         dedub(dorgb, orgbn, orgb);
 
-        disp.update(orgb, gen->ow, gen->oh);
-        disp.present();
+        disp->update(orgb, gen->ow, gen->oh);
+        disp->present();
 
+        if (enc)
+          enc->load();
         gen->load();
-        if (cam) {
-          cam->read(rgb);
-          endub(rgb, rgbn, drgb);
 
-          if (enc) {
-            enk(drgb, rgbn, enc->kinp);
-            enc->synth();
-            kcopy(enc->kout, enc->owhc, gen->kinp);
-          } else {
-            enk(drgb, rgbn, gen->kinp);
-          }
+        if (enc) {
+          src->pick(enc->kinp);
+          enc->synth();
+          kcopy(enc->kout, enc->owhc, gen->kinp);
+        } else {
+          src->pick(gen->kinp);
         }
       }
 
       delete[] dorgb;
       delete[] orgb;
+      delete disp;
     } else {
       assert(0);
     }
 
-    delete[] rgb;
-    delete[] drgb;
-
     delete gen;
     if (enc)
       delete enc;
+    delete src;
     return 0;
   }
 

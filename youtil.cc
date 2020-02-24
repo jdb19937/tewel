@@ -40,7 +40,7 @@ void dedub(const double *d, unsigned int n, uint8_t *b) {
 }
 
 
-void save_ppm(FILE *fp, uint8_t *rgb, unsigned int w, unsigned int h) {
+void save_ppm(FILE *fp, const uint8_t *rgb, unsigned int w, unsigned int h) {
   assert(w > 0);
   assert(h > 0);
   fprintf(fp, "P6\n%d %d\n255\n", w, h);

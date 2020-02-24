@@ -16,7 +16,9 @@ struct Kleption {
   enum Type {
     TYPE_DIR,
     TYPE_PIC,
-    TYPE_DAT
+    TYPE_DAT,
+    TYPE_CAM,
+    TYPE_VID
   };
 
   enum Flags {
@@ -30,10 +32,20 @@ struct Kleption {
   Type type;
   Flags flags;
   unsigned int pw, ph, pc;
+  bool loaded;
 
+  // pic, dat
   uint8_t *dat;
   unsigned int w, h, c, b;
 
+  // cam
+  class Camera *cam;
+  unsigned int frames;
+
+  // vid
+  class Video *vid;
+
+  // dir
   std::vector<std::string> ids;
   std::map<std::string, Kleption *> id_sub;
 
@@ -44,8 +56,8 @@ struct Kleption {
   );
   ~Kleption();
 
-  void _load();
-  void _unload();
+  void load();
+  void unload();
 
   std::string pick(double *kdat);
   void find(const std::string &id, double *kdat);
