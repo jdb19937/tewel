@@ -21,6 +21,8 @@ clean:
 %.o: %.cc
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
+colonel.o: colonel.inc
+
 $(TGT): $(OBJ)
 	$(CXX) -o $@ $(CXXFLAGS) $^ $(LDFLAGS)
 

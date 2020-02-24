@@ -3,8 +3,9 @@
 
 namespace makemore {
 
-typedef void kvoid;
-typedef double kdouble;
+extern int kdev;
+extern void kdevset(int);
+extern int kndevs();
 
 extern void dekv(const void *da, unsigned int n, void *a);
 template <class T> inline void dek(const T *da, unsigned int n, T *a)
