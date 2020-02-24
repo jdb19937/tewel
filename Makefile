@@ -14,7 +14,7 @@ all: $(TGT)
 
 .PHONY: clean
 clean:
-	rm -f $(OBJ) $(TGT) colonel-cuda.o colonel-nocuda.o
+	rm -f $(OBJ) $(TGT) colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
 
 %.o: %.cc
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
