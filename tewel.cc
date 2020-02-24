@@ -376,10 +376,8 @@ int main(int argc, char **argv) {
 
   kdevset(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
 
-  std::string picreader = arg.get("picreader", "./picreader-sample.pl");
-  std::string picwriter = arg.get("picwriter", "./picwriter-sample.pl");
-  std::string vidreader = arg.get("vidreader", "./vidreader-sample.pl");
-  std::string vidwriter = arg.get("vidwriter", "./vidwriter-sample.pl");
+  Picreader::cmd = arg.get("picreader", "/opt/makemore/share/tewel/picreader-sample.pl");
+  Picwriter::cmd = arg.get("picwriter", "/opt/makemore/share/tewel/picwriter-sample.pl");
 
   if (cmd == "help" || cmd == "h") {
     usage();
