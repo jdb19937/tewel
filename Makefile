@@ -56,6 +56,7 @@ $(PACKAGE): $(TARBALL)
 	cd package; tar -xzvf tewel-$(VERSION).tar.gz
 	cd package; mv tewel-$(VERSION).tar.gz tewel_$(VERSION).orig.tar.gz
 	cd package/tewel-$(VERSION); debuild -us -uc
+	cp -f package/$(PACKAGE) $@
 
 
 .PHONY: tarball
