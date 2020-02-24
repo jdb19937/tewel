@@ -65,4 +65,81 @@ uint8_t *slurp(const std::string &fn, size_t *np) {
   return x;
 }
 
+bool parsedim(const std::string &dim, int *wp, int *hp, int *cp) {
+  const char *cdim = dim.c_str();
+
+  if (*cdim == 'x') {
+    ++cdim;
+    int c = 0;
+    while (isdigit(*cdim)) {
+      c *= 10;
+      c += (*cdim - '0');
+      ++cdim;
+    }
+    if (*cdim)
+      return false;
+    if (cp)
+      *cp = c;
+    return true;
+  }
+
+  if (!isdigit(*cdim))
+    return false;
+
+  int w = 0;
+  while (isdigit(*cdim)) {
+    w *= 10;
+    w += (*cdim - '0');
+    ++cdim;
+  }
+  if (!*cdim) {
+    if (wp)
+      *wp = w;
+    if (hp)
+      *hp = w;
+    return true;
+  }
+
+  if (*cdim != 'x')
+    return false;
+  ++cdim;
+
+  int h = 0;
+  while (isdigit(*cdim)) {
+    h *= 10;
+    h += (*cdim - '0');
+    ++cdim;
+  }
+
+  if (!*cdim) {
+    if (wp)
+      *wp = w;
+    if (hp)
+      *hp = h;
+    return true;
+  }
+
+  if (*cdim != 'x')
+    return false;
+  ++cdim;
+
+  int c = 0;
+  while (isdigit(*cdim)) {
+    c *= 10;
+    c += (*cdim - '0');
+    ++cdim;
+  }
+
+  if (*cdim)
+    return false;
+
+  if (wp)
+    *wp = w;
+  if (hp)
+    *hp = h;
+  if (cp)
+    *cp = c;
+  return true;
+}
+
 }

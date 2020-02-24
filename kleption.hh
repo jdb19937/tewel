@@ -25,9 +25,17 @@ struct Kleption {
     FLAG_LOWMEM		= (1 << 0),
     FLAG_ADDGEO		= (1 << 1),
     FLAG_NOLOOP		= (1 << 2),
+    FLAG_LINEAR		= (1 << 3),
 
     FLAGS_NONE		= 0
   };
+
+  static Flags add_flags(Flags a, Flags b) {
+    return ((Flags)((unsigned long)a | (unsigned long)b));
+  }
+  static Flags sub_flags(Flags a, Flags b) {
+    return ((Flags)((unsigned long)a & ~(unsigned long)b));
+  }
 
   std::string fn;
   Type type;
@@ -49,6 +57,7 @@ struct Kleption {
   // dir
   std::vector<std::string> ids;
   std::map<std::string, Kleption *> id_sub;
+  unsigned int idi;
 
   Kleption(
     const std::string &_fn,

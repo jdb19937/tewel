@@ -12,10 +12,16 @@
 namespace makemore {
 
 int kdev = 0;
+int kbs = 256;
 
-void kdevset(int i) {
+void setkdev(int i) {
   assert(i == 0);
   kdev = 0;
+}
+
+void setkbs(int i) {
+  assert(i > 0);
+  kbs = i;
 }
 
 int kndevs() {

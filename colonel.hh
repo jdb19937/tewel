@@ -3,8 +3,8 @@
 
 namespace makemore {
 
-extern int kdev;
-extern void kdevset(int);
+extern void setkdev(int);
+extern void setkbs(int);
 extern int kndevs();
 
 extern void dekv(const void *da, unsigned int n, void *a);

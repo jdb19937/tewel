@@ -50,6 +50,8 @@ inline void error(const std::string &str) {
   exit(1);
 }
 
+bool parsedim(const std::string &dim, int *wp, int *hp, int *cp);
+
 }
 
 #endif

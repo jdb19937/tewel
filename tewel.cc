@@ -375,7 +375,8 @@ int main(int argc, char **argv) {
   Cmdline arg(&argc, &argv, "gen");
   std::string cmd = arg.cmd;
 
-  kdevset(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
+  setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
+  setkbs(arg.get("kbs", "256"));
 
   Picreader::set_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
   Picwriter::set_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter.pl"));
@@ -465,14 +466,24 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "synth") {
+    int linear = arg.get("linear", "1");
+    linear = linear ? 1 : 0;
+
     int loop = arg.get("loop", "0");
     loop = loop ? 1 : 0;
 
     Kleption::Flags flags = Kleption::FLAGS_NONE;
     if (!loop)
       flags = (Kleption::Flags)(flags | Kleption::FLAG_NOLOOP);
+    if (linear)
+      flags = (Kleption::Flags)(flags | Kleption::FLAG_LINEAR);
 
-    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), 0, 0, 0, flags);
+    std::string dim = arg.get("dim", "0x0x0");
+    int pw = 0, ph = 0, pc = 3;
+    if (!parsedim(dim, &pw, &ph, &pc))
+      error("bad dim format");
+
+    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), pw, ph, pc, flags);
 
     std::string format = arg.get("format", "ppm");
     if (format != "ppm" && format != "dat" && format != "sdl")

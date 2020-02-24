@@ -41,6 +41,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
   assert(ret == 0);
+
+  idi = 0;
  
   if (S_ISDIR(buf.st_mode)) {
     type = TYPE_DIR;
@@ -79,6 +81,7 @@ void Kleption::unload() {
     delete[] dat;
     dat = NULL;
     w = h = c = 0; b = 0;
+    idi = 0;
     break;
   case TYPE_VID:
     if (vidreader) {
@@ -89,6 +92,7 @@ void Kleption::unload() {
     delete[] dat;
     dat = NULL;
     w = h = c = 0; b = 0;
+    idi = 0;
     break;
   case TYPE_DIR:
     for (auto psi = id_sub.begin(); psi != id_sub.end(); ++psi) {
@@ -97,6 +101,7 @@ void Kleption::unload() {
     }
     ids.clear();
     id_sub.clear();
+    idi = 0;
     break;
   case TYPE_PIC:
   case TYPE_DAT:
@@ -104,6 +109,7 @@ void Kleption::unload() {
     delete[] dat;
     dat = NULL;
     w = h = c = 0; b = 0;
+    idi = 0;
     break;
   }
 
@@ -182,14 +188,18 @@ void Kleption::load() {
           continue;
         std::string subfn = de->d_name;
 
-        Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc);
+        Flags subflags = flags;
+        if (flags & FLAG_LINEAR)
+          subflags = add_flags(flags, FLAG_NOLOOP);
+
+        Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc, subflags);
         id_sub.insert(std::make_pair(subfn, subkl));
         ids.push_back(subfn);
       }
   
       ::closedir(dp);
 
-      assert(ids.size());
+      assert(ids.size() > 0);
       std::sort(ids.begin(), ids.end());
     }
     break;
@@ -255,6 +265,7 @@ static void _addgeo(double *edat, double x, double y, double w, double h) {
 bool Kleption::pick(double *kdat, std::string *idp) {
   load();
 
+again:
   switch (type) {
   case TYPE_VID:
     {
@@ -344,22 +355,63 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   case TYPE_DIR:
     {
       unsigned int idn = ids.size();
-      unsigned int idi = randuint() % idn;
-      std::string id = ids[idi];
+      unsigned int idj;
+      if (flags & FLAG_LINEAR) {
+        if (idi >= idn) {
+          idi = 0;
+          if (flags & FLAG_NOLOOP)
+            return false;
+        }
+        idj = idi;
+      } else {
+        idj = randuint() % idn;
+      }
+      assert(idj < idn);
+
+      std::string id = ids[idj];
       Kleption *subkl = id_sub[id];
       assert(subkl != NULL);
-      if (idp) {
-        bool ret = subkl->pick(kdat, idp);
-        assert(ret);
-        *idp = id + "/" + *idp;
+
+      std::string idq;
+      if (flags & FLAG_LINEAR) {
+        bool ret = subkl->pick(kdat, idp ? &idq : NULL);
+        if (!ret) {
+          ++idi;
+
+          if (idi >= idn) {
+            if (flags & FLAG_NOLOOP)
+              return false;
+            idi = 0;
+          }
+
+          idj = idi;
+          id = ids[idj];
+          subkl = id_sub[id];
+
+          ret = subkl->pick(kdat, idp ? &idq : NULL);
+          assert(ret);
+        }
       } else {
-        bool ret = subkl->pick(kdat);
-        assert(ret);
+        bool ret = subkl->pick(kdat, idp ? &idq : NULL);
+        if (!ret) {
+          assert(flags & FLAG_NOLOOP);
+          ret = subkl->pick(kdat, idp ? &idq : NULL);
+          assert(ret);
+        }
       }
+
+      if (idp)
+        *idp = id + "/" + idq;
       return true;
     }
   case TYPE_PIC:
     {
+      if ((flags & FLAG_NOLOOP) && idi > 0) {
+        assert(idi == 1);
+        idi = 0;
+        return false;
+      }
+
       assert(dat);
       assert(w >= pw);
       assert(h >= ph);
@@ -397,6 +449,11 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         sprintf(buf, "%ux%ux%u+%u+%u", pw, ph, pc, x0, y0);
         *idp = buf;
       }
+
+      assert(idi == 0);
+      if (flags & FLAG_NOLOOP)
+        ++idi;
+
       return true;
     }
   case TYPE_DAT:

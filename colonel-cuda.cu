@@ -12,13 +12,19 @@
 namespace makemore {
 
 int kdev = 0;
+int kbs = 256;
 
-void kdevset(int i) {
+void setkdev(int i) {
   assert(i >= 0);
   assert(i <= kndevs());
   if (i > 0)
     assert(0 == cudaSetDevice(i - 1));
   kdev = i;
+}
+
+void setkbs(int i) {
+  assert(i > 0);
+  kbs = i;
 }
 
 int kndevs() {
@@ -58,7 +64,7 @@ int kndevs() {
 #define CALL_KERNEL(f, _n, args...) do { \
   long __n = (_n); \
   if (kdev) { \
-    int __bs = 256, __gs = ((__n + __bs - 1) / __bs); \
+    int __bs = kbs, __gs = ((__n + __bs - 1) / __bs); \
     _gpu_ ## f <<<__gs, __bs>>>(__n, args); \
   } else { \
     for (long __i = __n - 1; __i >= 0; --__i) { \
