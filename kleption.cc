@@ -62,7 +62,7 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   if (ftype == TYPE_SDL) {
     if (!(flags & FLAG_WRITER))
       error("can't input from sdl");
-    assert(fn == "0");
+    // assert(fn == "0");
     type = TYPE_SDL;
     dsp = new Display;
     dsp->open();
@@ -362,7 +362,6 @@ static void _addgeo(double *edat, double x, double y, double w, double h) {
 bool Kleption::pick(double *kdat, std::string *idp) {
   load();
 
-again:
   switch (type) {
   case TYPE_VID:
     {

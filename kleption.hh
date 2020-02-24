@@ -76,6 +76,8 @@ struct Kleption {
   void load();
   void unload();
 
+  void reset();
+
   bool pick(double *kdat, std::string *idp = NULL);
   void find(const std::string &id, double *kdat);
 
