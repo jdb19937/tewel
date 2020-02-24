@@ -23,7 +23,7 @@ all: $(TGT)
 .PHONY: clean
 clean:
 	rm -f $(OBJ) $(TGT) colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
-	rm -rf package
+	rm -rf package tewel_*.deb
 
 .PHONY: install
 install: tewel
@@ -44,13 +44,17 @@ uninstall:
 	rm -f $(DESTDIR)/opt/makemore/share/tewel/picwriter-sample.pl
 
 .PHONY: package
-package: clean
+package: tewel_0.1-1_amd64.deb
+
+tewel_0.1-1_amd64.deb: clean
 	mkdir package
 	mkdir package/tewel-$(VERSION)
 	cp -f $(SRC) package/tewel-$(VERSION)/
+	cp -rpf debian package/tewel-$(VERSION)/
 	cd package; tar -czvf tewel_$(VERSION).orig.tar.gz tewel-$(VERSION)
-	cd package; cp -rpf ../debian tewel-$(VERSION)/debian
+	# cd package; cp -rpf ../debian tewel-$(VERSION)/debian
 	cd package/tewel-$(VERSION); debuild -us -uc
+	cp -f package/$@ $@
 
 %.o: %.cc
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
