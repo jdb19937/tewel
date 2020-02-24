@@ -16,6 +16,22 @@ all: $(TGT)
 clean:
 	rm -f $(OBJ) $(TGT) colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
 
+.PHONY: install
+install: tewel
+	install -d /opt/makemore/bin
+	install -m 0755 tewel /opt/makemore/bin
+	install -d /opt/makemore/share/tewel
+	install -m 0644 README /opt/makemore/share/tewel/README
+	install -m 0755 picreader-sample.pl /opt/makemore/share/tewel
+	install -m 0755 picwriter-sample.pl /opt/makemore/share/tewel
+
+.PHONY: uninstall
+uninstall:
+	rm -f /opt/makemore/bin/tewel
+	rm -f /opt/makemore/share/tewel/README
+	rm -f /opt/makemore/share/tewel/picreader-sample.pl
+	rm -f /opt/makemore/share/tewel/picwriter-sample.pl
+
 %.o: %.cc
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
