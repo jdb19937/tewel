@@ -32,7 +32,7 @@ clean:
 	rm -f $(PACKAGE) $(TARBALL)
 
 .PHONY: install
-install: tewel
+install: all
 	install -d $(DESTDIR)/opt/makemore/bin
 	install -m 0755 tewel $(DESTDIR)/opt/makemore/bin
 	install -d $(DESTDIR)/opt/makemore/share/tewel
@@ -40,6 +40,7 @@ install: tewel
 	install -m 0644 LICENSE $(DESTDIR)/opt/makemore/share/tewel/LICENSE
 	install -m 0755 picreader-sample.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 picwriter-sample.pl $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0644 identity.gen $(DESTDIR)/opt/makemore/share/tewel
 
 .PHONY: uninstall
 uninstall:
