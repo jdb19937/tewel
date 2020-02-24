@@ -57,6 +57,7 @@ struct Kleption {
 
   // vid
   class Picreader *vidreader;
+  class Picwriter *vidwriter;
 
   // dir
   std::vector<std::string> ids;

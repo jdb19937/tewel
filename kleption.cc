@@ -40,6 +40,9 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   else if (fmt == "sdl") ftype = TYPE_SDL;
 
   flags = _flags;
+  if ((flags & FLAG_NOLOOP) && !(flags & FLAG_LINEAR))
+    error("can't have noloop without linear");
+
   pw = _pw;
   ph = _ph;
   pc = _pc;
@@ -58,6 +61,9 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   dsp = NULL;
 
   idi = 0;
+
+  vidreader = NULL;
+  vidwriter = NULL;
 
   if (ftype == TYPE_SDL) {
     if (!(flags & FLAG_WRITER))
@@ -163,6 +169,8 @@ Kleption::~Kleption() {
     unload();
   if (dsp)
     delete dsp;
+  if (vidwriter)
+    delete vidwriter;
 }
 
 void Kleption::unload() {
@@ -475,28 +483,21 @@ bool Kleption::pick(double *kdat, std::string *idp) {
           ++idi;
 
           if (idi >= idn) {
+            idi = 0;
             if (flags & FLAG_NOLOOP)
               return false;
-            idi = 0;
           }
 
           idj = idi;
           id = ids[idj];
           subkl = id_sub[id];
 
-          ret = subkl->pick(kdat, idp ? &idq : NULL);
-          if (!ret) {
-            ret = subkl->pick(kdat, idp ? &idq : NULL);
-            assert(ret);
-          }
+          bool ret = subkl->pick(kdat, idp ? &idq : NULL);
+          assert(ret);
         }
       } else {
         bool ret = subkl->pick(kdat, idp ? &idq : NULL);
-        if (!ret) {
-          assert(flags & FLAG_NOLOOP);
-          ret = subkl->pick(kdat, idp ? &idq : NULL);
-          assert(ret);
-        }
+        assert(ret);
       }
 
       if (idp)
@@ -723,8 +724,27 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   }
 
   switch (type) {
-  case TYPE_CAM:
   case TYPE_VID:
+    {
+      if (!vidwriter) {
+        vidwriter = new Picwriter;
+        vidwriter->open(fn);
+      }
+
+      unsigned int pwhc = pw * ph * pc;
+      double *dtmp = new double[pwhc];
+      uint8_t *tmp = new uint8_t[pwhc];
+      dek(kdat, pwhc, dtmp);
+      dedub(dtmp, pwhc, tmp);
+
+      vidwriter->write(tmp, pw, ph);
+
+      delete[] tmp;
+      delete[] dtmp;
+    }
+
+    return true;
+  case TYPE_CAM:
     assert(0);
   case TYPE_DIR:
     {

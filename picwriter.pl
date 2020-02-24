@@ -11,7 +11,7 @@ if (grep $fn =~ /\.$_$/, qw(avi mkv mp4)) {
     '-r', $r,
     '-i', '/dev/stdin',
     '-r', $r,
-    '-y', $ARGV[0]
+    '-y', $fn
   );
   die "$0: ffmpeg: $!\n";
 } else {
