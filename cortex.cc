@@ -165,7 +165,50 @@ static void pipe_push(
   *basenp = new_basen;
 }
 
-static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp) {
+static bool pipe_scan(uint8_t *base, size_t basen, int *icp, int *ocp) {
+  int i = 0;
+  unsigned int basei = 0;
+  int ic = 0, oc = 0;
+
+  *icp = 0;
+  *ocp = 0;
+
+  if (basei == basen)
+    return false;
+  assert(basei < basen);
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, vic;
+    _parse_header(hdr, &type, &len, &vic, &oc);
+
+    if (i == 0) {
+      ic = vic;
+      *icp = ic;
+    } else {
+      assert(ic == vic);
+    }
+
+    assert(basei + len * sizeof(double) <= basen);
+    basei += len * sizeof(double);
+
+    ic = oc;
+    ++i;
+  }
+
+  if (ocp)
+    *ocp = ic;
+  assert(basei == basen);
+
+  return true;
+}
+
+static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp, bool stripped) {
   int i = 0;
   size_t kbufn = 0;
   unsigned int basei = 0;
@@ -197,7 +240,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     switch (type) {
     case TYPE_CON0:
       {
-        int wmvn = size_conv(0, ic, oc, false);
+        int wmvn = size_conv(0, ic, oc, stripped);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -205,7 +248,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_CON1:
       {
-        int wmvn = size_conv(1, ic, oc, false);
+        int wmvn = size_conv(1, ic, oc, stripped);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -213,7 +256,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_CON2:
       {
-        int wmvn = size_conv(2, ic, oc, false);
+        int wmvn = size_conv(2, ic, oc, stripped);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -383,7 +426,8 @@ static double *_kpadone(int bufn) {
 }
 
 static double *pipe_synth(
-  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf
+  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf,
+  bool stripped
 ) {
   if (basen == 0)
     return ((double *)kbuf);
@@ -410,40 +454,40 @@ static double *pipe_synth(
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc, false);
+      int wmvn = size_conv(d, ic, oc, stripped);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv, false);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
       break;
     }
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc, false);
+      int wmvn = size_conv(d, ic, oc, stripped);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv, false);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
       break;
     }
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc, false);
+      int wmvn = size_conv(d, ic, oc, stripped);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv, false);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
       break;
     }
   case TYPE_UPS1:
@@ -607,7 +651,7 @@ static double *pipe_synth(
 
   return pipe_synth(
     base, basen, kbase,
-    ow, oh, kbuf
+    ow, oh, kbuf, stripped
   );
 }
 
@@ -867,6 +911,7 @@ void Cortex::_clear() {
   rms = 0.0;
   max = 0.0;
   rounds = 0;
+  stripped = false;
 }
 
 void Cortex::open(const std::string &_fn) {
@@ -895,9 +940,9 @@ void Cortex::open(const std::string &_fn) {
   base += 4096;
   basen -= 4096;
 
-  (void) pipe_prep(
+  pipe_scan(
     base, basen,
-    1 << 16, 1 << 16, &ic, NULL, NULL, &oc
+    &ic, &oc
   );
 
   is_open = true;
@@ -1020,13 +1065,31 @@ bool Cortex::prepare(int _iw, int _ih) {
   assert(_iw > 0);
   assert(_ih > 0);
 
-  size_t kbufn = pipe_prep(base, basen, _iw, _ih, &ic, &ow, &oh, &oc);
+  uint64_t nrounds;
+  memcpy(&nrounds, base - 4096 + 12, 8);
+  nrounds = ntohl(nrounds);
+  rounds = nrounds;
+
+  uint64_t nstripped;
+  memcpy(&nstripped, base - 4096 + 20, 8);
+  nstripped = ntohl(nstripped);
+  assert(nstripped == 0 || nstripped == 1);
+  stripped = nstripped;
+
+  int vic, voc;
+  assert(ic > 0);
+  assert(oc > 0);
+
+  size_t kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc, stripped);
   if (kbufn == 0)
     return false;
   assert(kbufn > 0);
   kmake(&kbuf, kbufn);
   kinp = (double *)kbuf;
   kout = NULL;
+
+  assert(vic == ic);
+  assert(voc == oc);
 
   iw = _iw;
   ih = _ih;
@@ -1043,10 +1106,6 @@ bool Cortex::prepare(int _iw, int _ih) {
   kmake(&kbase, basen);
   enk(base, basen, kbase);
 
-  uint64_t nrounds;
-  memcpy(&nrounds, base - 4096 + 12, 8);
-  rounds = ntohl(nrounds);
-
   is_prep = true;
   return true;
 }
@@ -1054,7 +1113,7 @@ bool Cortex::prepare(int _iw, int _ih) {
 double *Cortex::synth() {
   assert(is_open);
   assert(is_prep);
-  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf);
+  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, stripped);
   return kout;
 }
 
@@ -1094,6 +1153,7 @@ void Cortex::target(const double *ktgt) {
 double *Cortex::propback() {
   assert(is_open);
   assert(is_prep);
+  assert(!stripped);
   pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, rounds);
   return kinp;
 }
@@ -1101,6 +1161,7 @@ double *Cortex::propback() {
 double *Cortex::learn(double mul) {
   assert(is_open);
   assert(is_prep);
+  assert(!stripped);
   stats();
   pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
   return kinp;
@@ -1250,6 +1311,8 @@ void Cortex::scram(double dev) {
 }
 
 void Cortex::push(const std::string &stype, int ic, int oc) {
+  assert(!stripped);
+
   assert(stype.length() == 4);
   uint32_t type;
   memcpy(&type, stype.data(), 4);

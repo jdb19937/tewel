@@ -34,6 +34,7 @@ struct Cortex {
   double max;
   double decay;
   uint64_t rounds;
+  bool stripped;
 
   Cortex();
   Cortex(const std::string &_fn);
