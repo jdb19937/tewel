@@ -16,6 +16,7 @@
 #include "cmdline.hh"
 #include "display.hh"
 #include "camera.hh"
+#include "picpipes.hh"
 
 using namespace makemore;
 
@@ -376,8 +377,8 @@ int main(int argc, char **argv) {
 
   kdevset(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
 
-  Picreader::cmd = arg.get("picreader", "/opt/makemore/share/tewel/picreader-sample.pl");
-  Picwriter::cmd = arg.get("picwriter", "/opt/makemore/share/tewel/picwriter-sample.pl");
+  Picreader::set_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader-sample.pl"));
+  Picwriter::set_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter-sample.pl"));
 
   if (cmd == "help" || cmd == "h") {
     usage();
@@ -522,7 +523,10 @@ int main(int argc, char **argv) {
       uint8_t *orgb = new uint8_t[orgbn];
       dedub(dorgb, orgbn, orgb);
       delete[] dorgb;
-      save_ppm(stdout, orgb, gen->ow, gen->oh);
+
+      fprintf(stdout, "P6\n%d %d\n255\n", gen->ow, gen->oh);
+      fwrite(orgb, 1, gen->ow * gen->oh * 3, stdout);
+      fflush(stdout);
       delete[] orgb;
     } else if (format == "dat") {
       gen->synth();

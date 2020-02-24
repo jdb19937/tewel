@@ -14,13 +14,14 @@
 namespace makemore {
 
 struct Picreader {
-  static std::string cmd, arg;
+  static std::string cmd;
+  static void set_cmd(const std::string &_cmd);
 
   std::string fn;
   FILE *fp;
   pid_t pid;
 
-  Picreader(const std::string &_cmd);
+  Picreader();
   ~Picreader();
 
   void open(const std::string &_fn);
@@ -32,12 +33,13 @@ struct Picreader {
 
 struct Picwriter {
   static std::string cmd, arg;
+  static void set_cmd(const std::string &_cmd);
 
   std::string fn;
   FILE *fp;
   pid_t pid;
 
-  Picwriter(const std::string &_cmd);
+  Picwriter();
   ~Picwriter();
 
   void open(const std::string &_fn);

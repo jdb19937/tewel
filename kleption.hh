@@ -43,7 +43,7 @@ struct Kleption {
   unsigned int frames;
 
   // vid
-  class Video *vid;
+  class Picreader *vidreader;
 
   // dir
   std::vector<std::string> ids;

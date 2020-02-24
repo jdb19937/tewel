@@ -14,7 +14,7 @@
 #include "youtil.hh"
 #include "colonel.hh"
 #include "camera.hh"
-#include "video.hh"
+#include "picpipes.hh"
 
 #include <algorithm>
 
@@ -81,9 +81,9 @@ void Kleption::unload() {
     w = h = c = 0; b = 0;
     break;
   case TYPE_VID:
-    assert(vid);
-    delete vid;
-    vid = NULL;
+    assert(vidreader);
+    delete vidreader;
+    vidreader = NULL;
     assert(dat);
     delete[] dat;
     dat = NULL;
@@ -116,14 +116,14 @@ void Kleption::load() {
   switch (type) {
   case TYPE_VID:
     {
-      assert(!vid);
-      vid = new Video;
-      vid->open_read(fn);
+      assert(!vidreader);
+      vidreader = new Picreader;
+      vidreader->open(fn);
 
       assert(!dat);
       unsigned int vw, vh;
 
-      assert(vid->read(&dat, &w, &h));
+      assert(vidreader->read(&dat, &w, &h));
 
       if (pw == 0)
         pw = w;
@@ -194,7 +194,13 @@ void Kleption::load() {
     break;
   case TYPE_PIC:
     assert(!dat);
-    load_pic(fn, &dat, &w, &h);
+    assert(w == 0);
+    assert(h == 0);
+    {
+      Picreader picreader;
+      picreader.open(fn);
+      picreader.read(&dat, &w, &h);
+    }
     c = 3;
     b = 1;
 
@@ -271,8 +277,8 @@ std::string Kleption::pick(double *kdat) {
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
-      assert(vid);
-      if (!vid->read(dat, w, h)) {
+      assert(vidreader);
+      if (!vidreader->read(dat, w, h)) {
         unload();
         load();
       }

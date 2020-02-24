@@ -10,11 +10,11 @@ VERSION = 0.1
 GEN = identity.gen
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl $(GEN)
-OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o video.o picpipes.o
-HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh video.hh picpipes.hh
+OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
+HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh
 
 SRC = \
-  cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc video.cc \
+  cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE colonel.inc \
   picreader-sample.pl picwriter-sample.pl
