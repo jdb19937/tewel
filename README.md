@@ -1,2 +1,2 @@
 # tewel
-command-line convolutional synthesizer with adversarial learning
+tewel is a command-line neural synthesizer.
