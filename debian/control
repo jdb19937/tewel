@@ -6,7 +6,6 @@ Standards-Version: 3.9.2
 Build-Depends: debhelper (>= 9)
 
 Package: tewel
-Architecture: any
+Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: greet user
- hithere greets the user, or the world.
+Description: a command-line neural synthesizer
