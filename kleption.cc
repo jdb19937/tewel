@@ -122,6 +122,7 @@ void Kleption::load() {
 
       assert(!dat);
       unsigned int vw, vh;
+
       assert(vid->read(&dat, &w, &h));
 
       if (pw == 0)
@@ -268,7 +269,10 @@ std::string Kleption::pick(double *kdat) {
       delete[] ddat;
 
       assert(vid);
-      vid->read(dat, w, h);
+      if (!vid->read(dat, w, h)) {
+        unload();
+        load();
+      }
 
       char buf[256];
       sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
