@@ -15,6 +15,7 @@ struct Camera {
   } *buffers;
 
   unsigned int n_buffers;
+  uint8_t *dat;
 
   Camera(const std::string &_devfn = "/dev/video0", int _w = 640, int _h = 480);
   ~Camera();
@@ -22,7 +23,7 @@ struct Camera {
   void open();
   void close();
 
-  void read(uint8_t *rgb, bool reflect = false);
+  void read(uint8_t *rgb, bool reflect = true);
 };
 
 }

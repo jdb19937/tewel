@@ -46,7 +46,7 @@ void Camera::open() {
   assert(0 == stat(devfn.c_str(), &st));
   assert(S_ISCHR(st.st_mode));
 
-  fd = ::open(devfn.c_str(), O_RDWR, 0);
+  fd = ::open(devfn.c_str(), O_RDWR | O_NONBLOCK, 0);
   assert(fd != -1);
 
 
@@ -121,6 +121,9 @@ void Camera::open() {
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     assert (0 == ioctl(fd, VIDIOC_STREAMON, &type));
   }
+
+  dat = new uint8_t[w * h * 3];
+  memset(dat, 0,  w * h * 3);
 }
 
 void Camera::close() {
@@ -137,6 +140,9 @@ void Camera::close() {
   }
   delete[] buffers;
   buffers = 0;
+
+  delete[] dat;
+  dat = NULL; 
 }
 
 static inline uint8_t clip(double x) {
@@ -177,26 +183,31 @@ void Camera::read(uint8_t *rgb, bool reflect) {
   buf.memory = V4L2_MEMORY_MMAP;
 
   int ret = ioctl(fd, VIDIOC_DQBUF, &buf);
-  assert(ret == 0);
-  assert(buf.index < n_buffers);
+  if (ret == -1 && errno == EAGAIN) {
+    memcpy(rgb, dat, w * h * 3);
+  } else {
+    assert(ret == 0);
+    assert(buf.index < n_buffers);
+    assert(buffers[buf.index].length == buf.bytesused);
+    assert(buffers[buf.index].length == w * h * 2);
 
-  assert(buffers[buf.index].length == buf.bytesused);
-  assert(buffers[buf.index].length == w * h * 2);
+    yuv422toRGB((const uint8_t *)buffers[buf.index].start, w, h, rgb);
 
-  yuv422toRGB((const uint8_t *)buffers[buf.index].start, w, h, rgb);
+    assert(0 == ioctl(fd, VIDIOC_QBUF, &buf));
 
-  if (reflect) {
-    unsigned int w2 = w / 2;
-    for (unsigned int y = 0; y < h; ++y) {
-      for (unsigned int x = 0; x < w2; ++x) { 
-        for (unsigned int c = 0; c < 3; ++c) {
-          std::swap(rgb[y * w * 3 + x * 3 + c], rgb[y * w * 3 + (w - x) * 3 + c]);
+    if (reflect) {
+      unsigned int w2 = w / 2;
+      for (unsigned int y = 0; y < h; ++y) {
+        for (unsigned int x = 0; x < w2; ++x) { 
+          for (unsigned int c = 0; c < 3; ++c) {
+            std::swap(rgb[y * w * 3 + x * 3 + c], rgb[y * w * 3 + (w - x) * 3 + c]);
+          }
         }
       }
     }
-  }
 
-  assert(0 == ioctl(fd, VIDIOC_QBUF, &buf));
+    memcpy(dat, rgb, w * h * 3);
+  }
 }
 
 }
@@ -210,9 +221,12 @@ int main() {
 
   uint8_t *rgb = new uint8_t[cam.w * cam.h * 3];
   printf("P6\n%u %u 255\n", cam.w, cam.h);
-  cam.read(rgb);
 
-  (void)fwrite(rgb, 1, cam.w * cam.h * 3, stdout);
+  for (int i = 0; i < 100; ++i) {
+    cam.read(rgb);
+
+    (void)fwrite(rgb, 1, cam.w * cam.h * 3, stdout);
+  }
   return 0;
 }
 #endif

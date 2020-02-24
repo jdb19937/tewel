@@ -311,8 +311,9 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     case TYPE_PAD1:
       ow = iw;
       oh = ih;
-      assert(oc > ic);
+      assert(oc >= ic);
       assert(len == 0);
+      break;
     default:
       assert(0);
     }
@@ -562,35 +563,38 @@ static double *pipe_synth(
   case TYPE_LRND:
     {
       assert(len == 0);
-      assert(ic < oc);
+      assert(ic <= oc);
       ow = iw;
       oh = ih;
 
       double *knz = _klnoise((oc - ic) * ow * oh);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
+      break;
     }
   case TYPE_GRND:
     {
       assert(len == 0);
-      assert(ic < oc);
+      assert(ic <= oc);
       ow = iw;
       oh = ih;
 
       double *knz = _kgnoise((oc - ic) * ow * oh, oc - ic);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
+      break;
     }
   case TYPE_PAD1:
     {
       assert(len == 0);
-      assert(ic < oc);
+      assert(ic <= oc);
       ow = iw;
       oh = ih;
 
       double *knz = _kpadone((oc - ic) * ow * oh);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
+      break;
     }
   default:
     assert(0);
@@ -739,7 +743,7 @@ void pipe_learn(
   case TYPE_LRND:
   case TYPE_GRND:
   case TYPE_PAD1:
-    assert(ic < oc);
+    assert(ic <= oc);
     assert(len == 0);
     ow = iw;
     oh = ih;

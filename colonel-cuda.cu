@@ -87,9 +87,9 @@ void dekv(const void *da, unsigned int n, void *a) {
 void kmakev(void **dp, unsigned int n) {
   if (kdev) {
     void *d = NULL;
-    assert(n > 0);
+    // assert(n > 0);
     int ret = ::cudaMalloc((void **)&d, n);
-    assert(d != NULL);
+    // assert(d != NULL);
     assert(ret == 0);
     *dp = d;
   } else {

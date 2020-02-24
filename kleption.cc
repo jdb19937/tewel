@@ -131,8 +131,8 @@ void Kleption::load() {
         ph = h;
       if (pc == 0)
         pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
-      assert(pw == w);
-      assert(ph == h);
+      assert(pw <= w);
+      assert(ph <= h);
       assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
 
       c = 3;
@@ -152,8 +152,8 @@ void Kleption::load() {
     if (pc == 0)
       pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
 
-    assert(pw == w);
-    assert(ph == h);
+    assert(pw <= w);
+    assert(ph <= h);
     assert(pw > 0);
     assert(ph > 0);
     assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
@@ -168,6 +168,9 @@ void Kleption::load() {
     {
       assert(ids.empty());
       assert(id_sub.empty());
+      assert(pw > 0);
+      assert(ph > 0);
+      assert(pc > 0);
 
       DIR *dp = ::opendir(fn.c_str());
       assert(dp);
@@ -288,6 +291,7 @@ std::string Kleption::pick(double *kdat) {
         assert(pc == 3 + 4);
       else
         assert(pc == 3);
+
       cam->read(dat);
 
       unsigned int x0 = randuint() % (w - pw + 1);
