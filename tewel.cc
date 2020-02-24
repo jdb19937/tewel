@@ -309,7 +309,10 @@ void learnhans(
     dis->synth();
     dis->target(kreal);
     dis->learn(0);
-    gen->learn(dis->kinp, genmul);
+
+    ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+
+    gen->learn(genmul);
     if (enc) {
       enc->learn(gen->kinp, genmul);
     } 
