@@ -51,13 +51,14 @@ extern void ksplice(
 );
 
 
-extern int size_conv(int d, int ic, int oc);
+extern int size_conv(int d, int ic, int oc, bool stripped);
 
 extern void synth_conv(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv
+  const double *wmv,
+  bool stripped
 );
 
 extern void learn_conv(

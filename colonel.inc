@@ -72,7 +72,8 @@ DEFN_KERNEL(synth_conv,
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv
+  const double *wmv,
+  bool stripped
 ) {
   PREF_KERNEL;
 
@@ -112,14 +113,14 @@ DEFN_KERNEL(synth_conv,
         int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
 
         double v = in[ini];
-        double w = wmv[wi * 3];
+        double w = stripped ? wmv[wi] : wmv[wi * 3];
 
         outv += v * w;
       }
     }
   }
 
-  outv += wmv[oz * 3];
+  outv += stripped ? wmv[oz] : wmv[oz * 3];
 
   out[outi] = outv;
 }

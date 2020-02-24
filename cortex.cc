@@ -128,13 +128,13 @@ static void pipe_push(
 
   switch (type) {
   case TYPE_CON0:
-    len = size_conv(0, ic, oc);
+    len = size_conv(0, ic, oc, false);
     break;
   case TYPE_CON1:
-    len = size_conv(1, ic, oc);
+    len = size_conv(1, ic, oc, false);
     break;
   case TYPE_CON2:
-    len = size_conv(2, ic, oc);
+    len = size_conv(2, ic, oc, false);
     break;
   case TYPE_UPS1:
   case TYPE_UPS2:
@@ -197,7 +197,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     switch (type) {
     case TYPE_CON0:
       {
-        int wmvn = size_conv(0, ic, oc);
+        int wmvn = size_conv(0, ic, oc, false);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -205,7 +205,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_CON1:
       {
-        int wmvn = size_conv(1, ic, oc);
+        int wmvn = size_conv(1, ic, oc, false);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -213,7 +213,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_CON2:
       {
-        int wmvn = size_conv(2, ic, oc);
+        int wmvn = size_conv(2, ic, oc, false);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -410,40 +410,40 @@ static double *pipe_synth(
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, false);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv, false);
       break;
     }
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, false);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv, false);
       break;
     }
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, false);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv, false);
       break;
     }
   case TYPE_UPS1:
@@ -639,7 +639,7 @@ void pipe_learn(
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, false);
       assert(wmvn == len);
 
       ow = iw;
@@ -650,7 +650,7 @@ void pipe_learn(
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, false);
       assert(wmvn == len);
 
       ow = iw;
@@ -661,7 +661,7 @@ void pipe_learn(
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, false);
       assert(wmvn == len);
 
       ow = iw;

@@ -210,10 +210,10 @@ void ksplice(
 
 
 int size_conv(
-  int d, int ic, int oc
+  int d, int ic, int oc, bool stripped
 ) {
   int f = d * 2 + 1;
-  return (3 * (oc + ic * f * f * oc));
+  return ((stripped ? 1 : 3) * (oc + ic * f * f * oc));
 }
 
 
@@ -222,14 +222,14 @@ void synth_conv(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv
+  const double *wmv, bool stripped
 ) {
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
 
   CALL_KERNEL(synth_conv, outn,
-    in, iw, ih, out, d, ic, oc, wmv
+    in, iw, ih, out, d, ic, oc, wmv, stripped
   );
 }
 
