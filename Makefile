@@ -14,7 +14,9 @@ HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh
 SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc video.cc \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
-  $(HDR) Makefile README LICENSE colonel.inc picreader-sample.pl picwriter-sample.pl \
+  $(HDR) Makefile README LICENSE colonel.inc \
+  picreader-sample.pl picwriter-sample.pl \
+  vidreader-sample.pl vidwriter-sample.pl
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
 TARBALL = tewel-$(VERSION).tar.gz
