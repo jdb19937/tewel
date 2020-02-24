@@ -377,8 +377,8 @@ int main(int argc, char **argv) {
 
   kdevset(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
 
-  Picreader::set_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader-sample.pl"));
-  Picwriter::set_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter-sample.pl"));
+  Picreader::set_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
+  Picwriter::set_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter.pl"));
 
   if (cmd == "help" || cmd == "h") {
     usage();

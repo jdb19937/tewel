@@ -7,9 +7,7 @@ LDFLAGS = -lm
 
 VERSION = 0.1
 
-GEN = identity.gen
-
-TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl $(GEN)
+TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl identity.gen
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
 HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh
 
@@ -17,7 +15,7 @@ SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE colonel.inc \
-  picreader-sample.pl picwriter-sample.pl
+  picreader.pl picwriter.pl decolorize.sh
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
 TARBALL = tewel-$(VERSION).tar.gz
@@ -38,8 +36,8 @@ install: all
 	install -d $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0644 README $(DESTDIR)/opt/makemore/share/tewel/README
 	install -m 0644 LICENSE $(DESTDIR)/opt/makemore/share/tewel/LICENSE
-	install -m 0755 picreader-sample.pl $(DESTDIR)/opt/makemore/share/tewel
-	install -m 0755 picwriter-sample.pl $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0755 picreader.pl $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0755 picwriter.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0644 identity.gen $(DESTDIR)/opt/makemore/share/tewel
 
 .PHONY: uninstall
@@ -47,8 +45,8 @@ uninstall:
 	rm -f $(DESTDIR)/opt/makemore/bin/tewel
 	rm -f $(DESTDIR)/opt/makemore/share/tewel/README
 	rm -f $(DESTDIR)/opt/makemore/share/tewel/LICENSE
-	rm -f $(DESTDIR)/opt/makemore/share/tewel/picreader-sample.pl
-	rm -f $(DESTDIR)/opt/makemore/share/tewel/picwriter-sample.pl
+	rm -f $(DESTDIR)/opt/makemore/share/tewel/picreader.pl
+	rm -f $(DESTDIR)/opt/makemore/share/tewel/picwriter.pl
 
 .PHONY: package
 package: $(PACKAGE)
