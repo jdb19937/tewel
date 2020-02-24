@@ -15,7 +15,8 @@ SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE colonel.inc \
-  picreader.pl picwriter.pl decolorize.sh
+  picreader.pl picwriter.pl decolorize.sh \
+  zoom2x.sh zoom4x.sh shrink2x.sh shrink4x.sh degrade2x.sh degrade4x.sh
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
 TARBALL = tewel-$(VERSION).tar.gz
@@ -36,9 +37,10 @@ install: all
 	install -d $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0644 README $(DESTDIR)/opt/makemore/share/tewel/README
 	install -m 0644 LICENSE $(DESTDIR)/opt/makemore/share/tewel/LICENSE
+	install -m 0644 identity.gen $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 picreader.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 picwriter.pl $(DESTDIR)/opt/makemore/share/tewel
-	install -m 0644 identity.gen $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0755 *.sh $(DESTDIR)/opt/makemore/share/tewel
 
 .PHONY: uninstall
 uninstall:
