@@ -14,6 +14,7 @@
 #include "youtil.hh"
 #include "colonel.hh"
 #include "camera.hh"
+#include "display.hh"
 #include "picpipes.hh"
 
 #include <algorithm>
@@ -54,13 +55,17 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   cam = NULL;
   frames = 0;
 
+  dsp = NULL;
+
   idi = 0;
 
   if (ftype == TYPE_SDL) {
     if (!(flags & FLAG_WRITER))
       error("can't input from sdl");
-    assert(fn == "");
+    assert(fn == "0");
     type = TYPE_SDL;
+    dsp = new Display;
+    dsp->open();
     return;
   }
   if (ftype == TYPE_CAM) {
@@ -156,6 +161,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
 Kleption::~Kleption() {
   if (loaded)
     unload();
+  if (dsp)
+    delete dsp;
 }
 
 void Kleption::unload() {
@@ -479,7 +486,10 @@ again:
           subkl = id_sub[id];
 
           ret = subkl->pick(kdat, idp ? &idq : NULL);
-          assert(ret);
+          if (!ret) {
+            ret = subkl->pick(kdat, idp ? &idq : NULL);
+            assert(ret);
+          }
         }
       } else {
         bool ret = subkl->pick(kdat, idp ? &idq : NULL);
@@ -697,7 +707,7 @@ void Kleption::find(const std::string &id, double *kdat) {
   }
 }
 
-void Kleption::place(const std::string &id, const double *kdat) {
+bool Kleption::place(const std::string &id, const double *kdat) {
   assert(flags & FLAG_WRITER);
   assert(pw > 0);
   assert(ph > 0);
@@ -745,8 +755,11 @@ void Kleption::place(const std::string &id, const double *kdat) {
       picwriter->write(tmp, pw, ph);
 
       delete picwriter;
+      delete[] tmp;
+      delete[] dtmp;
     }
-    break;
+
+    return true;
 
   case TYPE_PIC:
     {
@@ -762,8 +775,29 @@ void Kleption::place(const std::string &id, const double *kdat) {
       picwriter->write(tmp, pw, ph);
 
       delete picwriter;
+      delete[] tmp;
+      delete[] dtmp;
     }
-    break;
+    return true;
+
+  case TYPE_SDL:
+    {
+      assert(dsp);
+      assert(pc == 3);
+
+      unsigned int pwhc = pw * ph * pc;
+      double *dtmp = new double[pwhc];
+      uint8_t *tmp = new uint8_t[pwhc];
+      dek(kdat, pwhc, dtmp);
+      dedub(dtmp, pwhc, tmp);
+
+      dsp->update(tmp, pw, ph);
+      dsp->present();
+
+      delete[] tmp;
+      delete[] dtmp;
+    }
+    return !dsp->done();
 
   default:
     assert(0);

@@ -63,6 +63,9 @@ struct Kleption {
   std::map<std::string, Kleption *> id_sub;
   unsigned int idi;
 
+  // sdl
+  class Display *dsp;
+
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
@@ -81,7 +84,7 @@ struct Kleption {
     Kleption *kl1, double *kdat1
   );
 
-  void place(const std::string &id, const double *kdat);
+  bool place(const std::string &id, const double *kdat);
 };
 
 }

@@ -45,7 +45,7 @@ void Display::present() {
   error("no display");
 }
 
-bool Display::escpressed() {
+bool Display::done() {
   return true;
 }
 

@@ -25,7 +25,7 @@ struct Display {
   void update(const uint8_t *rgb, unsigned int w, unsigned int h);
   void present();
 
-  bool escpressed();
+  bool done();
 };
 
 }

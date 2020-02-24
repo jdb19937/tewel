@@ -543,7 +543,8 @@ int main(int argc, char **argv) {
       }
       gen->synth();
 
-      out->place(id, gen->kout);
+      if (!out->place(id, gen->kout))
+        break;
     }
 
 

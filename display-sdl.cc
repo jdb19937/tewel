@@ -102,7 +102,7 @@ void Display::present() {
   SDL_RenderPresent(renderer);
 }
 
-bool Display::escpressed() {
+bool Display::done() {
   assert(is_open);
   SDL_Event event;
   while (SDL_PollEvent(&event))
