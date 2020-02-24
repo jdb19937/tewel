@@ -15,6 +15,6 @@ if (grep $fn =~ /\.$_$/, qw(avi mkv mp4)) {
   );
   die "$0: ffmpeg: $!\n";
 } else {
-  exec('convert', 'ppm:-', $ARGV[0]);
+  exec('convert', 'ppm:-', $fn);
   die "$0: convert: $!\n";
 }

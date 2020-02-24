@@ -18,7 +18,10 @@ struct Kleption {
     TYPE_PIC,
     TYPE_DAT,
     TYPE_CAM,
-    TYPE_VID
+    TYPE_VID,
+    TYPE_SDL,
+
+    TYPE_UNK = -1
   };
 
   enum Flags {
@@ -26,6 +29,7 @@ struct Kleption {
     FLAG_ADDGEO		= (1 << 1),
     FLAG_NOLOOP		= (1 << 2),
     FLAG_LINEAR		= (1 << 3),
+    FLAG_WRITER		= (1 << 4),
 
     FLAGS_NONE		= 0
   };
@@ -76,6 +80,8 @@ struct Kleption {
     Kleption *kl0, double *kdat0,
     Kleption *kl1, double *kdat1
   );
+
+  void place(const std::string &id, const double *kdat);
 };
 
 }

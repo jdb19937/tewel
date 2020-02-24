@@ -485,9 +485,11 @@ int main(int argc, char **argv) {
 
     Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), pw, ph, pc, flags);
 
+#if 0
     std::string format = arg.get("format", "ppm");
     if (format != "ppm" && format != "dat" && format != "sdl")
       error("unknown format");
+#endif
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
@@ -495,10 +497,6 @@ int main(int argc, char **argv) {
     std::string encfn = arg.get("enc", "");
     if (encfn != "")
       enc = new Cortex(encfn);
-
-    if (!arg.unused.empty())
-      error("unrecognized options");
-
 
     src->load();
     assert(src->pw > 0);
@@ -521,9 +519,36 @@ int main(int argc, char **argv) {
         error("generator must have ic=3");
       ic = gen->ic;
     }
+#if 0
     if (gen->oc != 3 && (format == "ppm" || format == "sdl"))
       error("generator must have 3 output channels");
+#endif
 
+    Kleption *out = new Kleption(arg.get("out"), gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER);
+
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    while (1) {
+      std::string id;
+
+      if (enc) {
+        if (!src->pick(enc->kinp, &id))
+          break;
+        enc->synth();
+        kcopy(enc->kout, enc->owhc, gen->kinp);
+      } else {
+        if (!src->pick(gen->kinp, &id))
+          break;
+      }
+      gen->synth();
+
+      out->place(id, gen->kout);
+    }
+
+
+
+#if 0
     if (enc) {
       assert( src->pick(enc->kinp) );
       enc->synth();
@@ -589,6 +614,7 @@ int main(int argc, char **argv) {
     } else {
       assert(0);
     }
+#endif
 
     delete gen;
     if (enc)

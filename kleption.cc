@@ -21,7 +21,23 @@
 namespace makemore {
 
 Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags) {
-  fn = _fn;
+  std::string fmt;
+  const char *cfn = _fn.c_str();
+  if (const char *p = strchr(cfn, ':')) {
+    fmt = std::string(cfn, p - cfn);
+    fn = std::string(p + 1);
+  } else {
+    fn = _fn;
+  }
+
+  Type ftype = TYPE_UNK;
+  if (fmt == "pic") ftype = TYPE_PIC;
+  else if (fmt == "vid") ftype = TYPE_VID;
+  else if (fmt == "dat") ftype = TYPE_DAT;
+  else if (fmt == "dir") ftype = TYPE_DIR;
+  else if (fmt == "cam") ftype = TYPE_CAM;
+  else if (fmt == "sdl") ftype = TYPE_SDL;
+
   flags = _flags;
   pw = _pw;
   ph = _ph;
@@ -38,17 +54,52 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   cam = NULL;
   frames = 0;
 
+  idi = 0;
+
+  if (ftype == TYPE_SDL) {
+    if (!(flags & FLAG_WRITER))
+      error("can't input from sdl");
+    assert(fn == "");
+    type = TYPE_SDL;
+    return;
+  }
+  if (ftype == TYPE_CAM) {
+    if (fn == "")
+      fn = "/dev/video0";
+    if (flags & FLAG_WRITER)
+      error("can't output to camera");
+  }
+
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
-  assert(ret == 0);
+  if (ret != 0) {
+    if (!(flags & FLAG_WRITER))
+      error("failed to stat " + fn + ": " + strerror(errno));
 
-  idi = 0;
- 
-  if (S_ISDIR(buf.st_mode)) {
-    type = TYPE_DIR;
-  } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
-    type = TYPE_CAM;
-  } else {
+    if (ftype == TYPE_DIR) {
+      if (0 == ::mkdir(fn.c_str(), 0755))
+        warning("created directory " + fn);
+      else if (errno != EEXIST)
+        error("failed to create directory " + fn + ": " + strerror(errno));
+
+      type = TYPE_DIR;
+      return;
+    }
+    if (ftype == TYPE_DAT) {
+      type = TYPE_DAT;
+      return;
+    }
+    if (ftype == TYPE_VID) {
+      type = TYPE_VID;
+      return;
+    }
+    if (ftype == TYPE_PIC) {
+      type = TYPE_PIC;
+      return;
+    }
+
+    assert(ftype == TYPE_UNK);
+
     if (endswith(fn, ".dat")) {
       type = TYPE_DAT;
     } else if (
@@ -60,6 +111,45 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
     } else {
       type = TYPE_PIC;
     }
+    return;
+  }
+ 
+  if (S_ISDIR(buf.st_mode)) {
+    assert(ftype == TYPE_DIR || ftype == TYPE_UNK);
+    type = TYPE_DIR;
+    return;
+  } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
+    if (flags & FLAG_WRITER)
+      error("can't output to camera");
+    assert(ftype == TYPE_CAM || ftype == TYPE_UNK);
+    type = TYPE_CAM;
+    return;
+  } else {
+    if (ftype == TYPE_DAT) {
+      type = TYPE_DAT;
+      return;
+    }
+    if (ftype == TYPE_VID) {
+      type = TYPE_VID;
+      return;
+    }
+    if (ftype == TYPE_PIC) {
+      type = TYPE_PIC;
+      return;
+    }
+
+    if (endswith(fn, ".dat")) {
+      type = TYPE_DAT;
+    } else if (
+      endswith(fn, ".mp4") ||
+      endswith(fn, ".avi") ||
+      endswith(fn, ".mkv")
+    ) {
+      type = TYPE_VID;
+    } else {
+      type = TYPE_PIC;
+    }
+    return;
   }
 }
 
@@ -602,6 +692,79 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       break;
     }
+  default:
+    assert(0);
+  }
+}
+
+void Kleption::place(const std::string &id, const double *kdat) {
+  assert(flags & FLAG_WRITER);
+  assert(pw > 0);
+  assert(ph > 0);
+  assert(pc > 0);
+
+  const char *cid = id.c_str();
+  std::string pid, qid;
+  if (const char *p = ::strchr(cid, '/')) {
+    pid = std::string(cid, p - cid);
+    qid = p + 1;
+  } else {
+    pid = id;
+    qid = "";
+  }
+
+  switch (type) {
+  case TYPE_CAM:
+  case TYPE_VID:
+    assert(0);
+  case TYPE_DIR:
+    {
+      std::string fnp = fn;
+      while (const char *p = ::strchr(qid.c_str(), '/')) {
+        fnp += std::string("/" + pid);
+        if (0 == ::mkdir(fnp.c_str(), 0755))
+          warning("created directory " + fnp);
+        else if (errno != EEXIST)
+          error("failed to create directory " + fnp + ": " + strerror(errno));
+
+        pid = std::string(qid.c_str(), p - qid.c_str());
+        qid = std::string(p + 1);
+      }
+
+      Picwriter *picwriter = new Picwriter;
+      picwriter->open(fnp + "/" + pid);
+
+      assert(pc == 3);
+
+      unsigned int pwhc = pw * ph * pc;
+      double *dtmp = new double[pwhc];
+      uint8_t *tmp = new uint8_t[pwhc];
+      dek(kdat, pwhc, dtmp);
+      dedub(dtmp, pwhc, tmp);
+
+      picwriter->write(tmp, pw, ph);
+
+      delete picwriter;
+    }
+    break;
+
+  case TYPE_PIC:
+    {
+      Picwriter *picwriter = new Picwriter;
+      picwriter->open(fn);
+
+      unsigned int pwhc = pw * ph * pc;
+      double *dtmp = new double[pwhc];
+      uint8_t *tmp = new uint8_t[pwhc];
+      dek(kdat, pwhc, dtmp);
+      dedub(dtmp, pwhc, tmp);
+
+      picwriter->write(tmp, pw, ph);
+
+      delete picwriter;
+    }
+    break;
+
   default:
     assert(0);
   }
