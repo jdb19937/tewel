@@ -11,8 +11,8 @@
 
 namespace makemore {
 
-std::string Picreader::cmd = "/opt/makemore/share/picreader-sample.pl";
-std::string Picwriter::cmd = "/opt/makemore/share/picwriter-sample.pl";
+std::string Picreader::cmd = "/opt/makemore/share/tewel/picreader-sample.pl";
+std::string Picwriter::cmd = "/opt/makemore/share/tewel/picwriter-sample.pl";
 
 Picreader::Picreader(const std::string &_cmd) {
   cmd = _cmd;
