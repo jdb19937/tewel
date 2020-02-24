@@ -371,7 +371,7 @@ int main(int argc, char **argv) {
   Cmdline arg(&argc, &argv, "gen");
   std::string cmd = arg.cmd;
 
-  kdevset(arg.get("cuda", kndevs() ? "1" : "0"));
+  kdevset(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
 
   std::string picreader = arg.get("picreader", "./picreader-sample.pl");
   std::string picwriter = arg.get("picwriter", "./picwriter-sample.pl");

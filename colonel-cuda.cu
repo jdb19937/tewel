@@ -1,7 +1,11 @@
 #define __MAKEMORE_COLONEL_CU__ 1
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <assert.h>
+
+#include <math.h>
 
 #include "colonel.hh"
 
