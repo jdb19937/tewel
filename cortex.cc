@@ -40,6 +40,7 @@ const uint32_t TYPE_ABSV = CC4('a','b','s','v');
 const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
+const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 
 static void _check_intro(uint8_t *base, size_t basen) {
   assert(basen >= 4096);
@@ -149,6 +150,7 @@ static void pipe_push(
   case TYPE_GRND:
   case TYPE_LRND:
   case TYPE_PAD1:
+  case TYPE_IDEN:
     len = 0;
     break;
   default:
@@ -355,6 +357,12 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       ow = iw;
       oh = ih;
       assert(oc >= ic);
+      assert(len == 0);
+      break;
+    case TYPE_IDEN:
+      ow = iw;
+      oh = ih;
+      assert(oc == ic);
       assert(len == 0);
       break;
     default:
@@ -640,6 +648,15 @@ static double *pipe_synth(
       kfree(knz);
       break;
     }
+  case TYPE_IDEN:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      synth_pad(in, iw, ih, out, ic, oc, NULL);
+      break;
+    }
   default:
     assert(0);
   }
@@ -792,6 +809,12 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_IDEN:
+    assert(ic == oc);
+    assert(len == 0);
+    ow = iw;
+    oh = ih;
+    break;
   default:
     assert(0);
   }
@@ -857,6 +880,7 @@ void pipe_learn(
   case TYPE_LRND:
   case TYPE_GRND:
   case TYPE_PAD1:
+  case TYPE_IDEN:
     learn_pad(in, iw, ih, fout, ic, oc);
     break;
   default:

@@ -449,6 +449,7 @@ int main(int argc, char **argv) {
       else if (t == "grnd")	{ oc = (ic + 1); }
       else if (t == "lrnd")	{ oc = (ic + 1); }
       else if (t == "pad1")	{ oc = (ic + 1); }
+      else if (t == "iden")	{ oc = ic; }
       else                      { oc = ic; }
 
       if (ric != ic)
