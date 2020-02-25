@@ -898,9 +898,9 @@ Cortex::Cortex() {
   _clear();
 }
 
-Cortex::Cortex(const std::string &_fn) {
+Cortex::Cortex(const std::string &_fn, int flags) {
   _clear();
-  open(_fn);
+  open(_fn, flags);
 }
 
 Cortex::~Cortex() {
@@ -938,11 +938,12 @@ void Cortex::_clear() {
   stripped = false;
 }
 
-void Cortex::open(const std::string &_fn) {
+void Cortex::open(const std::string &_fn, int flags) {
   assert(!is_open);
   fn = _fn;
 
-  fd = ::open(fn.c_str(), O_RDWR, 0700);
+  assert(flags == O_RDWR || flags == O_RDONLY);
+  fd = ::open(fn.c_str(), flags, 0700);
   assert(fd >= 0);
 
   struct stat stbuf;
@@ -954,7 +955,7 @@ void Cortex::open(const std::string &_fn) {
 
   void *vbase = ::mmap(
     NULL, (basen + 4095) & ~4095,
-    PROT_READ | PROT_WRITE, MAP_SHARED,
+    PROT_READ | (flags == O_RDWR ? PROT_WRITE : 0), MAP_SHARED,
     fd, 0
   );
   assert(vbase != NULL && vbase != MAP_FAILED);

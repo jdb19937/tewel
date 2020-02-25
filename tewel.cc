@@ -532,7 +532,10 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    Cortex *gen = new Cortex(arg.get("gen", "/opt/makemore/share/tewel/identity.gen"));
+    Cortex *gen = new Cortex(
+      arg.get("gen", "/opt/makemore/share/tewel/identity.gen"),
+      O_RDONLY
+    );
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");

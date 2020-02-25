@@ -2,8 +2,10 @@
 #define __MAKEMORE_CORTEX_HH__ 1
 
 #include <stdio.h>
-#include <sys/types.h>
+#include <fcntl.h>
 #include <stdint.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <string>
 
@@ -37,13 +39,13 @@ struct Cortex {
   bool stripped;
 
   Cortex();
-  Cortex(const std::string &_fn);
+  Cortex(const std::string &_fn, int flags = O_RDWR);
   ~Cortex();
 
   void _clear();
 
   static void create(const std::string &);
-  void open(const std::string &_fn);
+  void open(const std::string &_fn, int flags = O_RDWR);
   void close();
 
   void dump(FILE * = stdout);
