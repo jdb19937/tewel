@@ -21,7 +21,12 @@
 
 namespace makemore {
 
-Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags, Kind _kind) {
+Kleption::Kleption(
+  const std::string &_fn,
+  unsigned int _pw, unsigned int _ph, unsigned int _pc,
+  Flags _flags, Kind _kind,
+  unsigned int _sw, unsigned int _sh, unsigned int _sc
+) {
   fn = _fn;
 
   flags = _flags;
@@ -30,17 +35,17 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
     !(flags & FLAG_REPEAT) &&
     !(flags & FLAG_LINEAR)
   )
-    error("need repeat or linear");
+    error("need repeat or linear or writer");
 
   pw = _pw;
   ph = _ph;
   pc = _pc;
+  sw = _sw;
+  sh = _sh;
+  sc = _sc;
 
   loaded = false;
 
-  w = 0;
-  h = 0;
-  c = 0;
   b = 0;
   dat = NULL;
 
@@ -82,6 +87,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
         warning("created directory " + fn);
       else if (errno != EEXIST)
         error("failed to create directory " + fn + ": " + strerror(errno));
+      if (pw == 0 || ph == 0 || pc == 0)
+        error("outdim required for dir kind");
 
       kind = KIND_DIR;
       return;
@@ -129,6 +136,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
  
   if (S_ISDIR(buf.st_mode)) {
     assert(_kind == KIND_DIR || _kind == KIND_UNK);
+    if (pw == 0 || ph == 0 || pc == 0)
+      error("outdim required for dir kind");
     kind = KIND_DIR;
     return;
   } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
@@ -193,7 +202,7 @@ void Kleption::unload() {
     assert(dat);
     delete[] dat;
     dat = NULL;
-    w = h = c = 0; b = 0;
+    b = 0;
     idi = 0;
     break;
   case KIND_VID:
@@ -204,7 +213,7 @@ void Kleption::unload() {
     assert(dat);
     delete[] dat;
     dat = NULL;
-    w = h = c = 0; b = 0;
+    b = 0;
     idi = 0;
     break;
   case KIND_DIR:
@@ -221,7 +230,7 @@ void Kleption::unload() {
     assert(dat);
     delete[] dat;
     dat = NULL;
-    w = h = c = 0; b = 0;
+    b = 0;
     idi = 0;
     break;
   }
@@ -241,48 +250,71 @@ void Kleption::load() {
       vidreader->open(fn);
 
       assert(!dat);
-      unsigned int vw, vh;
+      unsigned int w, h;
 
       assert(vidreader->read(&dat, &w, &h));
 
+      if (w != sw) {
+        if (sw)
+          error("vid width doesn't match");
+        sw = w;
+      }
+      if (h != sh) {
+        if (sh)
+          error("vid height doesn't match");
+        sh = h;
+      }
+      if (3 != sc) {
+        if (sc)
+          error("vid channels doesn't match");
+        sc = 3;
+      }
+
       if (pw == 0)
-        pw = w;
+        pw = sw;
       if (ph == 0)
-        ph = h;
+        ph = sh;
       if (pc == 0)
         pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
+
       assert(pw <= w);
       assert(ph <= h);
       assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
 
-      c = 3;
       b = 1;
     }
     break;
   case KIND_CAM:
-    assert(!cam);
-    cam = new Camera(fn, pw, ph);
-    cam->open();
-    w = cam->w;
-    h = cam->h;
-    if (pw == 0)
-      pw = w;
-    if (ph == 0)
-      ph = h;
-    if (pc == 0)
-      pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
+    {
+      assert(!cam);
+      cam = new Camera(fn, sw, sh);
+      cam->open();
 
-    assert(pw <= w);
-    assert(ph <= h);
-    assert(pw > 0);
-    assert(ph > 0);
-    assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+      if (sw && cam->w != sw)
+        error("cam width doesn't match");
+      if (sh && cam->h != sh)
+        error("cam height doesn't match");
+      if (sc && 3 != sh)
+        error("cam channels doesn't match");
 
-    assert(!dat);
-    dat = new uint8_t[w * h * 3];
+      if (pw == 0)
+        pw = sw;
+      if (ph == 0)
+        ph = sh;
+      if (pc == 0)
+        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
 
-    c = 3;
-    b = 1;
+      assert(pw <= sw);
+      assert(ph <= sh);
+      assert(pw > 0);
+      assert(ph > 0);
+      assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+
+      assert(!dat);
+      dat = new uint8_t[sw * sh * 3];
+
+      b = 1;
+    }
     break;
   case KIND_DIR:
     {
@@ -305,12 +337,25 @@ void Kleption::load() {
         if (flags & FLAG_LINEAR)
           subflags = sub_flags(flags, FLAG_REPEAT);
 
-        Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc, subflags);
+        Kleption *subkl = new Kleption(
+          fn + "/" + subfn, pw, ph, pc,
+          subflags, KIND_UNK,
+          sw, sh, sc
+        );
 
         if (subkl->kind == KIND_CAM) {
           delete subkl;
-          error("unexpected v4l2 device found in directory");
+          error("v4l2 device found in dir, dir can contain only pics");
         }
+        if (subkl->kind == KIND_VID) {
+          delete subkl;
+          error("vid found in dir, dir can contain only pics");
+        }
+        assert(
+          subkl->kind == KIND_DIR ||
+          subkl->kind == KIND_DAT ||
+          subkl->kind == KIND_PIC
+        );
 
         id_sub.insert(std::make_pair(subfn, subkl));
         ids.push_back(subfn);
@@ -324,46 +369,89 @@ void Kleption::load() {
     break;
   case KIND_PIC:
     assert(!dat);
-    assert(w == 0);
-    assert(h == 0);
+    unsigned int w, h;
     {
       Picreader picreader;
       picreader.open(fn);
       picreader.read(&dat, &w, &h);
     }
-    c = 3;
     b = 1;
 
-    if (pw == 0)
-      pw = w;
-    if (ph == 0)
-      ph = h;
-    if (pc == 0)
-      pc = c + ((flags & FLAG_ADDGEO) ? 4 : 0);
+    if (w != sw) {
+      if (sw)
+        error("pic width doesn't match");
+      sw = w;
+    }
+    if (h != sh) {
+      if (sh)
+        error("pic height doesn't match");
+      sh = h;
+    }
+    if (3 != sc) {
+      if (sc)
+        error("pic channels doesn't match");
+      sc = 3;
+    }
 
-    assert(pw <= w);
-    assert(ph <= h);
-    assert(pc == c + ((flags & FLAG_ADDGEO) ? 4 : 0));
+    if (pw == 0)
+      pw = sw;
+    if (ph == 0)
+      ph = sh;
+    if (pc == 0)
+      pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+    assert(pw <= sw);
+    assert(ph <= sh);
+    assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
+
+    assert(pw > 0);
+    assert(sw > 0);
+    assert(ph > 0);
+    assert(sh > 0);
+    assert(pc > 0);
+    assert(sc == 3);
 
     break;
   case KIND_DAT:
     {
       assert(!dat);
-      assert(pw > 0);
-      assert(ph > 0);
-      assert(pc > 0);
+      if (!sw) {
+        sw = pw;
+        if (!sw)
+          error("dat width required");
+      }
+      if (!sh) {
+        sh = ph;
+        if (!sh)
+          error("dat height required");
+      }
+      if (!sc) {
+        if (flags & FLAG_ADDGEO) {
+          if (pc == 0)
+            error("dat channels required");
+          if (pc <= 4)
+            error("too few out channels for addgeo");
+          sc = pc - 4;
+        } else {
+          sc = pc;
+          if (!sc)
+            error("dat channels required");
+        }
+      }
 
-      w = pw;
-      h = ph;
-      c = pc - ((flags & FLAG_ADDGEO) ? 4 : 0);
-      assert(c > 0);
+      if (pw == 0)
+        pw = sw;
+      if (ph == 0)
+        ph = sh;
+      if (pc == 0)
+        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
 
       size_t datn;
       dat = slurp(fn, &datn);
-      unsigned int whc = w * h * c;
-      assert(datn % whc == 0);
+      unsigned int swhc = sw * sh * sc;
+      assert(datn % swhc == 0);
 
-      b = datn / whc;
+      b = datn / swhc;
 
       break;
     }
@@ -393,8 +481,8 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         return false;
       }
 
-      unsigned int x0 = randuint() % (w - pw + 1);
-      unsigned int y0 = randuint() % (h - ph + 1);
+      unsigned int x0 = randuint() % (sw - pw + 1);
+      unsigned int y0 = randuint() % (sh - ph + 1);
       unsigned int x1 = x0 + pw - 1;
       unsigned int y1 = y0 + ph - 1;
 
@@ -404,17 +492,17 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < c; ++z)
-            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          for (unsigned int z = 0; z < sc; ++z)
+            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
           if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, w, h);
+            _addgeo(edat, x, y, sw, sh);
         }
 
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
       assert(vidreader);
-      if (!vidreader->read(dat, w, h)) {
+      if (!vidreader->read(dat, sw, sh)) {
         if (flags & FLAG_REPEAT) {
           unload();
           load();
@@ -435,17 +523,18 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   case KIND_CAM:
     {
       assert(cam);
-      assert(cam->w == pw);
-      assert(cam->h == ph);
       if (flags & FLAG_ADDGEO)
-        assert(pc == 3 + 4);
+        assert(pc == sc + 4);
       else
-        assert(pc == 3);
+        assert(pc == sc);
 
+      assert(cam->w == sw);
+      assert(cam->h == sh);
+      assert(sc == 3);
       cam->read(dat);
 
-      unsigned int x0 = randuint() % (w - pw + 1);
-      unsigned int y0 = randuint() % (h - ph + 1);
+      unsigned int x0 = randuint() % (sw - pw + 1);
+      unsigned int y0 = randuint() % (sh - ph + 1);
       unsigned int x1 = x0 + pw - 1;
       unsigned int y1 = y0 + ph - 1;
 
@@ -455,10 +544,10 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < c; ++z)
-            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          for (unsigned int z = 0; z < sc; ++z)
+            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
           if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, w, h);
+            _addgeo(edat, x, y, sw, sh);
         }
 
       enk(ddat, pwhc, kdat);
@@ -530,16 +619,16 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       }
 
       assert(dat);
-      assert(w >= pw);
-      assert(h >= ph);
-      assert(c == 3);
+      assert(sw >= pw);
+      assert(sh >= ph);
+      assert(sc == 3);
       if (flags & FLAG_ADDGEO)
-        assert(pc == c + 4);
+        assert(pc == sc + 4);
       else
-        assert(pc == c);
+        assert(pc == sc);
 
-      unsigned int x0 = randuint() % (w - pw + 1);
-      unsigned int y0 = randuint() % (h - ph + 1);
+      unsigned int x0 = randuint() % (sw - pw + 1);
+      unsigned int y0 = randuint() % (sh - ph + 1);
       unsigned int x1 = x0 + pw - 1;
       unsigned int y1 = y0 + ph - 1;
 
@@ -549,10 +638,10 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < c; ++z)
-            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          for (unsigned int z = 0; z < sc; ++z)
+            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
           if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, w, h);
+            _addgeo(edat, x, y, sw, sh);
         }
 
       enk(ddat, pwhc, kdat);
@@ -576,12 +665,10 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   case KIND_DAT:
     {
       assert(dat);
-      assert(w == pw);
-      assert(h == ph);
       if (flags & FLAG_ADDGEO)
-        assert(pc == c + 4);
+        assert(pc == sc + 4);
       else
-        assert(pc == c);
+        assert(pc == sc);
 
       assert(b > 0);
       unsigned int v;
@@ -597,17 +684,23 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       }
       assert(v < b);
 
+      unsigned int x0 = randuint() % (sw - pw + 1);
+      unsigned int y0 = randuint() % (sh - ph + 1);
+      unsigned int x1 = x0 + pw - 1;
+      unsigned int y1 = y0 + ph - 1;
+
       unsigned int pwhc = pw * ph * pc;
-      const uint8_t *tmpdat = dat + v * pwhc;
+      unsigned int swhc = sw * sh * sc;
+      const uint8_t *tmpdat = dat + v * swhc;
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
-      for (unsigned int y = 0; y < h; ++y)
-        for (unsigned int x = 0; x < w; ++x) {
-          for (unsigned int z = 0; z < c; ++z)
+      for (unsigned int y = y0; y <= y1; ++y)
+        for (unsigned int x = x0; x <= x1; ++x) {
+          for (unsigned int z = 0; z < sc; ++z)
             *edat++ = (double)*tmpdat++ / 255.0;
           if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, w, h);
+            _addgeo(edat, x, y, sw, sh);
         }
 
       enk(ddat, pwhc, kdat);
@@ -615,7 +708,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%u", v);
+        sprintf(buf, "%ux%u+%u+%u+%u", pw, ph, x0, y0, v);
         *idp = buf;
       }
       return true;
@@ -656,30 +749,30 @@ void Kleption::find(const std::string &id, double *kdat) {
     {
       assert(qid == "");
       assert(dat);
-      assert(w >= pw);
-      assert(h >= ph);
+      assert(sw >= pw);
+      assert(sh >= ph);
 
       unsigned int vpw, vph, vpc, x0, y0;
       sscanf(pid.c_str(), "%ux%ux%u+%u+%u", &vpw, &vph, &vpc, &x0, &y0);
       assert(vpw == pw);
       assert(vph == ph);
       assert(vpc == pc);
-      assert(c == 3);
+      assert(sc == 3);
       if (flags & FLAG_ADDGEO)
-        assert(pc == c + 4);
+        assert(pc == sc + 4);
       else
-        assert(pc == c);
+        assert(pc == sc);
       assert(x0 >= 0);
-      assert(x0 < w);
+      assert(x0 < sw);
       assert(y0 >= 0);
-      assert(y0 < h);
+      assert(y0 < sh);
 
       unsigned int x1 = x0 + pw - 1;
       unsigned int y1 = y0 + ph - 1;
       assert(x1 >= x0);
-      assert(x1 < w);
+      assert(x1 < sw);
       assert(y1 >= y0);
-      assert(y1 < h);
+      assert(y1 < sh);
 
       unsigned int pwhc = pw * ph * pc;
       double *ddat = new double[pwhc];
@@ -687,10 +780,10 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < c; ++z)
-            *edat++ = (double)dat[z + c * (x + w * y)] / 255.0;
+          for (unsigned int z = 0; z < sc; ++z)
+            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
           if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, w, h);
+            _addgeo(edat, x, y, sw, sh);
         }
 
       enk(ddat, pwhc, kdat);
@@ -698,40 +791,55 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       break;
     }
+
   case KIND_DAT:
     {
-      assert(qid == "");
-
-      load();
       assert(dat);
-      assert(w == pw);
-      assert(h == ph);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == c + 4);
-      else
-        assert(pc == c);
+      assert(qid == "");
+      assert(sw >= pw);
+      assert(sh >= ph);
 
-      assert(isdigit(pid[0]));
-      unsigned int v = strtoul(pid.c_str(), NULL, 0);
+      unsigned int vpw, vph, vpc, x0, y0, v;
+      sscanf(pid.c_str(), "%ux%ux%u+%u+%u+%u", &vpw, &vph, &vpc, &x0, &y0, &v);
+      assert(v < b);
+ 
+      assert(vpw == pw);
+      assert(vph == ph);
+      assert(vpc == pc);
+      if (flags & FLAG_ADDGEO)
+        assert(pc == sc + 4);
+      else
+        assert(pc == sc);
+      assert(x0 >= 0);
+      assert(x0 < sw);
+      assert(y0 >= 0);
+      assert(y0 < sh);
+
+      unsigned int x1 = x0 + pw - 1;
+      unsigned int y1 = y0 + ph - 1;
+      assert(x1 >= x0);
+      assert(x1 < sw);
+      assert(y1 >= y0);
+      assert(y1 < sh);
 
       unsigned int pwhc = pw * ph * pc;
-      const uint8_t *tmpdat = dat + v * pwhc;
+      unsigned int swhc = sw * sh * sc;
+      const uint8_t *tmpdat = dat + v * swhc;
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
-      for (unsigned int y = 0; y < h; ++y)
-        for (unsigned int x = 0; x < w; ++x) {
-          for (unsigned int z = 0; z < c; ++z)
-            *edat++ = (double)*tmpdat++ / 255.0;
+      for (unsigned int y = y0; y <= y1; ++y)
+        for (unsigned int x = x0; x <= x1; ++x) {
+          for (unsigned int z = 0; z < sc; ++z)
+            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
           if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, w, h);
+            _addgeo(edat, x, y, sw, sh);
         }
 
       enk(ddat, pwhc, kdat);
       delete[] ddat;
-
-      break;
     }
+    break;
   default:
     assert(0);
   }

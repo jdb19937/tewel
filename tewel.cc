@@ -478,13 +478,22 @@ int main(int argc, char **argv) {
     if (linear)
       flags = Kleption::add_flags(flags, Kleption::FLAG_LINEAR);
 
-    std::string cutdim = arg.get("cutdim", "0x0x0");
+    std::string outdim = arg.get("outdim", "0x0x0");
     int pw = 0, ph = 0, pc = 3;
-    if (!parsedim(cutdim, &pw, &ph, &pc))
-      error("bad cutdim format");
+    if (!parsedim(outdim, &pw, &ph, &pc))
+      error("bad outdim format");
 
+    std::string srcdim = arg.get("srcdim", "0x0x0");
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
     Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
-    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), pw, ph, pc, flags, srckind);
+    Kleption *src = new Kleption(
+      arg.get("src", "/dev/stdin"),
+      pw, ph, pc,
+      flags, srckind,
+      sw, sh, sc
+    );
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
