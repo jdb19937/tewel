@@ -40,6 +40,7 @@ struct Kleption {
     KIND_CAM,
     KIND_VID,
     KIND_SDL,
+    KIND_REF,
 
     KIND_UNK = -1
   };
@@ -51,6 +52,7 @@ struct Kleption {
     if (kindstr == "cam") return KIND_CAM;
     if (kindstr == "vid") return KIND_VID;
     if (kindstr == "sdl") return KIND_SDL;
+    if (kindstr == "ref") return KIND_REF;
     return KIND_UNK;
   };
 
@@ -83,6 +85,9 @@ struct Kleption {
   uint8_t *dat;
   unsigned int b;
   FILE *datwriter;
+
+  // ref
+  FILE *refwriter;
 
   // cam
   class Camera *cam;

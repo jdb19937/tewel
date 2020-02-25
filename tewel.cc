@@ -573,8 +573,11 @@ int main(int argc, char **argv) {
     }
 
     Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
+    if (outkind != Kleption::KIND_SDL && outkind != Kleption::KIND_REF)
+      arg.get("out");
+
     Kleption *out = new Kleption(
-      outkind == Kleption::KIND_SDL ? arg.get("out", "") : arg.get("out"),
+      arg.get("out", ""),
       gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, outkind
     );
 
