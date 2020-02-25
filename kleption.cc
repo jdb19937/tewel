@@ -475,6 +475,48 @@ static void _addgeo(double *edat, double x, double y, double w, double h) {
   *edat++ = 1.0 - fabs(2.0 * y / h - 1.0);
 }
 
+static void _outcrop(
+  const uint8_t *tmpdat, double *kdat, Kleption::Flags flags,
+  int sw, int sh, int sc, int pw, int ph, int pc,
+  unsigned int *x0p, unsigned int *y0p
+) {
+  assert(pw <= sw);
+  assert(ph <= sh);
+  assert(pc == sc + ((flags & Kleption::FLAG_ADDGEO) ? 4 : 0));
+
+  unsigned int x0, y0, x1, y1;
+  if (flags & Kleption::FLAG_CENTER) {
+    x0 = (sw - pw) / 2;
+    y0 = (sh - ph) / 2;
+  } else {
+    x0 = randuint() % (sw - pw + 1);
+    y0 = randuint() % (sh - ph + 1);
+  }
+  x1 = x0 + pw - 1;
+  y1 = y0 + ph - 1;
+
+  unsigned int pwhc = pw * ph * pc;
+  double *ddat = new double[pwhc];
+  double *edat = ddat;
+
+  for (unsigned int y = y0; y <= y1; ++y)
+    for (unsigned int x = x0; x <= x1; ++x) {
+      for (unsigned int z = 0; z < sc; ++z)
+        *edat++ = (double)tmpdat[z + sc * (x + sw * y)] / 255.0;
+      if (flags & Kleption::FLAG_ADDGEO)
+        _addgeo(edat, x, y, sw, sh);
+    }
+
+  enk(ddat, pwhc, kdat);
+  delete[] ddat;
+
+  if (x0p)
+    *x0p = x0;
+  if (y0p)
+    *y0p = y0;
+}
+
+
 bool Kleption::pick(double *kdat, std::string *idp) {
   load();
 
@@ -487,25 +529,8 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         return false;
       }
 
-      unsigned int x0 = randuint() % (sw - pw + 1);
-      unsigned int y0 = randuint() % (sh - ph + 1);
-      unsigned int x1 = x0 + pw - 1;
-      unsigned int y1 = y0 + ph - 1;
-
-      unsigned int pwhc = pw * ph * pc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
-
-      for (unsigned int y = y0; y <= y1; ++y)
-        for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, sw, sh);
-        }
-
-      enk(ddat, pwhc, kdat);
-      delete[] ddat;
+      unsigned int x0, y0;
+      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
       assert(vidreader);
       if (!vidreader->read(dat, sw, sh)) {
@@ -539,25 +564,8 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(sc == 3);
       cam->read(dat);
 
-      unsigned int x0 = randuint() % (sw - pw + 1);
-      unsigned int y0 = randuint() % (sh - ph + 1);
-      unsigned int x1 = x0 + pw - 1;
-      unsigned int y1 = y0 + ph - 1;
-
-      unsigned int pwhc = pw * ph * pc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
-
-      for (unsigned int y = y0; y <= y1; ++y)
-        for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, sw, sh);
-        }
-
-      enk(ddat, pwhc, kdat);
-      delete[] ddat;
+      unsigned int x0, y0;
+      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
       if (idp) {
         char buf[256];
@@ -589,26 +597,22 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(subkl != NULL);
 
       std::string idq;
-      if (flags & FLAG_LINEAR) {
-        bool ret = subkl->pick(kdat, idp ? &idq : NULL);
-        if (!ret) {
-          ++idi;
+      bool ret = subkl->pick(kdat, idp ? &idq : NULL);
+      if (!ret) {
+        assert(flags & FLAG_LINEAR);
+        ++idi;
 
-          if (idi >= idn) {
-            idi = 0;
-            if (!(flags & FLAG_REPEAT))
-              return false;
-          }
-
-          idj = idi;
-          id = ids[idj];
-          subkl = id_sub[id];
-
-          bool ret = subkl->pick(kdat, idp ? &idq : NULL);
-          assert(ret);
+        if (idi >= idn) {
+          idi = 0;
+          if (!(flags & FLAG_REPEAT))
+            return false;
         }
-      } else {
-        bool ret = subkl->pick(kdat, idp ? &idq : NULL);
+
+        idj = idi;
+        id = ids[idj];
+        subkl = id_sub[id];
+
+        ret = subkl->pick(kdat, idp ? &idq : NULL);
         assert(ret);
       }
 
@@ -633,25 +637,8 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       else
         assert(pc == sc);
 
-      unsigned int x0 = randuint() % (sw - pw + 1);
-      unsigned int y0 = randuint() % (sh - ph + 1);
-      unsigned int x1 = x0 + pw - 1;
-      unsigned int y1 = y0 + ph - 1;
-
-      unsigned int pwhc = pw * ph * pc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
-
-      for (unsigned int y = y0; y <= y1; ++y)
-        for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, sw, sh);
-        }
-
-      enk(ddat, pwhc, kdat);
-      delete[] ddat;
+      unsigned int x0, y0;
+      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
       if ((flags & FLAG_LOWMEM) && kind == KIND_PIC)
         unload();
@@ -691,27 +678,10 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       }
       assert(v < b);
 
-      unsigned int x0 = randuint() % (sw - pw + 1);
-      unsigned int y0 = randuint() % (sh - ph + 1);
-      unsigned int x1 = x0 + pw - 1;
-      unsigned int y1 = y0 + ph - 1;
-
-      unsigned int pwhc = pw * ph * pc;
       unsigned int swhc = sw * sh * sc;
       const uint8_t *tmpdat = dat + v * swhc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
-
-      for (unsigned int y = y0; y <= y1; ++y)
-        for (unsigned int x = x0; x <= x1; ++x) {
-          for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)*tmpdat++ / 255.0;
-          if (flags & FLAG_ADDGEO)
-            _addgeo(edat, x, y, sw, sh);
-        }
-
-      enk(ddat, pwhc, kdat);
-      delete[] ddat;
+      unsigned int x0, y0;
+      _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
       if (idp) {
         char buf[256];

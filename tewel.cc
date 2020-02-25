@@ -474,11 +474,19 @@ int main(int argc, char **argv) {
 
     int limit = arg.get("limit", "-1");
 
+    std::string outcrop = arg.get("outcrop", "center");
+    if (outcrop != "random" && outcrop != "center")
+      error("outcrop must be random or center");
+
+    double delay = arg.get("delay", "0.0");
+
     Kleption::Flags flags = Kleption::FLAGS_NONE;
     if (repeat)
       flags = Kleption::add_flags(flags, Kleption::FLAG_REPEAT);
     if (linear)
       flags = Kleption::add_flags(flags, Kleption::FLAG_LINEAR);
+    if (outcrop == "center")
+      flags = Kleption::add_flags(flags, Kleption::FLAG_CENTER);
 
     std::string outdim = arg.get("outdim", "0x0x0");
     int pw = 0, ph = 0, pc = 3;
@@ -554,6 +562,8 @@ int main(int argc, char **argv) {
       if (!out->place(id, gen->kout))
         break;
 
+      if (delay > 0)
+        usleep(delay * 1000000.0);
       ++i;
     }
 

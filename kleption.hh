@@ -40,6 +40,7 @@ struct Kleption {
     FLAG_REPEAT		= (1 << 2),
     FLAG_LINEAR		= (1 << 3),
     FLAG_WRITER		= (1 << 4),
+    FLAG_CENTER		= (1 << 5),
 
     FLAGS_NONE		= 0
   };
