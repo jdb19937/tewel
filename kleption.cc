@@ -184,7 +184,7 @@ Kleption::Kleption(
     ) {
       kind = KIND_PIC;
     } else {
-      warning("can't identify output kind from extension, assuming pic");
+      warning("can't identify source kind from extension, assuming pic");
       kind = KIND_PIC;
     }
     return;
