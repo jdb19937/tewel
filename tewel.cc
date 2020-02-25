@@ -480,13 +480,13 @@ int main(int argc, char **argv) {
 
     double delay = arg.get("delay", "0.0");
 
-    Kleption::Flags flags = Kleption::FLAGS_NONE;
+    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
     if (repeat)
-      flags = Kleption::add_flags(flags, Kleption::FLAG_REPEAT);
+      srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
     if (linear)
-      flags = Kleption::add_flags(flags, Kleption::FLAG_LINEAR);
+      srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_LINEAR);
     if (outcrop == "center")
-      flags = Kleption::add_flags(flags, Kleption::FLAG_CENTER);
+      srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_CENTER);
 
     std::string outdim = arg.get("outdim", "0x0x0");
     int pw = 0, ph = 0, pc = 3;
@@ -501,7 +501,7 @@ int main(int argc, char **argv) {
     Kleption *src = new Kleption(
       arg.get("src", "/dev/stdin"),
       pw, ph, pc,
-      flags, srckind,
+      srcflags, srckind,
       sw, sh, sc
     );
 
@@ -537,7 +537,8 @@ int main(int argc, char **argv) {
     Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
     Kleption *out = new Kleption(
       outkind == Kleption::KIND_SDL ? arg.get("out", "") : arg.get("out"),
-      gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, outkind);
+      gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, outkind
+    );
 
     if (!arg.unused.empty())
       error("unrecognized options");
