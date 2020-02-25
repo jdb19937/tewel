@@ -143,6 +143,8 @@ Kleption::Kleption(
   } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
     if (flags & FLAG_WRITER)
       error("can't output to camera");
+    if (!(flags & FLAG_LINEAR))
+      error("reading vid kind requires linear flag");
     assert(_kind == KIND_CAM || _kind == KIND_UNK);
     kind = KIND_CAM;
     return;
@@ -296,6 +298,10 @@ void Kleption::load() {
         error("cam height doesn't match");
       if (sc && 3 != sh)
         error("cam channels doesn't match");
+
+      sw = cam->w;
+      sh = cam->h;
+      sc = 3;
 
       if (pw == 0)
         pw = sw;
