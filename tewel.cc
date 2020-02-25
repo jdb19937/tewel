@@ -270,7 +270,7 @@ void learnhans(
   double *kinp;
   kmake(&kinp, iwhc);
   double *kinpn;
-  kmake(&kinp, iwhc);
+  kmake(&kinpn, iwhc);
 
   double *ktgt;
   kmake(&ktgt, gen->owhc);
@@ -306,10 +306,9 @@ void learnhans(
     kaddnoise(kinpn, iwhc, noise);
     ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
-
     dis->synth();
     dis->target(kreal);
-    dis->learn(0);
+    dis->propback();
 
     ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
 
@@ -608,7 +607,21 @@ int main(int argc, char **argv) {
     if (ic != gen->oc)
       error("input and output channels don't match");
 
-    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
+    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
+    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
+
+    std::string srcdim = arg.get("srcdim", "0x0x0");
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
+
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+
+    Kleption *src = new Kleption(
+      arg.get("src"), iw, ih, ic,
+      srcflags, srckind,
+      sw, sh, sc
+    );
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -648,8 +661,37 @@ int main(int argc, char **argv) {
       ic = gen->ic;
     }
 
-    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
-    Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
+    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
+    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
+
+    std::string srcdim = arg.get("srcdim", "0x0x0");
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
+
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+
+    Kleption *src = new Kleption(
+      arg.get("src"), iw, ih, ic,
+      srcflags, srckind,
+      sw, sh, sc
+    );
+
+    Kleption::Flags tgtflags = Kleption::FLAGS_NONE;
+    tgtflags = Kleption::add_flags(tgtflags, Kleption::FLAG_REPEAT);
+
+    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    int tw = 0, th = 0, tc = 0;
+    if (!parsedim(tgtdim, &tw, &th, &tc))
+      error("bad tgtdim format");
+
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+
+    Kleption *tgt = new Kleption(
+      arg.get("tgt"), gen->ow, gen->oh, gen->oc,
+      tgtflags, tgtkind,
+      tw, th, tc
+    );
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -700,8 +742,37 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
-    Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
+    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
+    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
+
+    std::string srcdim = arg.get("srcdim", "0x0x0");
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
+
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+
+    Kleption *src = new Kleption(
+      arg.get("src"), iw, ih, ic,
+      srcflags, srckind,
+      sw, sh, sc
+    );
+
+    Kleption::Flags tgtflags = Kleption::FLAGS_NONE;
+    tgtflags = Kleption::add_flags(tgtflags, Kleption::FLAG_REPEAT);
+
+    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    int tw = 0, th = 0, tc = 0;
+    if (!parsedim(tgtdim, &tw, &th, &tc))
+      error("bad tgtdim format");
+
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+
+    Kleption *tgt = new Kleption(
+      arg.get("tgt"), gen->ow, gen->oh, gen->oc,
+      tgtflags, tgtkind,
+      tw, th, tc
+    );
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -759,11 +830,40 @@ int main(int argc, char **argv) {
 
     Cortex *dis = new Cortex(arg.get("dis"));
     dis->prepare(gen->ow, gen->oh);
-    if (dis->ic != gen->oc)
-      error("gen oc doesn't match dis ic");
+    if (dis->ic != gen->oc + gen->ic)
+      error("gen oc+ic doesn't match dis ic");
 
-    Kleption *src = new Kleption(arg.get("src"), iw, ih, ic);
-    Kleption *tgt = new Kleption(arg.get("tgt"), gen->ow, gen->oh, gen->oc);
+    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
+    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
+
+    std::string srcdim = arg.get("srcdim", "0x0x0");
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
+
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+
+    Kleption *src = new Kleption(
+      arg.get("src"), iw, ih, ic,
+      srcflags, srckind,
+      sw, sh, sc
+    );
+
+    Kleption::Flags tgtflags = Kleption::FLAGS_NONE;
+    tgtflags = Kleption::add_flags(tgtflags, Kleption::FLAG_REPEAT);
+
+    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    int tw = 0, th = 0, tc = 0;
+    if (!parsedim(tgtdim, &tw, &th, &tc))
+      error("bad tgtdim format");
+
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+
+    Kleption *tgt = new Kleption(
+      arg.get("tgt"), gen->ow, gen->oh, gen->oc,
+      tgtflags, tgtkind,
+      tw, th, tc
+    );
 
     if (!arg.unused.empty())
       error("unrecognized options");
