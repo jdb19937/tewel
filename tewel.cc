@@ -611,7 +611,7 @@ int main(int argc, char **argv) {
   if (cmd == "learnauto") {
     int iw = arg.get("iw");
     int ih = arg.get("ih");
-    int repint = arg.get("repint", "256");
+    int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
     Cortex *gen = new Cortex(arg.get("gen"));
@@ -672,7 +672,7 @@ int main(int argc, char **argv) {
   if (cmd == "learnfunc") {
     int iw = arg.get("iw");
     int ih = arg.get("ih");
-    int repint = arg.get("repint", "256");
+    int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
     Cortex *gen = new Cortex(arg.get("gen"));
@@ -747,7 +747,7 @@ int main(int argc, char **argv) {
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int repint = arg.get("repint", "256");
+    int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
     int lossreg = arg.get("lossreg", "1");
 
@@ -832,7 +832,7 @@ int main(int argc, char **argv) {
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int repint = arg.get("repint", "256");
+    int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
     int lossreg = arg.get("lossreg", "1");
     double noise = arg.get("noise", "0.33");
