@@ -466,12 +466,9 @@ int main(int argc, char **argv) {
 
   if (cmd == "synth") {
     int linear = arg.get("linear", "1");
-    linear = linear ? 1 : 0;
-
     int repeat = arg.get("repeat", "0");
-    repeat = repeat ? 1 : 0;
-
     int limit = arg.get("limit", "-1");
+    int reload = arg.get("reload", "1");
 
     std::string outcrop = arg.get("outcrop", "center");
     if (outcrop != "random" && outcrop != "center")
@@ -564,6 +561,11 @@ int main(int argc, char **argv) {
 
       if (delay > 0)
         usleep(delay * 1000000.0);
+      if (reload) {
+        gen->load();
+        if (enc)
+          enc->load();
+      }
       ++i;
     }
 
