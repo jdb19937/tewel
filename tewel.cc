@@ -88,13 +88,16 @@ void learnauto(
     }
 
     if (gen->rounds % repint == 0) {
-      if (enc) {
-        enc->report();
+      if (enc)
         enc->save();
-      }
-
-      gen->report();
       gen->save();
+
+      char buf[4096];
+      sprintf(buf, "rounds=%lu ", gen->rounds);
+      if (enc)
+        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+      sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
+      fprintf(stderr, "%s\n", buf);
     }
   }
 }
@@ -134,13 +137,16 @@ void learnfunc(
     } 
 
     if (gen->rounds % repint == 0) {
-      if (enc) {
-        enc->report();
+      if (enc)
         enc->save();
-      }
-
-      gen->report();
       gen->save();
+
+      char buf[4096];
+      sprintf(buf, "rounds=%lu ", gen->rounds);
+      if (enc)
+        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+      sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
+      fprintf(stderr, "%s\n", buf);
     }
   }
 
@@ -215,16 +221,17 @@ void learnstyl(
     dis->learn(dismul);
 
     if (gen->rounds % repint == 0) {
-      if (enc) {
-        enc->report();
+      if (enc)
         enc->save();
-      }
-
-      gen->report();
       gen->save();
-
-      dis->report();
       dis->save();
+
+      char buf[4096];
+      sprintf(buf, "rounds=%lu ", gen->rounds);
+      if (enc)
+        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+      sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
+      fprintf(stderr, "%s\n", buf);
     }
   }
 
@@ -343,16 +350,17 @@ void learnhans(
 
 
     if (gen->rounds % repint == 0) {
-      if (enc) {
-        enc->report();
+      if (enc)
         enc->save();
-      }
-
-      gen->report();
       gen->save();
-
-      dis->report();
       dis->save();
+
+      char buf[4096];
+      sprintf(buf, "rounds=%lu ", gen->rounds);
+      if (enc)
+        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+      sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
+      fprintf(stderr, "%s\n", buf);
     }
   }
 

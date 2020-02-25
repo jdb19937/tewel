@@ -49,7 +49,6 @@ struct Cortex {
   void dump(FILE * = stdout);
   void unprepare();
   bool prepare(int _iw, int _ih);
-  void report();
   void load();
   void save();
 

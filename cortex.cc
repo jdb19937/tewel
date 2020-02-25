@@ -1276,10 +1276,6 @@ void Cortex::learnhans(const double *kin, const double *ktgt, Cortex *dis, doubl
 }
 #endif
 
-void Cortex::report() {
-  fprintf(stderr, "fn=%s rounds=%lu rms=%lf max=%lf\n", fn.c_str(), rounds, rms, max);
-}
-
 void Cortex::load() {
   assert(is_open);
   assert(is_prep);
