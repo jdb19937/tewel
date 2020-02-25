@@ -24,10 +24,20 @@ struct Kleption {
     TYPE_UNK = -1
   };
 
+  static Type get_type(const std::string &kindstr) {
+    if (kindstr == "dir") return TYPE_DIR;
+    if (kindstr == "pic") return TYPE_PIC;
+    if (kindstr == "dat") return TYPE_DAT;
+    if (kindstr == "cam") return TYPE_CAM;
+    if (kindstr == "vid") return TYPE_VID;
+    if (kindstr == "sdl") return TYPE_SDL;
+    return TYPE_UNK;
+  };
+
   enum Flags {
     FLAG_LOWMEM		= (1 << 0),
     FLAG_ADDGEO		= (1 << 1),
-    FLAG_NOLOOP		= (1 << 2),
+    FLAG_REPEAT		= (1 << 2),
     FLAG_LINEAR		= (1 << 3),
     FLAG_WRITER		= (1 << 4),
 
@@ -50,6 +60,7 @@ struct Kleption {
   // pic, dat
   uint8_t *dat;
   unsigned int w, h, c, b;
+  FILE *datwriter;
 
   // cam
   class Camera *cam;
@@ -70,7 +81,7 @@ struct Kleption {
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
-    Flags _flags = FLAGS_NONE
+    Flags _flags = FLAGS_NONE, Type ftype = TYPE_UNK
   );
   ~Kleption();
 

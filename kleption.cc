@@ -21,27 +21,16 @@
 
 namespace makemore {
 
-Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags) {
-  std::string fmt;
-  const char *cfn = _fn.c_str();
-  if (const char *p = strchr(cfn, ':')) {
-    fmt = std::string(cfn, p - cfn);
-    fn = std::string(p + 1);
-  } else {
-    fn = _fn;
-  }
-
-  Type ftype = TYPE_UNK;
-  if (fmt == "pic") ftype = TYPE_PIC;
-  else if (fmt == "vid") ftype = TYPE_VID;
-  else if (fmt == "dat") ftype = TYPE_DAT;
-  else if (fmt == "dir") ftype = TYPE_DIR;
-  else if (fmt == "cam") ftype = TYPE_CAM;
-  else if (fmt == "sdl") ftype = TYPE_SDL;
+Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags, Type ftype) {
+  fn = _fn;
 
   flags = _flags;
-  if ((flags & FLAG_NOLOOP) && !(flags & FLAG_LINEAR))
-    error("can't have noloop without linear");
+  if (
+    !(flags & FLAG_WRITER) &&
+    !(flags & FLAG_REPEAT) &&
+    !(flags & FLAG_LINEAR)
+  )
+    error("need repeat or linear");
 
   pw = _pw;
   ph = _ph;
@@ -64,6 +53,7 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
 
   vidreader = NULL;
   vidwriter = NULL;
+  datwriter = NULL;
 
   if (ftype == TYPE_SDL) {
     if (!(flags & FLAG_WRITER))
@@ -119,8 +109,16 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       endswith(fn, ".mkv")
     ) {
       type = TYPE_VID;
-    } else {
+    } else if (
+      endswith(fn, ".jpg") ||
+      endswith(fn, ".png") ||
+      endswith(fn, ".pbm") ||
+      endswith(fn, ".pgm") ||
+      endswith(fn, ".ppm")
+    ) {
       type = TYPE_PIC;
+    } else {
+      error("can't identify output kind from extension");
     }
     return;
   }
@@ -171,6 +169,8 @@ Kleption::~Kleption() {
     delete dsp;
   if (vidwriter)
     delete vidwriter;
+  if (datwriter)
+    fclose(datwriter);
 }
 
 void Kleption::unload() {
@@ -295,7 +295,7 @@ void Kleption::load() {
 
         Flags subflags = flags;
         if (flags & FLAG_LINEAR)
-          subflags = add_flags(flags, FLAG_NOLOOP);
+          subflags = sub_flags(flags, FLAG_REPEAT);
 
         Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc, subflags);
         id_sub.insert(std::make_pair(subfn, subkl));
@@ -373,8 +373,11 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   switch (type) {
   case TYPE_VID:
     {
-      if (!vidreader)
+      if (!vidreader) {
+        unload();
+        load();
         return false;
+      }
 
       unsigned int x0 = randuint() % (w - pw + 1);
       unsigned int y0 = randuint() % (h - ph + 1);
@@ -398,12 +401,12 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       assert(vidreader);
       if (!vidreader->read(dat, w, h)) {
-        if (flags & FLAG_NOLOOP) {
-          delete(vidreader);
-          vidreader = NULL;
-        } else {
+        if (flags & FLAG_REPEAT) {
           unload();
           load();
+        } else {
+          delete(vidreader);
+          vidreader = NULL;
         }
       }
 
@@ -463,7 +466,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       if (flags & FLAG_LINEAR) {
         if (idi >= idn) {
           idi = 0;
-          if (flags & FLAG_NOLOOP)
+          if (!(flags & FLAG_REPEAT))
             return false;
         }
         idj = idi;
@@ -484,7 +487,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
           if (idi >= idn) {
             idi = 0;
-            if (flags & FLAG_NOLOOP)
+            if (!(flags & FLAG_REPEAT))
               return false;
           }
 
@@ -506,7 +509,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
     }
   case TYPE_PIC:
     {
-      if ((flags & FLAG_NOLOOP) && idi > 0) {
+      if (!(flags & FLAG_REPEAT) && idi > 0) {
         assert(idi == 1);
         idi = 0;
         return false;
@@ -551,7 +554,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       }
 
       assert(idi == 0);
-      if (flags & FLAG_NOLOOP)
+      if (!(flags & FLAG_REPEAT))
         ++idi;
 
       return true;
@@ -724,6 +727,27 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   }
 
   switch (type) {
+  case TYPE_DAT:
+    {
+      if (!datwriter) {
+        datwriter = fopen(fn.c_str(), "w");
+        if (!datwriter)
+          error(std::string("failed to open ") + fn + ": " + strerror(errno));
+      }
+
+      unsigned int pwhc = pw * ph * pc;
+      double *dtmp = new double[pwhc];
+      uint8_t *tmp = new uint8_t[pwhc];
+      dek(kdat, pwhc, dtmp);
+      dedub(dtmp, pwhc, tmp);
+
+      fwrite(tmp, 1, pw * ph * pc, datwriter);
+
+      delete[] tmp;
+      delete[] dtmp;
+    }
+    return true;
+
   case TYPE_VID:
     {
       if (!vidwriter) {

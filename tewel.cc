@@ -469,14 +469,14 @@ int main(int argc, char **argv) {
     int linear = arg.get("linear", "1");
     linear = linear ? 1 : 0;
 
-    int loop = arg.get("loop", "0");
-    loop = loop ? 1 : 0;
+    int repeat = arg.get("repeat", "0");
+    repeat = repeat ? 1 : 0;
 
     Kleption::Flags flags = Kleption::FLAGS_NONE;
-    if (!loop)
-      flags = (Kleption::Flags)(flags | Kleption::FLAG_NOLOOP);
+    if (repeat)
+      flags = Kleption::add_flags(flags, Kleption::FLAG_REPEAT);
     if (linear)
-      flags = (Kleption::Flags)(flags | Kleption::FLAG_LINEAR);
+      flags = Kleption::add_flags(flags, Kleption::FLAG_LINEAR);
 
     std::string dim = arg.get("dim", "0x0x0");
     int pw = 0, ph = 0, pc = 3;
@@ -524,7 +524,8 @@ int main(int argc, char **argv) {
       error("generator must have 3 output channels");
 #endif
 
-    Kleption *out = new Kleption(arg.get("out"), gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER);
+    Kleption::Type ftype = Kleption::get_type(arg.get("outkind", ""));
+    Kleption *out = new Kleption(arg.get("out"), gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, ftype);
 
     if (!arg.unused.empty())
       error("unrecognized options");
