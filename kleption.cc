@@ -129,7 +129,8 @@ Kleption::Kleption(
     ) {
       kind = KIND_PIC;
     } else {
-      error("can't identify output kind from extension");
+      warning("can't identify output kind from extension, assuming pic");
+      kind = KIND_PIC;
     }
     return;
   }
@@ -174,7 +175,16 @@ Kleption::Kleption(
       if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
         error("reading vid kind requires linear flag");
       kind = KIND_VID;
+    } else if (
+      endswith(fn, ".jpg") ||
+      endswith(fn, ".png") ||
+      endswith(fn, ".pbm") ||
+      endswith(fn, ".pgm") ||
+      endswith(fn, ".ppm")
+    ) {
+      kind = KIND_PIC;
     } else {
+      warning("can't identify output kind from extension, assuming pic");
       kind = KIND_PIC;
     }
     return;
