@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/time.h>
 
 #include <string>
 
@@ -51,6 +52,12 @@ inline void error(const std::string &str) {
 }
 
 bool parsedim(const std::string &dim, int *wp, int *hp, int *cp);
+
+inline double now() {
+  struct timeval tv;
+  assert(0 == gettimeofday(&tv, NULL));
+  return ((double)tv.tv_sec + (double)tv.tv_usec / 1000000.0);
+}
 
 }
 

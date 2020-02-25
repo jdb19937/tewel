@@ -72,6 +72,7 @@ void learnauto(
     assert(gen->ic == gen->oc);
   }
 
+  double t0 = now();
   while (1) {
     if (enc) {
       assert(src->pick(enc->kinp));
@@ -88,12 +89,16 @@ void learnauto(
     }
 
     if (gen->rounds % repint == 0) {
+      double t1 = now();
+      double dt = t1 - t0;
+      t0 = t1;
+
       if (enc)
         enc->save();
       gen->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu ", gen->rounds);
+      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
@@ -119,6 +124,8 @@ void learnfunc(
   double *ktgt;
   kmake(&ktgt, gen->owhc);
 
+  double t0 = now();
+
   while (1) {
     if (enc) {
       Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
@@ -137,12 +144,16 @@ void learnfunc(
     } 
 
     if (gen->rounds % repint == 0) {
+      double t1 = now();
+      double dt = t1 - t0;
+      t0 = t1;
+
       if (enc)
         enc->save();
       gen->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu ", gen->rounds);
+      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
@@ -184,6 +195,8 @@ void learnstyl(
   kmake(&kfake, dis->owhc);
   kfill(kfake, dis->owhc, 1.0);
 
+  double t0 = now();
+
   while (1) {
     double genmul = mul;
     double dismul = mul;
@@ -221,13 +234,17 @@ void learnstyl(
     dis->learn(dismul);
 
     if (gen->rounds % repint == 0) {
+      double t1 = now();
+      double dt = t1 - t0;
+      t0 = t1;
+
       if (enc)
         enc->save();
       gen->save();
       dis->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu ", gen->rounds);
+      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
@@ -290,6 +307,8 @@ void learnhans(
   kmake(&kfake, dis->owhc);
   kfill(kfake, dis->owhc, 1.0);
 
+  double t0 = now();
+
   while (1) {
     double genmul = mul;
     double dismul = mul;
@@ -350,13 +369,17 @@ void learnhans(
 
 
     if (gen->rounds % repint == 0) {
+      double t1 = now();
+      double dt = t1 - t0;
+      t0 = t1;
+
       if (enc)
         enc->save();
       gen->save();
       dis->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu ", gen->rounds);
+      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
