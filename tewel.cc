@@ -835,7 +835,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
     int lossreg = arg.get("lossreg", "1");
-    double noise = arg.get("noise", "0.33");
+    double noise = arg.get("noise", "0.5");
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
