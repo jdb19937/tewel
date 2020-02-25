@@ -21,6 +21,12 @@
 
 namespace makemore {
 
+std::string Kleption::picreader_cmd;
+std::string Kleption::picwriter_cmd;
+std::string Kleption::vidreader_cmd;
+std::string Kleption::vidwriter_cmd;
+
+
 Kleption::Kleption(
   const std::string &_fn,
   unsigned int _pw, unsigned int _ph, unsigned int _pc,
@@ -258,7 +264,7 @@ void Kleption::load() {
   case KIND_VID:
     {
       assert(!vidreader);
-      vidreader = new Picreader;
+      vidreader = new Picreader(vidreader_cmd);
       vidreader->open(fn);
 
       assert(!dat);
@@ -387,7 +393,7 @@ void Kleption::load() {
     assert(!dat);
     unsigned int w, h;
     {
-      Picreader picreader;
+      Picreader picreader(picreader_cmd);
       picreader.open(fn);
       picreader.read(&dat, &w, &h);
     }
@@ -873,7 +879,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   case KIND_VID:
     {
       if (!vidwriter) {
-        vidwriter = new Picwriter;
+        vidwriter = new Picwriter(vidwriter_cmd);
         vidwriter->open(fn);
       }
 
@@ -906,7 +912,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
         qid = std::string(p + 1);
       }
 
-      Picwriter *picwriter = new Picwriter;
+      Picwriter *picwriter = new Picwriter(picwriter_cmd);
       picwriter->open(fnp + "/" + pid);
 
       assert(pc == 3);
@@ -928,7 +934,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
 
   case KIND_PIC:
     {
-      Picwriter *picwriter = new Picwriter;
+      Picwriter *picwriter = new Picwriter(picwriter_cmd);
       picwriter->open(fn);
 
       unsigned int pwhc = pw * ph * pc;

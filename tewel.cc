@@ -408,8 +408,10 @@ int main(int argc, char **argv) {
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
 
-  Picreader::set_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
-  Picwriter::set_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter.pl"));
+  Kleption::set_picreader_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
+  Kleption::set_picwriter_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter.pl"));
+  Kleption::set_vidreader_cmd(arg.get("vidreader", "/opt/makemore/share/tewel/vidreader.pl"));
+  Kleption::set_vidwriter_cmd(arg.get("vidwriter", "/opt/makemore/share/tewel/vidwriter.pl"));
 
   int seed = arg.get("seed", "0");
   if (seed)

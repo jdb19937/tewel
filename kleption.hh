@@ -13,6 +13,26 @@
 namespace makemore {
 
 struct Kleption {
+  static std::string picreader_cmd;
+  static void set_picreader_cmd(const std::string &cmd) {
+    picreader_cmd = cmd;
+  }
+
+  static std::string picwriter_cmd;
+  static void set_picwriter_cmd(const std::string &cmd) {
+    picwriter_cmd = cmd;
+  }
+
+  static std::string vidreader_cmd;
+  static void set_vidreader_cmd(const std::string &cmd) {
+    vidreader_cmd = cmd;
+  }
+
+  static std::string vidwriter_cmd;
+  static void set_vidwriter_cmd(const std::string &cmd) {
+    vidwriter_cmd = cmd;
+  }
+
   enum Kind {
     KIND_DIR,
     KIND_PIC,

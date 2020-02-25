@@ -11,19 +11,6 @@
 
 namespace makemore {
 
-std::string Picreader::cmd = "/opt/makemore/share/tewel/picreader.pl";
-std::string Picwriter::cmd = "/opt/makemore/share/tewel/picwriter.pl";
-
-void Picreader::set_cmd(const std::string &_cmd) {
-  cmd = _cmd;
-}
-
-void Picwriter::set_cmd(const std::string &_cmd) {
-  cmd = _cmd;
-}
-
-
-
 static void save_ppm(FILE *fp, const uint8_t *rgb, unsigned int w, unsigned int h) {
   assert(w > 0);
   assert(h > 0);
@@ -90,15 +77,83 @@ static bool load_ppm(FILE *fp, uint8_t **rgbp, unsigned int *wp, unsigned int *h
   return true;
 }
 
+static bool load_ppm(FILE *fp, uint8_t *rgb, unsigned int vw, unsigned int vh) {
+  int ret = getc(fp);
+  if (ret == EOF)
+    return false;
+  assert(ret == 'P');
+  assert(getc(fp) == '6');
+  assert(isspace(getc(fp)));
+
+  int c;
+  char buf[256], *p;
+
+  p = buf;
+  do { *p = getc(fp); } while (isspace(*p));
+  assert(isdigit(*p));
+  ++p;
+
+  while (!isspace(*p = getc(fp))) {
+    assert(isdigit(*p));
+    assert(p - buf < 32);
+    ++p;
+  }
+  *p = 0;
+  unsigned int w = atoi(buf);
+  if (w != vw)
+    error("ppm changed dim");
+
+  p = buf;
+  do { *p = getc(fp); } while (isspace(*p));
+  assert(isdigit(*p));
+  ++p;
+
+  while (!isspace(*p = getc(fp))) {
+    assert(isdigit(*p));
+    assert(p - buf < 32);
+    ++p;
+  }
+  *p = 0;
+  unsigned int h = atoi(buf);
+  if (h != vh)
+    error("ppm changed dim");
+
+  p = buf;
+  do { *p = getc(fp); } while (isspace(*p));
+  assert(isdigit(*p));
+  ++p;
+
+  while (!isspace(*p = getc(fp))) {
+    assert(isdigit(*p));
+    assert(p - buf < 32);
+    ++p;
+  }
+  *p = 0;
+  assert(!strcmp(buf, "255"));
+
+  assert(3 * w * h == fread(rgb, 1, 3 * w * h, fp));
+  return true;
+}
 
 
 
 
-Picreader::Picreader() {
+
+
+
+Picreader::Picreader(const std::string &_cmd) {
+  cmd = _cmd;
   fp = NULL;
   pid = 0;
 }
-Picwriter::Picwriter() {
+Picwriter::Picwriter(const std::string &_cmd) {
+  cmd = _cmd;
+  fp = NULL;
+  pid = 0;
+}
+Picwriter::Picwriter(const std::string &_cmd, const std::string &_arg) {
+  cmd = _cmd;
+  arg = _arg;
   fp = NULL;
   pid = 0;
 }
@@ -169,7 +224,10 @@ void Picwriter::open(const std::string &_fn) {
       ::close(fd[0]);
     }
 
-    ::execlp(cmd.c_str(), cmd.c_str(), fn.c_str(), NULL);
+    if (arg.length())
+      ::execlp(cmd.c_str(), cmd.c_str(), fn.c_str(), arg.c_str(), NULL);
+    else
+      ::execlp(cmd.c_str(), cmd.c_str(), fn.c_str(), NULL);
     assert(0);
   }
 
