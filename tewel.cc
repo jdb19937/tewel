@@ -478,18 +478,13 @@ int main(int argc, char **argv) {
     if (linear)
       flags = Kleption::add_flags(flags, Kleption::FLAG_LINEAR);
 
-    std::string dim = arg.get("dim", "0x0x0");
+    std::string cutdim = arg.get("cutdim", "0x0x0");
     int pw = 0, ph = 0, pc = 3;
-    if (!parsedim(dim, &pw, &ph, &pc))
-      error("bad dim format");
+    if (!parsedim(cutdim, &pw, &ph, &pc))
+      error("bad cutdim format");
 
-    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), pw, ph, pc, flags);
-
-#if 0
-    std::string format = arg.get("format", "ppm");
-    if (format != "ppm" && format != "dat" && format != "sdl")
-      error("unknown format");
-#endif
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption *src = new Kleption(arg.get("src", "/dev/stdin"), pw, ph, pc, flags, srckind);
 
     Cortex *gen = new Cortex(arg.get("gen"));
 
@@ -519,13 +514,11 @@ int main(int argc, char **argv) {
         error("generator must have ic=3");
       ic = gen->ic;
     }
-#if 0
-    if (gen->oc != 3 && (format == "ppm" || format == "sdl"))
-      error("generator must have 3 output channels");
-#endif
 
-    Kleption::Type ftype = Kleption::get_type(arg.get("outkind", ""));
-    Kleption *out = new Kleption(arg.get("out"), gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, ftype);
+    Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
+    Kleption *out = new Kleption(
+      outkind == Kleption::KIND_SDL ? arg.get("out", "") : arg.get("out"),
+      gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, outkind);
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -548,75 +541,6 @@ int main(int argc, char **argv) {
         break;
     }
 
-
-
-#if 0
-    if (enc) {
-      assert( src->pick(enc->kinp) );
-      enc->synth();
-      kcopy(enc->kout, enc->owhc, gen->kinp);
-    } else {
-      assert( src->pick(gen->kinp) );
-    }
-
-    if (format == "ppm") {
-      gen->synth();
-
-      int orgbn = gen->ow * gen->oh * 3;
-      double *dorgb = new double[orgbn];
-      dek(gen->kout, orgbn, dorgb);
-      uint8_t *orgb = new uint8_t[orgbn];
-      dedub(dorgb, orgbn, orgb);
-      delete[] dorgb;
-
-      fprintf(stdout, "P6\n%d %d\n255\n", gen->ow, gen->oh);
-      fwrite(orgb, 1, gen->ow * gen->oh * 3, stdout);
-      fflush(stdout);
-      delete[] orgb;
-    } else if (format == "dat") {
-      gen->synth();
-      double *dodat = new double[gen->owhc];
-      dek(gen->kout, gen->owhc, dodat);
-      fwrite(dodat, sizeof(double), gen->owhc, stdout);
-      delete[] dodat;
-    } else if (format == "sdl") {
-      int orgbn = gen->ow * gen->oh * 3;
-      double *dorgb = new double[orgbn];
-      uint8_t *orgb = new uint8_t[orgbn];
-
-      Display *disp = new Display;
-      disp->open();
-
-      while (!disp->escpressed()) {
-        gen->synth();
-        dek(gen->kout, orgbn, dorgb);
-        dedub(dorgb, orgbn, orgb);
-
-        disp->update(orgb, gen->ow, gen->oh);
-        disp->present();
-
-        if (enc)
-          enc->load();
-        gen->load();
-
-        if (enc) {
-          if (!src->pick(enc->kinp))
-            break;
-          enc->synth();
-          kcopy(enc->kout, enc->owhc, gen->kinp);
-        } else {
-          if (!src->pick(gen->kinp))
-            break;
-        }
-      }
-
-      delete[] dorgb;
-      delete[] orgb;
-      delete disp;
-    } else {
-      assert(0);
-    }
-#endif
 
     delete gen;
     if (enc)

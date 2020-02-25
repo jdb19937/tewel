@@ -21,7 +21,7 @@
 
 namespace makemore {
 
-Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags, Type ftype) {
+Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, unsigned int _pc, Flags _flags, Kind _kind) {
   fn = _fn;
 
   flags = _flags;
@@ -55,16 +55,16 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   vidwriter = NULL;
   datwriter = NULL;
 
-  if (ftype == TYPE_SDL) {
+  if (_kind == KIND_SDL) {
     if (!(flags & FLAG_WRITER))
       error("can't input from sdl");
     // assert(fn == "0");
-    type = TYPE_SDL;
+    kind = KIND_SDL;
     dsp = new Display;
     dsp->open();
     return;
   }
-  if (ftype == TYPE_CAM) {
+  if (_kind == KIND_CAM) {
     if (fn == "")
       fn = "/dev/video0";
     if (flags & FLAG_WRITER)
@@ -77,38 +77,38 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
     if (!(flags & FLAG_WRITER))
       error("failed to stat " + fn + ": " + strerror(errno));
 
-    if (ftype == TYPE_DIR) {
+    if (_kind == KIND_DIR) {
       if (0 == ::mkdir(fn.c_str(), 0755))
         warning("created directory " + fn);
       else if (errno != EEXIST)
         error("failed to create directory " + fn + ": " + strerror(errno));
 
-      type = TYPE_DIR;
+      kind = KIND_DIR;
       return;
     }
-    if (ftype == TYPE_DAT) {
-      type = TYPE_DAT;
+    if (_kind == KIND_DAT) {
+      kind = KIND_DAT;
       return;
     }
-    if (ftype == TYPE_VID) {
-      type = TYPE_VID;
+    if (_kind == KIND_VID) {
+      kind = KIND_VID;
       return;
     }
-    if (ftype == TYPE_PIC) {
-      type = TYPE_PIC;
+    if (_kind == KIND_PIC) {
+      kind = KIND_PIC;
       return;
     }
 
-    assert(ftype == TYPE_UNK);
+    assert(_kind == KIND_UNK);
 
     if (endswith(fn, ".dat")) {
-      type = TYPE_DAT;
+      kind = KIND_DAT;
     } else if (
       endswith(fn, ".mp4") ||
       endswith(fn, ".avi") ||
       endswith(fn, ".mkv")
     ) {
-      type = TYPE_VID;
+      kind = KIND_VID;
     } else if (
       endswith(fn, ".jpg") ||
       endswith(fn, ".png") ||
@@ -116,7 +116,7 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       endswith(fn, ".pgm") ||
       endswith(fn, ".ppm")
     ) {
-      type = TYPE_PIC;
+      kind = KIND_PIC;
     } else {
       error("can't identify output kind from extension");
     }
@@ -124,39 +124,39 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
   }
  
   if (S_ISDIR(buf.st_mode)) {
-    assert(ftype == TYPE_DIR || ftype == TYPE_UNK);
-    type = TYPE_DIR;
+    assert(_kind == KIND_DIR || _kind == KIND_UNK);
+    kind = KIND_DIR;
     return;
   } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
     if (flags & FLAG_WRITER)
       error("can't output to camera");
-    assert(ftype == TYPE_CAM || ftype == TYPE_UNK);
-    type = TYPE_CAM;
+    assert(_kind == KIND_CAM || _kind == KIND_UNK);
+    kind = KIND_CAM;
     return;
   } else {
-    if (ftype == TYPE_DAT) {
-      type = TYPE_DAT;
+    if (_kind == KIND_DAT) {
+      kind = KIND_DAT;
       return;
     }
-    if (ftype == TYPE_VID) {
-      type = TYPE_VID;
+    if (_kind == KIND_VID) {
+      kind = KIND_VID;
       return;
     }
-    if (ftype == TYPE_PIC) {
-      type = TYPE_PIC;
+    if (_kind == KIND_PIC) {
+      kind = KIND_PIC;
       return;
     }
 
     if (endswith(fn, ".dat")) {
-      type = TYPE_DAT;
+      kind = KIND_DAT;
     } else if (
       endswith(fn, ".mp4") ||
       endswith(fn, ".avi") ||
       endswith(fn, ".mkv")
     ) {
-      type = TYPE_VID;
+      kind = KIND_VID;
     } else {
-      type = TYPE_PIC;
+      kind = KIND_PIC;
     }
     return;
   }
@@ -177,8 +177,8 @@ void Kleption::unload() {
   if (!loaded)
     return;
 
-  switch (type) {
-  case TYPE_CAM:
+  switch (kind) {
+  case KIND_CAM:
     assert(cam);
     delete cam;
     cam = NULL;
@@ -188,7 +188,7 @@ void Kleption::unload() {
     w = h = c = 0; b = 0;
     idi = 0;
     break;
-  case TYPE_VID:
+  case KIND_VID:
     if (vidreader) {
       delete vidreader;
       vidreader = NULL;
@@ -199,7 +199,7 @@ void Kleption::unload() {
     w = h = c = 0; b = 0;
     idi = 0;
     break;
-  case TYPE_DIR:
+  case KIND_DIR:
     for (auto psi = id_sub.begin(); psi != id_sub.end(); ++psi) {
       Kleption *subkl = psi->second;
       delete subkl;
@@ -208,8 +208,8 @@ void Kleption::unload() {
     id_sub.clear();
     idi = 0;
     break;
-  case TYPE_PIC:
-  case TYPE_DAT:
+  case KIND_PIC:
+  case KIND_DAT:
     assert(dat);
     delete[] dat;
     dat = NULL;
@@ -225,8 +225,8 @@ void Kleption::load() {
   if (loaded)
     return;
 
-  switch (type) {
-  case TYPE_VID:
+  switch (kind) {
+  case KIND_VID:
     {
       assert(!vidreader);
       vidreader = new Picreader;
@@ -251,7 +251,7 @@ void Kleption::load() {
       b = 1;
     }
     break;
-  case TYPE_CAM:
+  case KIND_CAM:
     assert(!cam);
     cam = new Camera(fn, pw, ph);
     cam->open();
@@ -276,7 +276,7 @@ void Kleption::load() {
     c = 3;
     b = 1;
     break;
-  case TYPE_DIR:
+  case KIND_DIR:
     {
       assert(ids.empty());
       assert(id_sub.empty());
@@ -308,7 +308,7 @@ void Kleption::load() {
       std::sort(ids.begin(), ids.end());
     }
     break;
-  case TYPE_PIC:
+  case KIND_PIC:
     assert(!dat);
     assert(w == 0);
     assert(h == 0);
@@ -332,7 +332,7 @@ void Kleption::load() {
     assert(pc == c + ((flags & FLAG_ADDGEO) ? 4 : 0));
 
     break;
-  case TYPE_DAT:
+  case KIND_DAT:
     {
       assert(!dat);
       assert(pw > 0);
@@ -370,8 +370,8 @@ static void _addgeo(double *edat, double x, double y, double w, double h) {
 bool Kleption::pick(double *kdat, std::string *idp) {
   load();
 
-  switch (type) {
-  case TYPE_VID:
+  switch (kind) {
+  case KIND_VID:
     {
       if (!vidreader) {
         unload();
@@ -418,7 +418,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       ++frames;
       return true;
     }
-  case TYPE_CAM:
+  case KIND_CAM:
     {
       assert(cam);
       assert(cam->w == pw);
@@ -459,7 +459,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       return true;
     }
  
-  case TYPE_DIR:
+  case KIND_DIR:
     {
       unsigned int idn = ids.size();
       unsigned int idj;
@@ -507,7 +507,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         *idp = id + "/" + idq;
       return true;
     }
-  case TYPE_PIC:
+  case KIND_PIC:
     {
       if (!(flags & FLAG_REPEAT) && idi > 0) {
         assert(idi == 1);
@@ -544,7 +544,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       enk(ddat, pwhc, kdat);
       delete[] ddat;
 
-      if ((flags & FLAG_LOWMEM) && type == TYPE_PIC)
+      if ((flags & FLAG_LOWMEM) && kind == KIND_PIC)
         unload();
 
       if (idp) {
@@ -559,7 +559,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       return true;
     }
-  case TYPE_DAT:
+  case KIND_DAT:
     {
       assert(dat);
       assert(w == pw);
@@ -613,11 +613,11 @@ void Kleption::find(const std::string &id, double *kdat) {
 
   load();
 
-  switch (type) {
-  case TYPE_CAM:
-  case TYPE_VID:
+  switch (kind) {
+  case KIND_CAM:
+  case KIND_VID:
     assert(0);
-  case TYPE_DIR:
+  case KIND_DIR:
     {
       assert(qid != "");
       Kleption *subkl = id_sub[pid];
@@ -625,7 +625,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       subkl->find(qid, kdat);
       break;
     }
-  case TYPE_PIC:
+  case KIND_PIC:
     {
       assert(qid == "");
       assert(dat);
@@ -671,7 +671,7 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       break;
     }
-  case TYPE_DAT:
+  case KIND_DAT:
     {
       assert(qid == "");
 
@@ -726,8 +726,8 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     qid = "";
   }
 
-  switch (type) {
-  case TYPE_DAT:
+  switch (kind) {
+  case KIND_DAT:
     {
       if (!datwriter) {
         datwriter = fopen(fn.c_str(), "w");
@@ -748,7 +748,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
     return true;
 
-  case TYPE_VID:
+  case KIND_VID:
     {
       if (!vidwriter) {
         vidwriter = new Picwriter;
@@ -768,9 +768,9 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
 
     return true;
-  case TYPE_CAM:
+  case KIND_CAM:
     assert(0);
-  case TYPE_DIR:
+  case KIND_DIR:
     {
       std::string fnp = fn;
       while (const char *p = ::strchr(qid.c_str(), '/')) {
@@ -804,7 +804,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
 
     return true;
 
-  case TYPE_PIC:
+  case KIND_PIC:
     {
       Picwriter *picwriter = new Picwriter;
       picwriter->open(fn);
@@ -823,7 +823,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
     return true;
 
-  case TYPE_SDL:
+  case KIND_SDL:
     {
       assert(dsp);
       assert(pc == 3);

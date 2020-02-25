@@ -13,25 +13,25 @@
 namespace makemore {
 
 struct Kleption {
-  enum Type {
-    TYPE_DIR,
-    TYPE_PIC,
-    TYPE_DAT,
-    TYPE_CAM,
-    TYPE_VID,
-    TYPE_SDL,
+  enum Kind {
+    KIND_DIR,
+    KIND_PIC,
+    KIND_DAT,
+    KIND_CAM,
+    KIND_VID,
+    KIND_SDL,
 
-    TYPE_UNK = -1
+    KIND_UNK = -1
   };
 
-  static Type get_type(const std::string &kindstr) {
-    if (kindstr == "dir") return TYPE_DIR;
-    if (kindstr == "pic") return TYPE_PIC;
-    if (kindstr == "dat") return TYPE_DAT;
-    if (kindstr == "cam") return TYPE_CAM;
-    if (kindstr == "vid") return TYPE_VID;
-    if (kindstr == "sdl") return TYPE_SDL;
-    return TYPE_UNK;
+  static Kind get_kind(const std::string &kindstr) {
+    if (kindstr == "dir") return KIND_DIR;
+    if (kindstr == "pic") return KIND_PIC;
+    if (kindstr == "dat") return KIND_DAT;
+    if (kindstr == "cam") return KIND_CAM;
+    if (kindstr == "vid") return KIND_VID;
+    if (kindstr == "sdl") return KIND_SDL;
+    return KIND_UNK;
   };
 
   enum Flags {
@@ -52,7 +52,7 @@ struct Kleption {
   }
 
   std::string fn;
-  Type type;
+  Kind kind;
   Flags flags;
   unsigned int pw, ph, pc;
   bool loaded;
@@ -81,7 +81,7 @@ struct Kleption {
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
-    Flags _flags = FLAGS_NONE, Type ftype = TYPE_UNK
+    Flags _flags = FLAGS_NONE, Kind _kind = KIND_UNK
   );
   ~Kleption();
 
