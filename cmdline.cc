@@ -82,6 +82,7 @@ const Cmdline::Value &Cmdline::get(const std::string &opt) {
     return m[opt];
   }
   error("no value for required option " + opt);
+  assert(0);
 }
 
 const Cmdline::Value &Cmdline::get(const std::string &opt, const std::string &dval) {
