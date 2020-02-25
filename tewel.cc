@@ -863,7 +863,7 @@ int main(int argc, char **argv) {
 
     Cortex *dis = new Cortex(arg.get("dis"));
     dis->prepare(gen->ow, gen->oh);
-    if (dis->ic != gen->oc + gen->ic)
+    if (dis->ic != gen->oc + ic)
       error("gen oc+ic doesn't match dis ic");
 
     Kleption::Flags srcflags = Kleption::FLAGS_NONE;
