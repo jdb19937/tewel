@@ -91,6 +91,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       return;
     }
     if (_kind == KIND_VID) {
+      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
+        error("reading vid kind requires linear flag");
       kind = KIND_VID;
       return;
     }
@@ -108,6 +110,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       endswith(fn, ".avi") ||
       endswith(fn, ".mkv")
     ) {
+      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
+        error("reading vid kind requires linear flag");
       kind = KIND_VID;
     } else if (
       endswith(fn, ".jpg") ||
@@ -139,6 +143,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       return;
     }
     if (_kind == KIND_VID) {
+      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
+        error("reading vid kind requires linear flag");
       kind = KIND_VID;
       return;
     }
@@ -154,6 +160,8 @@ Kleption::Kleption(const std::string &_fn, unsigned int _pw, unsigned int _ph, u
       endswith(fn, ".avi") ||
       endswith(fn, ".mkv")
     ) {
+      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
+        error("reading vid kind requires linear flag");
       kind = KIND_VID;
     } else {
       kind = KIND_PIC;
@@ -298,6 +306,12 @@ void Kleption::load() {
           subflags = sub_flags(flags, FLAG_REPEAT);
 
         Kleption *subkl = new Kleption(fn + "/" + subfn, pw, ph, pc, subflags);
+
+        if (subkl->kind == KIND_CAM) {
+          delete subkl;
+          error("unexpected v4l2 device found in directory");
+        }
+
         id_sub.insert(std::make_pair(subfn, subkl));
         ids.push_back(subfn);
       }
@@ -569,8 +583,21 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       else
         assert(pc == c);
 
+      assert(b > 0);
+      unsigned int v;
+      if (flags & FLAG_LINEAR) {
+        if (idi >= b) {
+          idi = 0;
+          if (!(flags & FLAG_REPEAT))
+            return false;
+        }
+        v = idi;
+      } else {
+        v = randuint() % b;
+      }
+      assert(v < b);
+
       unsigned int pwhc = pw * ph * pc;
-      unsigned int v = randuint() % b;
       const uint8_t *tmpdat = dat + v * pwhc;
       double *ddat = new double[pwhc];
       double *edat = ddat;
