@@ -472,6 +472,8 @@ int main(int argc, char **argv) {
     int repeat = arg.get("repeat", "0");
     repeat = repeat ? 1 : 0;
 
+    int limit = arg.get("limit", "-1");
+
     Kleption::Flags flags = Kleption::FLAGS_NONE;
     if (repeat)
       flags = Kleption::add_flags(flags, Kleption::FLAG_REPEAT);
@@ -532,9 +534,12 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
+    int i = 0;
     while (1) {
-      std::string id;
+      if (limit >= 0 && i >= limit)
+        break;
 
+      std::string id;
       if (enc) {
         if (!src->pick(enc->kinp, &id))
           break;
@@ -548,6 +553,8 @@ int main(int argc, char **argv) {
 
       if (!out->place(id, gen->kout))
         break;
+
+      ++i;
     }
 
 

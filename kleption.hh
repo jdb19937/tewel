@@ -55,11 +55,12 @@ struct Kleption {
   Kind kind;
   Flags flags;
   unsigned int pw, ph, pc;
+  unsigned int sw, sh, sc;
   bool loaded;
 
   // pic, dat
   uint8_t *dat;
-  unsigned int w, h, c, b;
+  unsigned int b;
   FILE *datwriter;
 
   // cam
@@ -81,7 +82,8 @@ struct Kleption {
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
-    Flags _flags = FLAGS_NONE, Kind _kind = KIND_UNK
+    Flags _flags = FLAGS_NONE, Kind _kind = KIND_UNK,
+    unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0
   );
   ~Kleption();
 

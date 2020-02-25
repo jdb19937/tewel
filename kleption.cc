@@ -679,6 +679,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
             return false;
         }
         v = idi;
+        ++idi;
       } else {
         v = randuint() % b;
       }
