@@ -411,6 +411,12 @@ int main(int argc, char **argv) {
   Picreader::set_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
   Picwriter::set_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter.pl"));
 
+  int seed = arg.get("seed", "0");
+  if (seed)
+    seedrand((uint64_t)seed);
+  else
+    seedrand();
+
   if (cmd == "help" || cmd == "h") {
     usage();
     return 0;
