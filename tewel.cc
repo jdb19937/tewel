@@ -468,7 +468,7 @@ int main(int argc, char **argv) {
     int linear = arg.get("linear", "1");
     int repeat = arg.get("repeat", "0");
     int limit = arg.get("limit", "-1");
-    int reload = arg.get("reload", "1");
+    int reload = arg.get("reload", "0");
 
     std::string outcrop = arg.get("outcrop", "center");
     if (outcrop != "random" && outcrop != "center")
