@@ -100,7 +100,7 @@ void learnauto(
       char buf[4096];
       sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
     }
@@ -155,7 +155,7 @@ void learnfunc(
       char buf[4096];
       sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
     }
@@ -246,7 +246,7 @@ void learnstyl(
       char buf[4096];
       sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
     }
@@ -381,7 +381,7 @@ void learnhans(
       char buf[4096];
       sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf", enc->rms);
+        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
     }
