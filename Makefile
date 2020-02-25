@@ -38,17 +38,13 @@ install: all
 	install -m 0644 README $(DESTDIR)/opt/makemore/share/tewel/README
 	install -m 0644 LICENSE $(DESTDIR)/opt/makemore/share/tewel/LICENSE
 	install -m 0644 identity.gen $(DESTDIR)/opt/makemore/share/tewel
-	install -m 0755 picreader.pl $(DESTDIR)/opt/makemore/share/tewel
-	install -m 0755 picwriter.pl $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0755 *.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.sh $(DESTDIR)/opt/makemore/share/tewel
 
 .PHONY: uninstall
 uninstall:
 	rm -f $(DESTDIR)/opt/makemore/bin/tewel
-	rm -f $(DESTDIR)/opt/makemore/share/tewel/README
-	rm -f $(DESTDIR)/opt/makemore/share/tewel/LICENSE
-	rm -f $(DESTDIR)/opt/makemore/share/tewel/picreader.pl
-	rm -f $(DESTDIR)/opt/makemore/share/tewel/picwriter.pl
+	rm -rf $(DESTDIR)/opt/makemore/share/tewel
 
 .PHONY: package
 package: $(PACKAGE)
