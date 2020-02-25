@@ -59,6 +59,7 @@ Kleption::Kleption(
   vidreader = NULL;
   vidwriter = NULL;
   datwriter = NULL;
+  refwriter = NULL;
 
   if (_kind == KIND_SDL) {
     if (!(flags & FLAG_WRITER))
@@ -67,6 +68,14 @@ Kleption::Kleption(
     kind = KIND_SDL;
     dsp = new Display;
     dsp->open();
+    return;
+  }
+  if (_kind == KIND_REF) {
+    if (!(flags & FLAG_WRITER))
+      error("can't input from ref");
+    if (fn == "")
+      fn = "/dev/stdout";
+    kind = KIND_REF;
     return;
   }
   if (_kind == KIND_CAM) {
@@ -200,6 +209,8 @@ Kleption::~Kleption() {
     delete vidwriter;
   if (datwriter)
     fclose(datwriter);
+  if (refwriter)
+    fclose(refwriter);
 }
 
 void Kleption::unload() {
@@ -964,9 +975,21 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
     return !dsp->done();
 
+  case KIND_REF:
+    if (!refwriter) {
+      refwriter = fopen(fn.c_str(), "w");
+      if (!refwriter)
+        error(std::string("failed to open ") + fn + ": " + strerror(errno));
+      setbuf(refwriter, NULL);
+    }
+
+    fprintf(refwriter, "%s\n", id.c_str());
+    return true;
+
   default:
     assert(0);
   }
+  assert(0);
 }
 
 // static 
