@@ -15,6 +15,14 @@ if (grep $fn =~ /\.$_$/, qw(avi mkv mp4)) {
   );
   die "$0: ffmpeg: $!\n";
 } else {
-  exec('convert', 'ppm:-', $fn);
-  die "$0: convert: $!\n";
+  my ($ext) = ($fn =~ /\.(.+$)/);
+  $ext ||= 'ppm';
+
+  my $ret = system('convert', 'ppm:-', "$ext:$fn.tmp");
+  $ret and die "$0: convert: $!";
+  
+  $ret = rename("$fn.tmp", $fn);
+  $ret or die "$0: rename: $!";
+
+  exit 0;
 }
