@@ -30,18 +30,22 @@ std::string Kleption::vidwriter_cmd;
 Kleption::Kleption(
   const std::string &_fn,
   unsigned int _pw, unsigned int _ph, unsigned int _pc,
-  Flags _flags, Kind _kind,
+  Flags _flags, Trav _trav, Kind _kind,
   unsigned int _sw, unsigned int _sh, unsigned int _sc
 ) {
   fn = _fn;
 
   flags = _flags;
-  if (
-    !(flags & FLAG_WRITER) &&
-    !(flags & FLAG_REPEAT) &&
-    !(flags & FLAG_LINEAR)
-  )
-    error("need repeat or linear or writer");
+  trav = _trav;
+
+  // ???
+  if (trav != TRAV_SCAN) {
+    if (
+      !(flags & FLAG_WRITER) &&
+      !(flags & FLAG_REPEAT)
+    )
+      error("need repeat or linear or writer");
+  }
 
   pw = _pw;
   ph = _ph;
@@ -113,8 +117,6 @@ Kleption::Kleption(
       return;
     }
     if (_kind == KIND_VID) {
-      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
-        error("reading vid kind requires linear flag");
       kind = KIND_VID;
       return;
     }
@@ -132,8 +134,6 @@ Kleption::Kleption(
       endswith(fn, ".avi") ||
       endswith(fn, ".mkv")
     ) {
-      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
-        error("reading vid kind requires linear flag");
       kind = KIND_VID;
     } else if (
       endswith(fn, ".jpg") ||
@@ -159,8 +159,8 @@ Kleption::Kleption(
   } else if (S_ISCHR(buf.st_mode) && ::major(buf.st_rdev) == 81) {
     if (flags & FLAG_WRITER)
       error("can't output to camera");
-    if (!(flags & FLAG_LINEAR))
-      error("reading vid kind requires linear flag");
+    if (trav != TRAV_SCAN)
+      error("reading vid kind requires scan traversal");
     assert(_kind == KIND_CAM || _kind == KIND_UNK);
     kind = KIND_CAM;
     return;
@@ -170,8 +170,9 @@ Kleption::Kleption(
       return;
     }
     if (_kind == KIND_VID) {
-      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
-        error("reading vid kind requires linear flag");
+      if (!(flags & FLAG_WRITER))
+        if (trav != TRAV_SCAN)
+          error("reading vid kind requires scan traversal");
       kind = KIND_VID;
       return;
     }
@@ -187,8 +188,9 @@ Kleption::Kleption(
       endswith(fn, ".avi") ||
       endswith(fn, ".mkv")
     ) {
-      if (!(flags & FLAG_WRITER) && !(flags & FLAG_LINEAR))
-        error("reading vid kind requires linear flag");
+      if (!(flags & FLAG_WRITER))
+        if (trav != TRAV_SCAN)
+          error("reading vid kind requires scan traversal");
       kind = KIND_VID;
     } else if (
       endswith(fn, ".jpg") ||
@@ -367,12 +369,12 @@ void Kleption::load() {
         std::string subfn = de->d_name;
 
         Flags subflags = flags;
-        if (flags & FLAG_LINEAR)
-          subflags = sub_flags(flags, FLAG_REPEAT);
+        if (trav == TRAV_SCAN)
+          subflags &= ~FLAG_REPEAT;
 
         Kleption *subkl = new Kleption(
           fn + "/" + subfn, pw, ph, pc,
-          subflags, KIND_UNK,
+          subflags, trav, KIND_UNK,
           sw, sh, sc
         );
 
@@ -607,7 +609,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
     {
       unsigned int idn = ids.size();
       unsigned int idj;
-      if (flags & FLAG_LINEAR) {
+      if (trav == TRAV_SCAN) {
         if (idi >= idn) {
           idi = 0;
           if (!(flags & FLAG_REPEAT))
@@ -626,7 +628,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       std::string idq;
       bool ret = subkl->pick(kdat, idp ? &idq : NULL);
       if (!ret) {
-        assert(flags & FLAG_LINEAR);
+        assert(trav == TRAV_SCAN);
         ++idi;
 
         if (idi >= idn) {
@@ -692,7 +694,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       assert(b > 0);
       unsigned int v;
-      if (flags & FLAG_LINEAR) {
+      if (trav == TRAV_SCAN) {
         if (idi >= b) {
           idi = 0;
           if (!(flags & FLAG_REPEAT))

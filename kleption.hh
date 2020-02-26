@@ -34,15 +34,15 @@ struct Kleption {
   }
 
   enum Kind {
+    KIND_UNK = 0,
+
     KIND_DIR,
     KIND_PIC,
     KIND_DAT,
     KIND_CAM,
     KIND_VID,
     KIND_SDL,
-    KIND_REF,
-
-    KIND_UNK = -1
+    KIND_REF
   };
 
   static Kind get_kind(const std::string &kindstr) {
@@ -54,29 +54,34 @@ struct Kleption {
     if (kindstr == "sdl") return KIND_SDL;
     if (kindstr == "ref") return KIND_REF;
     return KIND_UNK;
-  };
-
-  enum Flags {
-    FLAG_LOWMEM		= (1 << 0),
-    FLAG_ADDGEO		= (1 << 1),
-    FLAG_REPEAT		= (1 << 2),
-    FLAG_LINEAR		= (1 << 3),
-    FLAG_WRITER		= (1 << 4),
-    FLAG_CENTER		= (1 << 5),
-
-    FLAGS_NONE		= 0
-  };
-
-  static Flags add_flags(Flags a, Flags b) {
-    return ((Flags)((unsigned long)a | (unsigned long)b));
   }
-  static Flags sub_flags(Flags a, Flags b) {
-    return ((Flags)((unsigned long)a & ~(unsigned long)b));
+
+  typedef uint32_t Flags;
+  const static Flags FLAG_LOWMEM = (1 << 0);
+  const static Flags FLAG_ADDGEO = (1 << 1);
+  const static Flags FLAG_REPEAT = (1 << 2);
+  const static Flags FLAG_WRITER = (1 << 4);
+  const static Flags FLAG_CENTER = (1 << 5);
+
+  typedef enum {
+    TRAV_NONE = 0,
+
+    TRAV_RAND,
+    TRAV_SCAN,
+    TRAV_REFS
+  } Trav;
+
+  static Trav get_trav(const std::string &travstr) {
+    if (travstr == "rand") return TRAV_RAND;
+    if (travstr == "scan") return TRAV_SCAN;
+    if (travstr == "refs") return TRAV_REFS;
+    return TRAV_NONE;
   }
 
   std::string fn;
   Kind kind;
   Flags flags;
+  Trav trav;
   unsigned int pw, ph, pc;
   unsigned int sw, sh, sc;
   bool loaded;
@@ -108,7 +113,7 @@ struct Kleption {
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
-    Flags _flags = FLAGS_NONE, Kind _kind = KIND_UNK,
+    Flags _flags = 0, Trav _trav = TRAV_RAND, Kind _kind = KIND_UNK,
     unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0
   );
   ~Kleption();

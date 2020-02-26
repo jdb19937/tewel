@@ -504,24 +504,25 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "synth") {
-    int linear = arg.get("linear", "1");
-    int repeat = arg.get("repeat", "0");
     int limit = arg.get("limit", "-1");
     int reload = arg.get("reload", "0");
-
-    std::string outcrop = arg.get("outcrop", "center");
-    if (outcrop != "random" && outcrop != "center")
-      error("outcrop must be random or center");
-
     double delay = arg.get("delay", "0.0");
 
-    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
+    Kleption::Trav trav = Kleption::get_trav(arg.get("trav", "scan"));
+    if (trav == Kleption::TRAV_NONE)
+      error("trav must be scan or rand or refs");
+
+    Kleption::Flags srcflags = 0;
+
+    int repeat = arg.get("repeat", "0");
     if (repeat)
-      srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
-    if (linear)
-      srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_LINEAR);
+      srcflags |= Kleption::FLAG_REPEAT;
+
+    std::string outcrop = arg.get("outcrop", "center");
     if (outcrop == "center")
-      srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_CENTER);
+      srcflags |= Kleption::FLAG_CENTER;
+    else if (outcrop != "random")
+      error("outcrop must be random or center");
 
     std::string outdim = arg.get("outdim", "0x0x0");
     int pw = 0, ph = 0, pc = 3;
@@ -536,7 +537,7 @@ int main(int argc, char **argv) {
     Kleption *src = new Kleption(
       arg.get("src", "/dev/stdin"),
       pw, ph, pc,
-      srcflags, srckind,
+      srcflags, trav, srckind,
       sw, sh, sc
     );
 
@@ -578,7 +579,8 @@ int main(int argc, char **argv) {
 
     Kleption *out = new Kleption(
       arg.get("out", ""),
-      gen->ow, gen->oh, gen->oc, Kleption::FLAG_WRITER, outkind
+      gen->ow, gen->oh, gen->oc,
+      Kleption::FLAG_WRITER, Kleption::TRAV_SCAN, outkind
     );
 
     if (!arg.unused.empty())
@@ -654,9 +656,6 @@ int main(int argc, char **argv) {
     if (ic != gen->oc)
       error("input and output channels don't match");
 
-    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
-    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
-
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
@@ -666,7 +665,7 @@ int main(int argc, char **argv) {
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
-      srcflags, srckind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
@@ -708,9 +707,6 @@ int main(int argc, char **argv) {
       ic = gen->ic;
     }
 
-    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
-    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
-
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
@@ -720,12 +716,9 @@ int main(int argc, char **argv) {
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
-      srcflags, srckind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
-
-    Kleption::Flags tgtflags = Kleption::FLAGS_NONE;
-    tgtflags = Kleption::add_flags(tgtflags, Kleption::FLAG_REPEAT);
 
     std::string tgtdim = arg.get("tgtdim", "0x0x0");
     int tw = 0, th = 0, tc = 0;
@@ -736,7 +729,7 @@ int main(int argc, char **argv) {
 
     Kleption *tgt = new Kleption(
       arg.get("tgt"), gen->ow, gen->oh, gen->oc,
-      tgtflags, tgtkind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
@@ -789,9 +782,6 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
-    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
-
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
@@ -801,12 +791,9 @@ int main(int argc, char **argv) {
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
-      srcflags, srckind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
-
-    Kleption::Flags tgtflags = Kleption::FLAGS_NONE;
-    tgtflags = Kleption::add_flags(tgtflags, Kleption::FLAG_REPEAT);
 
     std::string tgtdim = arg.get("tgtdim", "0x0x0");
     int tw = 0, th = 0, tc = 0;
@@ -817,7 +804,7 @@ int main(int argc, char **argv) {
 
     Kleption *tgt = new Kleption(
       arg.get("tgt"), gen->ow, gen->oh, gen->oc,
-      tgtflags, tgtkind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
@@ -880,9 +867,6 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc + ic)
       error("gen oc+ic doesn't match dis ic");
 
-    Kleption::Flags srcflags = Kleption::FLAGS_NONE;
-    srcflags = Kleption::add_flags(srcflags, Kleption::FLAG_REPEAT);
-
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
@@ -892,12 +876,9 @@ int main(int argc, char **argv) {
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
-      srcflags, srckind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
-
-    Kleption::Flags tgtflags = Kleption::FLAGS_NONE;
-    tgtflags = Kleption::add_flags(tgtflags, Kleption::FLAG_REPEAT);
 
     std::string tgtdim = arg.get("tgtdim", "0x0x0");
     int tw = 0, th = 0, tc = 0;
@@ -908,7 +889,7 @@ int main(int argc, char **argv) {
 
     Kleption *tgt = new Kleption(
       arg.get("tgt"), gen->ow, gen->oh, gen->oc,
-      tgtflags, tgtkind,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
