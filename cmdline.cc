@@ -11,17 +11,6 @@
 
 namespace makemore {
 
-static void parsecmd(int *argcp, char ***argvp, std::string *cmdp) {
-  assert(*argcp > 0);
-  const char *cmd = **argvp;
-  while (*cmd == '-')
-    ++cmd;
-  ++*argvp;
-  --*argcp;
-
-  *cmdp = cmd;
-}
-
 static bool parseopt(
   int *argcp, char ***argvp,
   std::string *optp, std::string *valp
@@ -32,8 +21,16 @@ static bool parseopt(
 
   const char *opt = **argvp;
   if (char *q = strchr(**argvp, '=')) {
-    *q = 0;
-    **argvp = q + 1;
+    while (*opt == '-' && opt < q)
+      ++opt;
+
+    assert(*argcp > 0);
+    const char *val = q + 1;
+    --*argcp;
+    ++*argvp;
+
+    *optp = std::string(opt, q - opt);
+    *valp = val;
   } else {
     if (*opt == '-' && *argcp > 1) {
       --*argcp;
@@ -41,26 +38,24 @@ static bool parseopt(
     } else {
       opt = "";
     }
+    while (*opt == '-')
+      ++opt;
+
+    assert(*argcp > 0);
+    const char *val = **argvp;
+    --*argcp;
+    ++*argvp;
+
+    *optp = opt;
+    *valp = val;
   }
-  while (*opt == '-')
-    ++opt;
-
-  assert(*argcp > 0);
-  const char *val = **argvp;
-  --*argcp;
-  ++*argvp;
-
-  *optp = opt;
-  *valp = val;
 
   return true;
 }
 
-Cmdline::Cmdline(int *argcp, char ***argvp, const char *dopt) {
-  parsecmd(argcp, argvp, &cmd);
-
+Cmdline::Cmdline(int argc, char **argv, const char *dopt) {
   std::string opt, val;
-  while (parseopt(argcp, argvp, &opt, &val)) {
+  while (parseopt(&argc, &argv, &opt, &val)) {
     if (opt == "")
       opt = dopt;
     put(opt, val);

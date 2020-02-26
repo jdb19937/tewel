@@ -11,6 +11,7 @@
 #include <sys/wait.h>
 
 #include <string>
+#include <vector>
 
 #include "youtil.hh"
 
@@ -159,6 +160,96 @@ bool read_line(FILE *fp, std::string *line) {
 
   *line = buf;
   return true;
+}
+
+bool parsecut(const std::string &_cut, uint8_t *incp) {
+  memset(incp, 0, 4096);
+
+  const char *cut = _cut.c_str();
+  if (!*cut)
+    return true;
+
+  while (*cut) {
+    int a, b;
+    if (isdigit(*cut)) {
+      a = 0;
+      while (isdigit(*cut))
+        a = a * 10 + *cut++ - '0';
+      if (a < 0 || a >= 4096)
+        return false;
+    } else if (*cut == '-') {
+      a = 0;
+    } else {
+      return false;
+    }
+
+    if (*cut == '-') {
+      ++cut;
+      if (isdigit(*cut)) {
+        b = 0;
+        while (isdigit(*cut))
+          b = b * 10 + *cut++ - '0';
+        if (b < 0 || b >= 4096)
+          return false;
+      } else if (*cut == ',' || *cut == '\0') {
+        b = 255;
+      } else {
+        return false;
+      }
+    } else {
+      b = a;
+    }
+
+    for (int i = a; i <= b; ++i)
+      incp[i] = 1;
+
+    if (*cut == ',')
+      ++cut;
+  }
+
+  return true;
+}
+
+void parseargs(const std::string &str, std::vector<std::string> *vec) {
+  const char *p = str.c_str();
+
+  while (*p) {
+    while (isspace(*p))
+      ++p;
+    if (!*p)
+      return;
+
+    const char *q = p + 1;
+    while (*q && !isspace(*q))
+      ++q;
+    vec->push_back(std::string(p, q - p));
+
+    p = q;
+  }
+}
+
+void freeargstrad(int argc, char **argv) {
+  for (int i = 0; i < argc; ++i) {
+    assert(argv[i]);
+    delete[] argv[i];
+  }
+  assert(argv);
+  delete[] argv;
+}
+
+void parseargstrad(const std::string &str, int *argcp, char ***argvp) {
+  std::vector<std::string> vec;
+  parseargs(str, &vec);
+
+  int argc = vec.size();
+  char **argv = new char *[argc];
+  for (int i = 0; i < argc; ++i) {
+    argv[i] = new char[vec[i].length() + 1];
+    strcpy(argv[i], vec[i].c_str());
+  }
+
+  *argcp = argc;
+  *argvp = argv;
 }
 
 }

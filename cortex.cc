@@ -789,6 +789,8 @@ void Cortex::_clear() {
   max = 0.0;
   rounds = 0;
   stripped = false;
+
+  new_rounds = 0;
 }
 
 void Cortex::open(const std::string &_fn, int flags) {
@@ -824,7 +826,7 @@ void Cortex::open(const std::string &_fn, int flags) {
     assert(head->blank[j] == 0);
 
   rounds = ntohll(head->rounds);
-fprintf(stderr,"[%lu]\n", rounds);
+  new_rounds = 0;
 
   stripped = ntohl(head->stripped) ? 1 : 0;
   nu = head->nu;
@@ -894,6 +896,8 @@ void Cortex::close() {
   fn = "";
 
   is_open = false;
+  new_rounds = 0;
+  rounds = 0;
 }
 
 // static
@@ -920,13 +924,17 @@ void Cortex::create(const std::string &fn) {
   assert(ret == 0);
 }
 
-void Cortex::dump(FILE *outfp) {
+void Cortex::dump(FILE *outfp, const uint8_t *cutvec) {
   int i = 0;
   unsigned int basei = 0;
 
-  fprintf(outfp, "rounds=%lu nu=%g b1=%g b2=%g eps=%g\n", rounds, nu, b1, b2, eps);
+  if (!cutvec || cutvec[0])
+    fprintf(outfp, "rounds=%lu nu=%g b1=%g b2=%g eps=%g\n", rounds, nu, b1, b2, eps);
+  i = 1;
 
   while (basei < basen) {
+    assert(i < 4096);
+
     layer_header_t hdr;
     assert(basei + sizeof(hdr) <= basen);
     memcpy(hdr, base + basei, sizeof(hdr));
@@ -941,10 +949,12 @@ void Cortex::dump(FILE *outfp) {
     memcpy(stype, &ntype, 4);
     stype[4] = 0;
 
-    fprintf(outfp, "t=%s len=%d ic=%d oc=%d\n", stype, len, ic, oc);
+    if (!cutvec || cutvec[i])
+      fprintf(outfp, "t=%s len=%d ic=%d oc=%d\n", stype, len, ic, oc);
 
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);
+    ++i;
   }
   assert(basei == basen);
 }
@@ -1052,6 +1062,7 @@ void Cortex::stats() {
   max *= 1.0 / (1.0 - z * (1.0 - decay));
 
   ++rounds;
+  ++new_rounds;
 }
 
 void Cortex::target(const double *ktgt) {
@@ -1176,6 +1187,8 @@ void Cortex::save() {
   assert(!stripped);
   assert(!head->stripped);
 
+  rounds = ntohll(head->rounds) + new_rounds;
+  new_rounds = 0;
   head->rounds = htonll(rounds);
 
   if (head->nu != nu) {
@@ -1236,8 +1249,32 @@ void Cortex::scram(double dev) {
   assert(basei == basen);
 }
 
-void Cortex::push(const std::string &stype, int ic, int oc) {
+void Cortex::push(const std::string &stype, int nic, int noc) {
   assert(!stripped);
+
+  if (noc <= 0) {
+    int ric = nic;
+
+    if      (stype == "dns1")	{ noc = (nic << 2); }
+    else if (stype == "dns2")	{ noc = (nic << 4); }
+    else if (stype == "dns3")	{ noc = (nic << 6); }
+    else if (stype == "dns4")	{ noc = (nic << 8); }
+    else if (stype == "ups1")	{ noc = (nic >> 2); ric = (noc << 2); }
+    else if (stype == "ups2")	{ noc = (nic >> 4); ric = (noc << 4); }
+    else if (stype == "ups3")	{ noc = (nic >> 6); ric = (noc << 6); }
+    else if (stype == "ups4")	{ noc = (nic >> 8); ric = (noc << 8); }
+    else if (stype == "grnd")	{ noc = (nic + 1); }
+    else if (stype == "lrnd")	{ noc = (nic + 1); }
+    else if (stype == "pad1")	{ noc = (nic + 1); }
+    else if (stype == "iden")	{ noc = nic; }
+    else			{ noc = nic; }
+
+    if (ric != nic)
+      error("input channels can't divide to upscale");
+  }
+  assert(noc > 0);
+
+  this->oc = noc;
 
   assert(stype.length() == 4);
   uint32_t type;
@@ -1246,23 +1283,20 @@ void Cortex::push(const std::string &stype, int ic, int oc) {
 
   assert(is_open);
   assert(!is_prep);
-  if (oc == 0)
-    oc = ic;
-  assert(ic > 0);
+  assert(nic > 0);
   assert(oc > 0);
-
 
 
   int len;
   switch (type) {
   case TYPE_CON0:
-    len = size_conv(0, ic, oc, false);
+    len = size_conv(0, nic, oc, false);
     break;
   case TYPE_CON1:
-    len = size_conv(1, ic, oc, false);
+    len = size_conv(1, nic, oc, false);
     break;
   case TYPE_CON2:
-    len = size_conv(2, ic, oc, false);
+    len = size_conv(2, nic, oc, false);
     break;
   case TYPE_UPS1:
   case TYPE_UPS2:
@@ -1307,8 +1341,8 @@ void Cortex::push(const std::string &stype, int ic, int oc) {
   hdr[2] = htonl(1);
   hdr[3] = htonl(type);
   hdr[4] = htonl(len);
-  hdr[5] = htonl(ic);
-  hdr[6] = htonl(oc);
+  hdr[5] = htonl(nic);
+  hdr[6] = htonl(noc);
 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;

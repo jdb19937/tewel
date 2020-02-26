@@ -48,6 +48,8 @@ struct Cortex {
   uint64_t rounds;
   bool stripped;
 
+  uint64_t new_rounds;
+
   Cortex();
   Cortex(const std::string &_fn, int flags = O_RDWR);
   ~Cortex();
@@ -58,7 +60,7 @@ struct Cortex {
   void open(const std::string &_fn, int flags = O_RDWR);
   void close();
 
-  void dump(FILE * = stdout);
+  void dump(FILE * = stdout, const uint8_t *cutvec = NULL);
   void unprepare();
   bool prepare(int _iw, int _ih);
   void load();

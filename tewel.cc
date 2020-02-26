@@ -402,8 +402,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  Cmdline arg(&argc, &argv, "gen");
-  std::string cmd = arg.cmd;
+  std::string cmd = argv[0];
+  ++argv;
+  --argc;
+
+  Cmdline arg(argc, argv, "gen");
 
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
@@ -432,7 +435,54 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (cmd == "head") {
+  if (cmd == "make") {
+    std::string spec = arg.get("spec", "/dev/stdin");
+    std::string outfn = arg.get("out");
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    Cortex::create(outfn);
+
+    Cortex *out = new Cortex(outfn);
+    FILE *specfp = fopen(spec.c_str(), "r");
+    if (!specfp)
+      error(std::string("can't open ") + spec + ": " + strerror(errno));
+
+    std::string specline;
+    int poc = 0;
+    while (read_line(specfp, &specline)) {
+      int specargc;
+      char **specargv;
+
+      parseargstrad(specline, &specargc, &specargv);
+
+      Cmdline specargs(specargc, specargv, "");
+      std::string type = specargs.get("type");
+      int ic = specargs.get("ic", "0");
+      int oc = specargs.get("oc", "0");
+
+      freeargstrad(specargc, specargv);
+      if (!specargs.unused.empty())
+        error("unrecognized options");
+
+      if (ic == 0)
+        ic = poc;
+      if (ic == 0)
+        error("input channels required");
+      if (poc && ic != poc)
+        error("channels don't match");
+
+      out->push(type, ic, oc);
+
+      poc = out->oc;
+    }
+
+    fclose(specfp);
+    delete out;
+    return 0;
+  }
+
+  if (cmd == "edit") {
     std::string genfn = arg.get("gen");
     Cortex *gen = new Cortex(genfn);
 
@@ -457,9 +507,19 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "dump") {
+    uint8_t *cutvec = NULL;
+    if (arg.present("cut")) {
+      cutvec = new uint8_t[4096];
+      if (!parsecut(arg.get("cut"), cutvec))
+        error("bad cut spec");
+    }
+
     Cortex *gen = new Cortex(arg.get("gen"));
-    gen->dump(stdout);
+    gen->dump(stdout, cutvec);
+
     delete gen;
+    if (cutvec)
+      delete[] cutvec;
     return 0;
   }
 
@@ -496,28 +556,6 @@ int main(int argc, char **argv) {
         uerror("number of input channels required (-ic)");
     }
     assert(ic > 0);
-
-    if (oc <= 0) {
-      int ric = ic;
-
-      if      (t == "dns1")	{ oc = (ic << 2); }
-      else if (t == "dns2")	{ oc = (ic << 4); }
-      else if (t == "dns3")	{ oc = (ic << 6); }
-      else if (t == "dns4")	{ oc = (ic << 8); }
-      else if (t == "ups1")	{ oc = (ic >> 2); ric = (oc << 2); }
-      else if (t == "ups2")	{ oc = (ic >> 4); ric = (oc << 4); }
-      else if (t == "ups3")	{ oc = (ic >> 6); ric = (oc << 6); }
-      else if (t == "ups4")	{ oc = (ic >> 8); ric = (oc << 8); }
-      else if (t == "grnd")	{ oc = (ic + 1); }
-      else if (t == "lrnd")	{ oc = (ic + 1); }
-      else if (t == "pad1")	{ oc = (ic + 1); }
-      else if (t == "iden")	{ oc = ic; }
-      else                      { oc = ic; }
-
-      if (ric != ic)
-        uerror("input channels can't divide to upscale");
-    }
-    assert(oc > 0);
 
     if (!arg.unused.empty())
       error("unrecognized options");

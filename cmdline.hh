@@ -27,11 +27,10 @@ struct Cmdline {
       { return strtod(x); }
   };
 
-  std::string cmd;
   std::map<std::string, Value> m;
   std::set<std::string> unused;
 
-  Cmdline(int *argcp, char ***argvp, const char *dopt);
+  Cmdline(int argc, char **argv, const char *dopt);
 
   void put(const std::string &opt, const std::string &val);
   const Value &get(const std::string &opt);

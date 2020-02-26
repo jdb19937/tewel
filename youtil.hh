@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 
 #include <string>
+#include <vector>
 
 namespace makemore {
 
@@ -68,6 +69,11 @@ extern bool read_line(FILE *fp, std::string *line);
 
 inline uint64_t htonll(uint64_t x) { return htobe64(x); }
 inline uint64_t ntohll(uint64_t x) { return be64toh(x); }
+
+bool parsecut(const std::string &_cut, uint8_t *incp);
+void parseargs(const std::string &str, std::vector<std::string> *vec);
+void parseargstrad(const std::string &str, int *argcp, char ***argvp);
+void freeargstrad(int argc, char **argv);
 
 }
 
