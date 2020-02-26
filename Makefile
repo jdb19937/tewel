@@ -7,7 +7,7 @@ LDFLAGS = -lm
 
 VERSION = 0.3
 
-TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl identity.gen
+TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl identity.ctx
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
 HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh
 
@@ -37,7 +37,7 @@ install: all
 	install -d $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0644 README $(DESTDIR)/opt/makemore/share/tewel/README
 	install -m 0644 LICENSE $(DESTDIR)/opt/makemore/share/tewel/LICENSE
-	install -m 0644 identity.gen $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0644 identity.ctx $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.sh $(DESTDIR)/opt/makemore/share/tewel
 
