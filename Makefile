@@ -96,4 +96,4 @@ colonel-nocuda.o: colonel.inc
 
 
 identity.gen: identity.spec tewel
-	./tewel make $@ spec=identity.spec
+	./tewel make $@ spec=identity.spec clobber=1

@@ -34,16 +34,16 @@ static void usage() {
     "        tewel spec gen.dat > gen.txt\n"
     "                display layer headers\n"
     "\n"
-    "        tewel synth gen=gen.dat src=... out=...\n"
+    "        tewel synth gen.dat src=... out=...\n"
     "                run generator\n"
     "\n"
-    "        tewel learnauto gen=gen.dat src=...\n"
+    "        tewel learnauto gen.dat src=...\n"
     "                train generator on sample paired with self\n"
-    "        tewel learnfunc gen=gen.dat src=... tgt=...\n"
+    "        tewel learnfunc gen.dat src=... tgt=...\n"
     "                train generator on paired samples\n"
-    "        tewel learnstyl gen=gen.dat src=... tgt=... -dis=dis.dat\n"
+    "        tewel learnstyl gen.dat src=... tgt=... -dis=dis.dat\n"
     "                train generator on paired samples versus discriminator\n"
-    "        tewel learnhans gen=gen.dat src=... tgt=... -dis=dis.dat\n"
+    "        tewel learnhans gen.dat src=... tgt=... -dis=dis.dat\n"
     "                train generator on paired samples versus discriminator\n"
   );
 }
@@ -513,9 +513,9 @@ int main(int argc, char **argv) {
     gen = new Cortex(genfn);
 
     printf(
-      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g\n",
+      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g stripped=%d\n",
       gen->rounds, gen->rms, gen->max, gen->decay,
-      gen->nu, gen->b1, gen->b2, gen->eps
+      gen->nu, gen->b1, gen->b2, gen->eps, gen->stripped
     );
 
     return 0;
@@ -595,7 +595,7 @@ int main(int argc, char **argv) {
     );
 
     Cortex *gen = new Cortex(
-      arg.get("gen", "/opt/makemore/share/tewel/identity.gen"),
+      arg.get("0", "/opt/makemore/share/tewel/identity.gen"),
       O_RDONLY
     );
 
@@ -685,7 +685,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
-    Cortex *gen = new Cortex(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("0"));
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -745,7 +745,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
-    Cortex *gen = new Cortex(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("0"));
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -817,7 +817,7 @@ int main(int argc, char **argv) {
     double mul = arg.get("mul", "1.0");
     int lossreg = arg.get("lossreg", "1");
 
-    Cortex *gen = new Cortex(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("0"));
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -899,7 +899,7 @@ int main(int argc, char **argv) {
     int lossreg = arg.get("lossreg", "1");
     double noise = arg.get("noise", "0.5");
 
-    Cortex *gen = new Cortex(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("0"));
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
