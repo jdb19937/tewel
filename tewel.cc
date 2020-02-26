@@ -25,18 +25,18 @@ static void usage() {
     "Usage:\n"
     "        tewel help\n"
     "                print this message\n"
-    "        tewel head gen.dat\n"
-    "                display header contents\n"
-    "        tewel head gen.dat decay=... nu=... b1=... b2=... eps=...\n"
-    "                edit header contents\n"
-    "        tewel spec gen.dat > gen.spec\n"
-    "                display layer header contents\n"
-    "        tewel make spec=gen.txt out=gen.dat\n"
+    "        tewel make gen.dat spec=gen.txt\n"
     "                create a new generator\n"
-    "        tewel scram out=gen.dat [stddev]\n"
+    "        tewel rand gen.dat [stddev=value]\n"
     "                randomize generator state\n"
+    "        tewel head gen.dat [key=val ...]\n"
+    "                display or edit header contents\n"
+    "        tewel spec gen.dat > gen.txt\n"
+    "                display layer headers\n"
+    "\n"
     "        tewel synth gen=gen.dat src=... out=...\n"
     "                run generator\n"
+    "\n"
     "        tewel learnauto gen=gen.dat src=...\n"
     "                train generator on sample paired with self\n"
     "        tewel learnfunc gen=gen.dat src=... tgt=...\n"
@@ -531,7 +531,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (cmd == "scram") {
+  if (cmd == "rand") {
     Cortex *gen = new Cortex(arg.get("0"));
     double stddev = arg.get("stddev", "1.0");
     if (!arg.unused.empty())
