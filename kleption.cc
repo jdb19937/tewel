@@ -126,7 +126,7 @@ Kleption::Kleption(
       return;
     }
 
-    assert(_kind == KIND_UNK);
+    assert(_kind == KIND_ANY);
 
     if (endswith(fn, ".dat")) {
       kind = KIND_DAT;
@@ -152,7 +152,7 @@ Kleption::Kleption(
   }
  
   if (S_ISDIR(buf.st_mode)) {
-    assert(_kind == KIND_DIR || _kind == KIND_UNK);
+    assert(_kind == KIND_DIR || _kind == KIND_ANY);
     if (pw == 0 || ph == 0 || pc == 0)
       error("outdim required for dir kind");
     kind = KIND_DIR;
@@ -162,7 +162,7 @@ Kleption::Kleption(
       error("can't output to camera");
     if (trav != TRAV_SCAN)
       error("reading vid kind requires scan traversal");
-    assert(_kind == KIND_CAM || _kind == KIND_UNK);
+    assert(_kind == KIND_CAM || _kind == KIND_ANY);
     kind = KIND_CAM;
     return;
   } else {
@@ -373,7 +373,7 @@ void Kleption::load() {
 
         Kleption *subkl = new Kleption(
           fn + "/" + subfn, pw, ph, pc,
-          flags & ~FLAG_REPEAT, trav, KIND_UNK,
+          flags & ~FLAG_REPEAT, trav, KIND_ANY,
           sw, sh, sc
         );
 

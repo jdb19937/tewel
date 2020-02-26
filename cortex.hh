@@ -14,10 +14,20 @@ namespace makemore {
 typedef uint32_t layer_header_t[16];
 
 struct Cortex {
+  struct Head {
+    char magic[8];
+    uint32_t version;
+    uint32_t stripped;
+    uint64_t rounds;
+    double nu, b1, b2, eps;
+    char blank[4040];
+  };
+
   bool is_open, is_prep;
   std::string fn;
 
   int fd;
+  Head *head;
   uint8_t *base;
   size_t basen;
   uint8_t *kbase;

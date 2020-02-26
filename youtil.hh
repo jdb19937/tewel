@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <sys/time.h>
+#include <netinet/in.h>
 
 #include <string>
 
@@ -60,6 +61,9 @@ inline double now() {
 }
 
 extern bool read_line(FILE *fp, std::string *line);
+
+inline uint64_t htonll(uint64_t x) { return htobe64(x); }
+inline uint64_t ntohll(uint64_t x) { return be64toh(x); }
 
 }
 

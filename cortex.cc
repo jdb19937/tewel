@@ -42,65 +42,6 @@ const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 
-static void _check_intro(uint8_t *base, size_t basen) {
-  assert(basen >= 4096);
-  assert(!memcmp(base, "MakeMore", 8));
-  uint32_t v;
-  memcpy(&v, base + 8, 4);
-  v = ntohl(v);
-
-  assert(v != 0);
-  assert(v < 256);
-  if (v > 1)
-    fprintf(stderr, "Warning: future version %u\n", v);
-
-  char blank[4076];
-  memset(blank, 0, 4076);
-  assert(!memcmp(blank, base + 20, 4076));
-}
-
-
-static void _place_intro(uint8_t *base, size_t basen) {
-  assert(basen >= 4096);
-  memcpy(base, "MakeMore", 8);
-  uint32_t v = htonl(1);
-  memcpy(base + 8, &v, 4);
-  memset(base + 12, 0, 4084);
-}
-
-static void pipe_grow(int fd, uint8_t **basep, size_t basen, size_t new_basen) {
-  assert(new_basen >= basen);
-
-  int ret = ::ftruncate(fd, new_basen + 4096);
-  assert(ret == 0);
-
-  void *vbase = mremap(
-    *basep - 4096,
-    (basen + 4096 + 4095) & ~4095,
-    (new_basen + 4096 + 4095) & ~4095,
-    MREMAP_MAYMOVE
-  );
-  assert(vbase != NULL && vbase != MAP_FAILED);
-  uint8_t *base = (uint8_t *)vbase;
-  base += 4096;
-
-  *basep = (uint8_t *)base;
-}
-
-static void _make_header(
-  layer_header_t& hdr, uint32_t type, int len, int ic, int oc
-) {
-  memset(hdr, 0, sizeof(hdr));
-  assert(sizeof(hdr[0]) == 4);
-  assert(sizeof(hdr) >= 64);
-  memcpy((char *)hdr, "MakeMore", 8);
-  hdr[2] = htonl(1);
-  hdr[3] = htonl(type);
-  hdr[4] = htonl(len);
-  hdr[5] = htonl(ic);
-  hdr[6] = htonl(oc);
-}
-
 static void _parse_header(
   layer_header_t& hdr, uint32_t *typep, int *lenp, int *icp, int *ocp
 ) {
@@ -121,94 +62,6 @@ static void _parse_header(
   *ocp = ntohl(hdr[6]);
 }
 
-
-static void pipe_push(
-  int fd, uint8_t **basep, size_t *basenp, uint32_t type, int ic, int oc
-) {
-  int len;
-
-  switch (type) {
-  case TYPE_CON0:
-    len = size_conv(0, ic, oc, false);
-    break;
-  case TYPE_CON1:
-    len = size_conv(1, ic, oc, false);
-    break;
-  case TYPE_CON2:
-    len = size_conv(2, ic, oc, false);
-    break;
-  case TYPE_UPS1:
-  case TYPE_UPS2:
-  case TYPE_UPS3:
-  case TYPE_UPS4:
-  case TYPE_DNS1:
-  case TYPE_DNS2:
-  case TYPE_DNS3:
-  case TYPE_DNS4:
-  case TYPE_RELU:
-  case TYPE_ABSV:
-  case TYPE_GRND:
-  case TYPE_LRND:
-  case TYPE_PAD1:
-  case TYPE_IDEN:
-    len = 0;
-    break;
-  default:
-    assert(0);
-  }
-
-  size_t new_basen = *basenp + sizeof(layer_header_t) + len * sizeof(double);
-  pipe_grow(fd, basep, *basenp, new_basen);
-
-  layer_header_t hdr;
-  _make_header(hdr, type, len, ic, oc);
-
-  memcpy((char *)*basep + *basenp, &hdr, sizeof(hdr));
-  *basenp = new_basen;
-}
-
-static bool pipe_scan(uint8_t *base, size_t basen, int *icp, int *ocp) {
-  int i = 0;
-  unsigned int basei = 0;
-  int ic = 0, oc = 0;
-
-  *icp = 0;
-  *ocp = 0;
-
-  if (basei == basen)
-    return false;
-  assert(basei < basen);
-
-  while (basei < basen) {
-    layer_header_t hdr;
-    assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
-    basei += sizeof(hdr);
-
-    uint32_t type;
-    int len, vic;
-    _parse_header(hdr, &type, &len, &vic, &oc);
-
-    if (i == 0) {
-      ic = vic;
-      *icp = ic;
-    } else {
-      assert(ic == vic);
-    }
-
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
-
-    ic = oc;
-    ++i;
-  }
-
-  if (ocp)
-    *ocp = ic;
-  assert(basei == basen);
-
-  return true;
-}
 
 static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp, bool stripped) {
   int i = 0;
@@ -951,25 +804,56 @@ void Cortex::open(const std::string &_fn, int flags) {
   assert(ret == 0);
 
   basen = stbuf.st_size;
-  assert(basen >= 4096);
+  assert(basen >= sizeof(Head));
 
   void *vbase = ::mmap(
-    NULL, (basen + 4095) & ~4095,
+    NULL, (basen + sizeof(Head) + 4095) & ~4095,
     PROT_READ | (flags == O_RDWR ? PROT_WRITE : 0), MAP_SHARED,
     fd, 0
   );
   assert(vbase != NULL && vbase != MAP_FAILED);
-  base = (uint8_t *)vbase;
+  head = (Head *)vbase;
+  base = (uint8_t *)vbase + sizeof(Head);
+  basen -= sizeof(Head);
 
-  _check_intro(base, basen);
-  base += 4096;
-  basen -= 4096;
+  assert(!memcmp(head->magic, "MakeMore", 8));
+  uint32_t v = ntohl(head->version);
+  assert(v == 2);
 
-  pipe_scan(
-    base, basen,
-    &ic, &oc
-  );
+  for (unsigned int j = 0; j < sizeof(Head::blank); ++j)
+    assert(head->blank[j] == 0);
 
+  int i = 0;
+  unsigned int basei = 0;
+  int tic = 0;
+  ic = 0;
+  oc = 0;
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, vic;
+    _parse_header(hdr, &type, &len, &vic, &oc);
+
+    if (i == 0) {
+      ic = vic;
+      tic = vic;
+    } else {
+      assert(tic == vic);
+    }
+
+    assert(basei + len * sizeof(double) <= basen);
+    basei += len * sizeof(double);
+
+    tic = oc;
+    ++i;
+  }
+
+  assert(basei == basen);
   is_open = true;
 }
 
@@ -980,7 +864,7 @@ void Cortex::close() {
     unprepare();
   assert(!is_prep);
 
-  int ret = ::munmap(base - 4096, (basen + 4096 + 4095) & ~4095);
+  int ret = ::munmap(base - sizeof(Head), (basen + sizeof(Head) + 4095) & ~4095);
   assert(ret == 0);
   base = NULL;
 
@@ -1008,17 +892,20 @@ void Cortex::create(const std::string &fn) {
   int fd = ::open(fn.c_str(), O_RDWR | O_CREAT | O_EXCL, 0700);
   assert(fd != -1);
 
-  int ret = ::write(fd, "MakeMore", 8);
-  assert(ret == 8);
+  Head head;
+  assert(sizeof(Head) == 4096);
+  memcpy(head.magic, "MakeMore", 8);
+  head.version = htonl(2);
+  head.stripped = 0;
+  head.rounds = 0;
+  head.nu = 1e-4;
+  head.b1 = 0.1;
+  head.b2 = 0.001;
+  head.eps = 1e-8;
+  memset(head.blank, 0, sizeof(head.blank));
 
-  uint32_t v = htonl(1);
-  ret = ::write(fd, &v, 4);
-  assert(ret == 4);
-
-  char rest[4084];
-  memset(rest, 0, sizeof(rest));
-  ret = ::write(fd, rest, sizeof(rest));
-  assert(ret == sizeof(rest));
+  int ret = ::write(fd, &head, sizeof(Head));
+  assert(ret == sizeof(Head));
 
   ret = ::close(fd);
   assert(ret == 0);
@@ -1090,16 +977,8 @@ bool Cortex::prepare(int _iw, int _ih) {
   assert(_iw > 0);
   assert(_ih > 0);
 
-  uint64_t nrounds;
-  memcpy(&nrounds, base - 4096 + 12, 8);
-  nrounds = ntohl(nrounds);
-  rounds = nrounds;
-
-  uint64_t nstripped;
-  memcpy(&nstripped, base - 4096 + 20, 8);
-  nstripped = ntohl(nstripped);
-  assert(nstripped == 0 || nstripped == 1);
-  stripped = nstripped;
+  rounds = ntohll(head->rounds);
+  stripped = ntohl(head->stripped) ? 1 : 0;
 
   int vic, voc;
   assert(ic > 0);
@@ -1287,11 +1166,10 @@ void Cortex::save() {
   assert(is_open);
   assert(is_prep);
 
-  uint64_t nrounds = htonl(rounds);
-  memcpy(base - 4096 + 12, &nrounds, 8);
+  head->rounds = htonll(rounds);
 
   dek(kbase, basen, base);
-  ::msync(base - 4096, (basen + 4096 + 4095) & ~4095, MS_ASYNC);
+  ::msync(base - sizeof(Head), (basen + sizeof(Head) + 4095) & ~4095, MS_ASYNC);
 }
 
 void Cortex::scram(double dev) {
@@ -1345,7 +1223,68 @@ void Cortex::push(const std::string &stype, int ic, int oc) {
     oc = ic;
   assert(ic > 0);
   assert(oc > 0);
-  pipe_push(fd, &base, &basen, type, ic, oc);
+
+
+
+  int len;
+  switch (type) {
+  case TYPE_CON0:
+    len = size_conv(0, ic, oc, false);
+    break;
+  case TYPE_CON1:
+    len = size_conv(1, ic, oc, false);
+    break;
+  case TYPE_CON2:
+    len = size_conv(2, ic, oc, false);
+    break;
+  case TYPE_UPS1:
+  case TYPE_UPS2:
+  case TYPE_UPS3:
+  case TYPE_UPS4:
+  case TYPE_DNS1:
+  case TYPE_DNS2:
+  case TYPE_DNS3:
+  case TYPE_DNS4:
+  case TYPE_RELU:
+  case TYPE_ABSV:
+  case TYPE_GRND:
+  case TYPE_LRND:
+  case TYPE_PAD1:
+  case TYPE_IDEN:
+    len = 0;
+    break;
+  default:
+    assert(0);
+  }
+
+  size_t new_basen = basen + sizeof(layer_header_t) + len * sizeof(double);
+
+  int ret = ::ftruncate(fd, new_basen + sizeof(Head));
+  assert(ret == 0);
+
+  void *vbase = ::mremap(
+    base - sizeof(Head),
+    (basen + sizeof(Head) + 4095) & ~4095,
+    (new_basen + sizeof(Head) + 4095) & ~4095,
+    MREMAP_MAYMOVE
+  );
+  assert(vbase != NULL && vbase != MAP_FAILED);
+  head = (Head *)vbase;
+  base = (uint8_t *)vbase + sizeof(Head);
+
+  layer_header_t hdr;
+  memset(hdr, 0, sizeof(hdr));
+  assert(sizeof(hdr[0]) == 4);
+  assert(sizeof(hdr) >= 64);
+  memcpy((char *)hdr, "MakeMore", 8);
+  hdr[2] = htonl(1);
+  hdr[3] = htonl(type);
+  hdr[4] = htonl(len);
+  hdr[5] = htonl(ic);
+  hdr[6] = htonl(oc);
+
+  memcpy(base + basen, &hdr, sizeof(hdr));
+  basen = new_basen;
 }
 
 }
