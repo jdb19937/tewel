@@ -408,7 +408,7 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
-  Cmdline arg(argc, argv, "gen");
+  Cmdline arg(argc, argv, "0");
 
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
@@ -418,9 +418,8 @@ int main(int argc, char **argv) {
   Kleption::set_vidreader_cmd(arg.get("vidreader", "/opt/makemore/share/tewel/vidreader.pl"));
   Kleption::set_vidwriter_cmd(arg.get("vidwriter", "/opt/makemore/share/tewel/vidwriter.pl"));
 
-  int seed = arg.get("seed", "0");
-  if (seed)
-    seedrand((uint64_t)seed);
+  if (arg.present("randseed"))
+    seedrand(strtoul(arg.get("randseed")));
   else
     seedrand();
 
@@ -431,7 +430,7 @@ int main(int argc, char **argv) {
 
   if (cmd == "make") {
     std::string spec = arg.get("spec", "/dev/null");
-    std::string outfn = arg.get("out");
+    std::string outfn = arg.get("0");
 
     double decay = arg.get("decay", "1e-2");
     double nu = arg.get("nu", "1e-4");
@@ -493,7 +492,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "head") {
-    std::string genfn = arg.get("gen");
+    std::string genfn = arg.get("0");
     Cortex *gen = new Cortex(genfn);
 
     if (arg.present("decay"))
@@ -525,7 +524,7 @@ int main(int argc, char **argv) {
   if (cmd == "spec") {
     uint8_t *cutvec = NULL;
 
-    Cortex *gen = new Cortex(arg.get("gen"), O_RDONLY);
+    Cortex *gen = new Cortex(arg.get("0"), O_RDONLY);
     gen->dump(stdout);
 
     delete gen;
@@ -533,43 +532,13 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "scram") {
-    Cortex *gen = new Cortex(arg.get("gen"));
-    double dev = arg.get("dev", "1.0");
+    Cortex *gen = new Cortex(arg.get("0"));
+    double stddev = arg.get("stddev", "1.0");
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    gen->scram(dev);
-    delete gen;
-    return 0;
-  }
+    gen->scram(stddev);
 
-  if (cmd == "push") {
-    std::string type = arg.get("type");
-    int ic = arg.get("ic", "0");
-    int oc = arg.get("oc", "0");
-
-    if (ic < 0)
-      uerror("input channels can't be negative");
-    if (oc < 0)
-      uerror("output channels can't be negative");
-
-    Cortex *gen = new Cortex(arg.get("gen"));
-
-    if (gen->oc > 0) {
-      if (ic == 0)
-        ic = gen->oc;
-      if (ic != gen->oc)
-        uerror("input channels don't match output channels of last layer");
-    } else {
-      if (ic == 0)
-        uerror("number of input channels required (-ic)");
-    }
-    assert(ic > 0);
-
-    if (!arg.unused.empty())
-      error("unrecognized options");
-
-    gen->push(type, ic, oc);
     delete gen;
     return 0;
   }
