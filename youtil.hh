@@ -75,6 +75,8 @@ void parseargs(const std::string &str, std::vector<std::string> *vec);
 void parseargstrad(const std::string &str, int *argcp, char ***argvp);
 void freeargstrad(int argc, char **argv);
 
+void argvec(int argc, char **argv, std::vector<std::string> *vec);
+
 }
 
 #endif

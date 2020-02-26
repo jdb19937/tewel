@@ -252,4 +252,10 @@ void parseargstrad(const std::string &str, int *argcp, char ***argvp) {
   *argvp = argv;
 }
 
+void argvec(int argc, char **argv, std::vector<std::string> *vec) {
+  vec->resize(argc);
+  for (int i = 0; i < argc; ++i)
+    (*vec)[i] = std::string(argv[i]);
+}
+
 }
