@@ -97,4 +97,8 @@ const Cmdline::Value &Cmdline::operator [](const std::string &opt) {
   return get(opt);
 }
 
+bool Cmdline::present(const std::string &opt) {
+  return m.count(opt);
+}
+
 }

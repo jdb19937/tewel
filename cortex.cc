@@ -823,6 +823,15 @@ void Cortex::open(const std::string &_fn, int flags) {
   for (unsigned int j = 0; j < sizeof(Head::blank); ++j)
     assert(head->blank[j] == 0);
 
+  rounds = ntohll(head->rounds);
+fprintf(stderr,"[%lu]\n", rounds);
+
+  stripped = ntohl(head->stripped) ? 1 : 0;
+  nu = head->nu;
+  b1 = head->b1;
+  b2 = head->b2;
+  eps = head->eps;
+
   int i = 0;
   unsigned int basei = 0;
   int tic = 0;
@@ -852,8 +861,8 @@ void Cortex::open(const std::string &_fn, int flags) {
     tic = oc;
     ++i;
   }
-
   assert(basei == basen);
+
   is_open = true;
 }
 
@@ -914,6 +923,8 @@ void Cortex::create(const std::string &fn) {
 void Cortex::dump(FILE *outfp) {
   int i = 0;
   unsigned int basei = 0;
+
+  fprintf(outfp, "rounds=%lu nu=%g b1=%g b2=%g eps=%g\n", rounds, nu, b1, b2, eps);
 
   while (basei < basen) {
     layer_header_t hdr;
@@ -976,9 +987,6 @@ bool Cortex::prepare(int _iw, int _ih) {
   assert(!is_prep);
   assert(_iw > 0);
   assert(_ih > 0);
-
-  rounds = ntohll(head->rounds);
-  stripped = ntohl(head->stripped) ? 1 : 0;
 
   int vic, voc;
   assert(ic > 0);
@@ -1165,8 +1173,27 @@ void Cortex::load() {
 void Cortex::save() {
   assert(is_open);
   assert(is_prep);
+  assert(!stripped);
+  assert(!head->stripped);
 
   head->rounds = htonll(rounds);
+
+  if (head->nu != nu) {
+    nu = head->nu;
+    warning("nu changed");
+  }
+  if (head->b1 != b1) {
+    b1 = head->b1;
+    warning("b1 changed");
+  }
+  if (head->b2 != b2) {
+    b2 = head->b2;
+    warning("b2 changed");
+  }
+  if (head->eps != eps) {
+    eps = head->eps;
+    warning("eps changed");
+  }
 
   dek(kbase, basen, base);
   ::msync(base - sizeof(Head), (basen + sizeof(Head) + 4095) & ~4095, MS_ASYNC);

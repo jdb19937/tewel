@@ -432,6 +432,30 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (cmd == "head") {
+    std::string genfn = arg.get("gen");
+    Cortex *gen = new Cortex(genfn);
+
+    if (arg.present("rounds"))
+      gen->head->rounds = htonll(strtoul(arg.get("rounds")));
+    if (arg.present("nu"))
+      gen->head->nu = arg.get("nu");
+    if (arg.present("b1"))
+      gen->head->b1 = arg.get("b1");
+    if (arg.present("b2"))
+      gen->head->b2 = arg.get("b2");
+    if (arg.present("eps"))
+      gen->head->eps = arg.get("eps");
+
+    delete gen;
+
+    gen = new Cortex(genfn);
+    gen->dump(stdout);
+    delete gen;
+
+    return 0;
+  }
+
   if (cmd == "dump") {
     Cortex *gen = new Cortex(arg.get("gen"));
     gen->dump(stdout);

@@ -37,6 +37,8 @@ struct Cmdline {
   const Value &get(const std::string &opt);
   const Value &get(const std::string &opt, const std::string &dval);
   const Value &operator [](const std::string &opt);
+
+  bool present(const std::string &opt);
 };
 
 }
