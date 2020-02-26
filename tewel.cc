@@ -535,7 +535,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "push") {
-    std::string t = arg.get("t");
+    std::string type = arg.get("type");
     int ic = arg.get("ic", "0");
     int oc = arg.get("oc", "0");
 
@@ -560,7 +560,7 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    gen->push(t, ic, oc);
+    gen->push(type, ic, oc);
     delete gen;
     return 0;
   }
