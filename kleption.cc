@@ -31,21 +31,13 @@ Kleption::Kleption(
   const std::string &_fn,
   unsigned int _pw, unsigned int _ph, unsigned int _pc,
   Flags _flags, Trav _trav, Kind _kind,
-  unsigned int _sw, unsigned int _sh, unsigned int _sc
+  unsigned int _sw, unsigned int _sh, unsigned int _sc,
+  const char *refsfn
 ) {
   fn = _fn;
 
   flags = _flags;
   trav = _trav;
-
-  // ???
-  if (trav != TRAV_SCAN) {
-    if (
-      !(flags & FLAG_WRITER) &&
-      !(flags & FLAG_REPEAT)
-    )
-      error("need repeat or linear or writer");
-  }
 
   pw = _pw;
   ph = _ph;
@@ -70,6 +62,15 @@ Kleption::Kleption(
   vidwriter = NULL;
   datwriter = NULL;
   refwriter = NULL;
+
+  if (refsfn) {
+    if (trav != TRAV_REFS)
+      error("refsfn requires trav refs");
+    refreader = fopen(refsfn, "r");
+    if (!refreader)
+      error(std::string("can't open ") + refsfn + ": " + strerror(errno));
+  } else
+    refreader = NULL;
 
   if (_kind == KIND_SDL) {
     if (!(flags & FLAG_WRITER))
@@ -201,7 +202,7 @@ Kleption::Kleption(
     ) {
       kind = KIND_PIC;
     } else {
-      warning("can't identify source kind from extension, assuming pic");
+      warning("can't identify kind from extension, assuming pic");
       kind = KIND_PIC;
     }
     return;
@@ -217,6 +218,8 @@ Kleption::~Kleption() {
     delete vidwriter;
   if (datwriter)
     fclose(datwriter);
+  if (refreader)
+    fclose(refreader);
   if (refwriter)
     fclose(refwriter);
 }
@@ -368,13 +371,9 @@ void Kleption::load() {
           continue;
         std::string subfn = de->d_name;
 
-        Flags subflags = flags;
-        if (trav == TRAV_SCAN)
-          subflags &= ~FLAG_REPEAT;
-
         Kleption *subkl = new Kleption(
           fn + "/" + subfn, pw, ph, pc,
-          subflags, trav, KIND_UNK,
+          flags & ~FLAG_REPEAT, trav, KIND_UNK,
           sw, sh, sc
         );
 
@@ -574,7 +573,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+        sprintf(buf, "%ux%ux%u+%u+%u+%u.ppm", pw, ph, pc, x0, y0, frames);
         *idp = buf;
       }
       ++frames;
@@ -598,7 +597,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%ux%ux%u+%u+%u+%u", pw, ph, pc, x0, y0, frames);
+        sprintf(buf, "%ux%ux%u+%u+%u+%u.ppm", pw, ph, pc, x0, y0, frames);
         *idp = buf;
       }
       ++frames;
@@ -616,8 +615,22 @@ bool Kleption::pick(double *kdat, std::string *idp) {
             return false;
         }
         idj = idi;
-      } else {
+      } else if (trav == TRAV_RAND) {
         idj = randuint() % idn;
+      } else if (trav == TRAV_REFS) {
+        std::string ref;
+        if (!read_line(refreader, &ref)) {
+          rewind(refreader);
+          assert(read_line(refreader, &ref));
+          if (!(flags & FLAG_REPEAT)) {
+            rewind(refreader);
+            return false;
+          }
+        }
+        find(ref, kdat);
+        if (idp)
+          *idp = ref;
+        return true;
       }
       assert(idj < idn);
 
@@ -651,10 +664,26 @@ bool Kleption::pick(double *kdat, std::string *idp) {
     }
   case KIND_PIC:
     {
-      if (!(flags & FLAG_REPEAT) && idi > 0) {
-        assert(idi == 1);
-        idi = 0;
-        return false;
+      if (trav == TRAV_SCAN) {
+        if (!(flags & FLAG_REPEAT) && idi > 0) {
+          assert(idi == 1);
+          idi = 0;
+          return false;
+        }
+      } else if (trav == TRAV_REFS) {
+        std::string ref;
+        if (!read_line(refreader, &ref)) {
+          rewind(refreader);
+          assert(read_line(refreader, &ref));
+          if (!(flags & FLAG_REPEAT)) {
+            rewind(refreader);
+            return false;
+          }
+        }
+        find(ref, kdat);
+        if (idp)
+          *idp = ref;
+        return true;
       }
 
       assert(dat);
@@ -674,13 +703,15 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%ux%ux%u+%u+%u", pw, ph, pc, x0, y0);
+        sprintf(buf, "%ux%ux%u+%u+%u.ppm", pw, ph, pc, x0, y0);
         *idp = buf;
       }
 
-      assert(idi == 0);
-      if (!(flags & FLAG_REPEAT))
-        ++idi;
+      if (trav == TRAV_SCAN) {
+        assert(idi == 0);
+        if (!(flags & FLAG_REPEAT))
+          ++idi;
+      }
 
       return true;
     }
@@ -702,8 +733,24 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         }
         v = idi;
         ++idi;
-      } else {
+      } else if (trav == TRAV_REFS) {
+        std::string ref;
+        if (!read_line(refreader, &ref)) {
+          rewind(refreader);
+          assert(read_line(refreader, &ref));
+          if (!(flags & FLAG_REPEAT)) {
+            rewind(refreader);
+            return false;
+          }
+        }
+        find(ref, kdat);
+        if (idp)
+          *idp = ref;
+        return true;
+      } else if (trav == TRAV_RAND) {
         v = randuint() % b;
+      } else {
+        assert(0);
       }
       assert(v < b);
 
@@ -714,7 +761,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%ux%u+%u+%u+%u", pw, ph, x0, y0, v);
+        sprintf(buf, "%ux%u+%u+%u+%u.ppm", pw, ph, x0, y0, v);
         *idp = buf;
       }
       return true;

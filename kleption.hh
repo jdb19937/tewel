@@ -34,7 +34,7 @@ struct Kleption {
   }
 
   enum Kind {
-    KIND_UNK = 0,
+    KIND_ANY = 0,
 
     KIND_DIR,
     KIND_PIC,
@@ -42,10 +42,13 @@ struct Kleption {
     KIND_CAM,
     KIND_VID,
     KIND_SDL,
-    KIND_REF
+    KIND_REF,
+
+    KIND_UNK = -1,
   };
 
   static Kind get_kind(const std::string &kindstr) {
+    if (kindstr == "")    return KIND_ANY;
     if (kindstr == "dir") return KIND_DIR;
     if (kindstr == "pic") return KIND_PIC;
     if (kindstr == "dat") return KIND_DAT;
@@ -93,6 +96,7 @@ struct Kleption {
 
   // ref
   FILE *refwriter;
+  FILE *refreader;
 
   // cam
   class Camera *cam;
@@ -114,7 +118,8 @@ struct Kleption {
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
     Flags _flags = 0, Trav _trav = TRAV_RAND, Kind _kind = KIND_UNK,
-    unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0
+    unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0,
+    const char *refsfn = NULL
   );
   ~Kleption();
 

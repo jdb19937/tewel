@@ -533,12 +533,25 @@ int main(int argc, char **argv) {
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
+
+    std::string srcrefs = arg.get("srcrefs", "");
+    const char *refsfn = NULL;
+    if (srcrefs != "") {
+      if (trav != Kleption::TRAV_REFS)
+        error("srcrefs given without trav=refs");
+      refsfn = srcrefs.c_str();
+    }
+
     Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
+
     Kleption *src = new Kleption(
       arg.get("src", "/dev/stdin"),
       pw, ph, pc,
       srcflags, trav, srckind,
-      sw, sh, sc
+      sw, sh, sc,
+      refsfn
     );
 
     Cortex *gen = new Cortex(
@@ -574,6 +587,8 @@ int main(int argc, char **argv) {
     }
 
     Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
+    if (outkind == Kleption::KIND_UNK)
+      error("unknown outkind");
     if (outkind != Kleption::KIND_SDL && outkind != Kleption::KIND_REF)
       arg.get("out");
 
@@ -662,6 +677,8 @@ int main(int argc, char **argv) {
       error("bad srcdim format");
 
     Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
@@ -713,6 +730,8 @@ int main(int argc, char **argv) {
       error("bad srcdim format");
 
     Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
@@ -788,6 +807,8 @@ int main(int argc, char **argv) {
       error("bad srcdim format");
 
     Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,
@@ -873,6 +894,8 @@ int main(int argc, char **argv) {
       error("bad srcdim format");
 
     Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
 
     Kleption *src = new Kleption(
       arg.get("src"), iw, ih, ic,

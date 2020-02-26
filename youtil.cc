@@ -142,4 +142,23 @@ bool parsedim(const std::string &dim, int *wp, int *hp, int *cp) {
   return true;
 }
 
+bool read_line(FILE *fp, std::string *line) {
+  char buf[4096];
+
+  int c = getc(fp);
+  if (c == EOF)
+    return false;
+  ungetc(c, fp);
+
+  *buf = 0;
+  char *unused = fgets(buf, sizeof(buf) - 1, fp);
+  char *p = strchr(buf, '\n');
+  if (!p)
+    return false;
+  *p = 0;
+
+  *line = buf;
+  return true;
+}
+
 }

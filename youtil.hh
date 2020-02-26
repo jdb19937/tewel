@@ -51,13 +51,15 @@ inline void error(const std::string &str) {
   exit(1);
 }
 
-bool parsedim(const std::string &dim, int *wp, int *hp, int *cp);
+extern bool parsedim(const std::string &dim, int *wp, int *hp, int *cp);
 
 inline double now() {
   struct timeval tv;
   assert(0 == gettimeofday(&tv, NULL));
   return ((double)tv.tv_sec + (double)tv.tv_usec / 1000000.0);
 }
+
+extern bool read_line(FILE *fp, std::string *line);
 
 }
 
