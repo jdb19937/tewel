@@ -26,7 +26,7 @@ static void usage() {
     "        tewel help\n"
     "                print this message\n"
     "\n"
-    "        tewel make new.ctx spec=new.txt\n"
+    "        tewel make new.ctx spec=new.txt ...\n"
     "                create a new generator\n"
     "        tewel rand any.ctx [stddev=value]\n"
     "                randomize generator state\n"
@@ -434,14 +434,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "make") {
-    std::string spec = arg.get("spec", "/dev/null");
-
-    double decay = arg.get("decay", "1e-2");
-    double nu = arg.get("nu", "1e-4");
-    double b1 = arg.get("b1", "1e-1");
-    double b2 = arg.get("b2", "1e-3");
-    double eps = arg.get("eps", "1e-8");
-
+    std::string spec = arg.get("spec", "/dev/stdin");
     int clobber = arg.get("clobber", "0");
 
     if (!arg.unused.empty())
@@ -451,22 +444,38 @@ int main(int argc, char **argv) {
 
     Cortex *out = new Cortex(ctx);
 
-    out->head->decay = decay;
-    out->head->nu = nu;
-    out->head->b1 = b1;
-    out->head->b2 = b2;
-    out->head->eps = eps;
-
     FILE *specfp = fopen(spec.c_str(), "r");
     if (!specfp)
       error(std::string("can't open ") + spec + ": " + strerror(errno));
 
     std::string specline;
+    if (read_line(specfp, &specline)) {
+      int specargc;
+      char **specargv;
+      parseargstrad(specline, &specargc, &specargv);
+
+      Cmdline specargs(specargc, specargv, "");
+      int v = specargs.get("v", "0");
+      if (v != 2)
+        error("missing magic v=2");
+      out->head->decay = specargs.get("decay", "1e-2");
+      out->head->nu = specargs.get("nu", "1e-4");
+      out->head->b1 = specargs.get("b1", "1e-1");
+      out->head->b2 = specargs.get("b2", "1e-3");
+      out->head->eps = specargs.get("eps", "1e-8");
+      out->head->rdev = specargs.get("rdev", "0.25");
+
+      freeargstrad(specargc, specargv);
+      if (!specargs.unused.empty())
+        error("unrecognized options");
+    } else {
+      error("no header line in spec");
+    }
+
     int poc = 0;
     while (read_line(specfp, &specline)) {
       int specargc;
       char **specargv;
-
       parseargstrad(specline, &specargc, &specargv);
 
       Cmdline specargs(specargc, specargv, "");
@@ -483,15 +492,17 @@ int main(int argc, char **argv) {
       if (ic == 0)
         error("input channels required");
       if (poc && ic != poc)
-        error("channels don't match");
+        error("input channels don't match output channels of previous layer");
 
       out->push(type, ic, oc);
 
       poc = out->oc;
     }
-
     fclose(specfp);
+
+    out->scram(out->head->rdev);
     delete out;
+
     return 0;
   }
 
@@ -516,20 +527,36 @@ int main(int argc, char **argv) {
     gen = new Cortex(ctx);
 
     printf(
-      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g stripped=%d\n",
+      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%lf stripped=%d\n",
       gen->rounds, gen->rms, gen->max, gen->decay,
-      gen->nu, gen->b1, gen->b2, gen->eps, gen->stripped
+      gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev, gen->stripped
     );
 
     return 0;
   }
 
   if (cmd == "spec") {
-    uint8_t *cutvec = NULL;
-
     Cortex *gen = new Cortex(ctx, O_RDONLY);
+
+    printf(
+      "v=2 decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g\n",
+      gen->decay, gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev
+    );
+
     gen->dump(stdout);
 
+    delete gen;
+    return 0;
+  }
+
+  if (cmd == "bindump") {
+    unsigned int a = 1, b = 65536;
+    if (arg.present("cut"))
+      if (!parserange(arg.get("cut"), &a, &b))
+        error("cut must be number or number range");
+
+    Cortex *gen = new Cortex(ctx, O_RDONLY);
+    gen->bindump(stdout, a, b);
     delete gen;
     return 0;
   }

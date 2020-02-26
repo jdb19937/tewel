@@ -77,6 +77,8 @@ void freeargstrad(int argc, char **argv);
 
 void argvec(int argc, char **argv, std::vector<std::string> *vec);
 
+bool parserange(const std::string &str, unsigned int *ap, unsigned int *bp);
+
 }
 
 #endif

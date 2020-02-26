@@ -921,6 +921,7 @@ void Cortex::create(const std::string &fn, bool clobber) {
   head.stripped = 0;
   head.rounds = 0;
   head.decay = 0.01;
+  head.rdev = 0.25;
   head.rms = 0;
   head.max = 0;
   head.nu = 1e-4;
@@ -937,12 +938,10 @@ void Cortex::create(const std::string &fn, bool clobber) {
 }
 
 void Cortex::dump(FILE *outfp) {
-  int i = 0;
+  int i = 1;
   unsigned int basei = 0;
 
   while (basei < basen) {
-    assert(i < 4096);
-
     layer_header_t hdr;
     assert(basei + sizeof(hdr) <= basen);
     memcpy(hdr, base + basei, sizeof(hdr));
@@ -961,6 +960,48 @@ void Cortex::dump(FILE *outfp) {
 
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);
+
+    ++i;
+  }
+  assert(basei == basen);
+}
+
+void Cortex::bindump(FILE *outfp, unsigned int a, unsigned int b) {
+  int i = 1;
+  unsigned int basei = 0;
+
+  if (a == 0) {
+    int ret = fwrite(head, 1, sizeof(Head), outfp);
+    assert(ret == sizeof(Head));
+  }
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, ic, oc;
+    _parse_header(hdr, &type, &len, &ic, &oc);
+
+    uint32_t ntype = htonl(type);
+    char stype[5];
+    memcpy(stype, &ntype, 4);
+    stype[4] = 0;
+
+    assert(basei + len * sizeof(double) <= basen);
+    assert(i <= 4096);
+
+    if (i >= a && i <= b) {
+      int ret = fwrite(hdr, 1, sizeof(hdr), outfp);
+      assert(ret == sizeof(hdr));
+      ret = fwrite(base + basei, 1, len, outfp);
+      assert(ret == len);
+    }
+
+    basei += len * sizeof(double);
+    ++i;
   }
   assert(basei == basen);
 }

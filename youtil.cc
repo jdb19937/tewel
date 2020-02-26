@@ -162,53 +162,40 @@ bool read_line(FILE *fp, std::string *line) {
   return true;
 }
 
-bool parsecut(const std::string &_cut, uint8_t *incp) {
-  memset(incp, 0, 4096);
+bool parserange(const std::string &str, unsigned int *ap, unsigned int *bp) {
+  const char *cut = str.c_str();
 
-  const char *cut = _cut.c_str();
-  if (!*cut)
-    return true;
+  unsigned int a, b;
+  if (isdigit(*cut)) {
+    a = 0;
+    while (isdigit(*cut))
+      a = a * 10 + *cut++ - '0';
+  } else if (*cut == '-') {
+    a = 0;
+  } else {
+    return false;
+  }
 
-  while (*cut) {
-    int a, b;
+  if (*cut == '-') {
+    ++cut;
     if (isdigit(*cut)) {
-      a = 0;
+      b = 0;
       while (isdigit(*cut))
-        a = a * 10 + *cut++ - '0';
-      if (a < 0 || a >= 4096)
-        return false;
-    } else if (*cut == '-') {
-      a = 0;
+        b = b * 10 + *cut++ - '0';
+    } else if (*cut == ',' || *cut == '\0') {
+      b = 255;
     } else {
       return false;
     }
-
-    if (*cut == '-') {
-      ++cut;
-      if (isdigit(*cut)) {
-        b = 0;
-        while (isdigit(*cut))
-          b = b * 10 + *cut++ - '0';
-        if (b < 0 || b >= 4096)
-          return false;
-      } else if (*cut == ',' || *cut == '\0') {
-        b = 255;
-      } else {
-        return false;
-      }
-    } else {
-      b = a;
-    }
-
-    for (int i = a; i <= b; ++i)
-      incp[i] = 1;
-
-    if (*cut == ',')
-      ++cut;
+  } else {
+    b = a;
   }
 
+  *ap = a;
+  *bp = b;
   return true;
 }
+
 
 void parseargs(const std::string &str, std::vector<std::string> *vec) {
   const char *p = str.c_str();

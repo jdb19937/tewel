@@ -21,7 +21,8 @@ struct Cortex {
     uint64_t rounds;
     double nu, b1, b2, eps;
     double rms, max, decay;
-    char blank[4016];
+    double rdev;
+    char blank[4008];
   };
 
   bool is_open, is_prep;
@@ -62,6 +63,7 @@ struct Cortex {
   void close();
 
   void dump(FILE * = stdout);
+  void bindump(FILE *, unsigned int a, unsigned int b);
   void unprepare();
   bool prepare(int _iw, int _ih);
   void load();
