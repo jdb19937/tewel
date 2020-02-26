@@ -25,25 +25,26 @@ static void usage() {
     "Usage:\n"
     "        tewel help\n"
     "                print this message\n"
-    "        tewel make gen.dat spec=gen.txt\n"
+    "\n"
+    "        tewel make new.ctx spec=new.txt\n"
     "                create a new generator\n"
-    "        tewel rand gen.dat [stddev=value]\n"
+    "        tewel rand any.ctx [stddev=value]\n"
     "                randomize generator state\n"
-    "        tewel head gen.dat [key=val ...]\n"
+    "        tewel head any.ctx [key=val ...]\n"
     "                display or edit header contents\n"
-    "        tewel spec gen.dat > gen.txt\n"
+    "        tewel spec any.ctx > any.txt\n"
     "                display layer headers\n"
     "\n"
-    "        tewel synth gen.dat src=... out=...\n"
+    "        tewel synth gen.ctx src=... out=...\n"
     "                run generator\n"
     "\n"
-    "        tewel learnauto gen.dat src=...\n"
+    "        tewel learnauto gen.ctx src=...\n"
     "                train generator on sample paired with self\n"
-    "        tewel learnfunc gen.dat src=... tgt=...\n"
+    "        tewel learnfunc gen.ctx src=... tgt=...\n"
     "                train generator on paired samples\n"
-    "        tewel learnstyl gen.dat src=... sty=... -dis=dis.dat\n"
+    "        tewel learnstyl gen.ctx src=... sty=... dis=dis.ctx\n"
     "                train generator on paired samples versus discriminator\n"
-    "        tewel learnhans gen.dat src=... tgt=... -dis=dis.dat\n"
+    "        tewel learnhans gen.ctx src=... tgt=... dis=dis.ctx\n"
     "                train generator on paired samples versus discriminator\n"
   );
 }
@@ -399,12 +400,16 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
-  if (argc < 1) {
+  if (argc < 2) {
     usage();
     return 1;
   }
 
   std::string cmd = argv[0];
+  ++argv;
+  --argc;
+
+  std::string ctx = argv[1];
   ++argv;
   --argc;
 
@@ -430,7 +435,6 @@ int main(int argc, char **argv) {
 
   if (cmd == "make") {
     std::string spec = arg.get("spec", "/dev/null");
-    std::string outfn = arg.get("0");
 
     double decay = arg.get("decay", "1e-2");
     double nu = arg.get("nu", "1e-4");
@@ -443,9 +447,9 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    Cortex::create(outfn, (bool)clobber);
+    Cortex::create(ctx, (bool)clobber);
 
-    Cortex *out = new Cortex(outfn);
+    Cortex *out = new Cortex(ctx);
 
     out->head->decay = decay;
     out->head->nu = nu;
@@ -492,8 +496,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "head") {
-    std::string genfn = arg.get("0");
-    Cortex *gen = new Cortex(genfn);
+    Cortex *gen = new Cortex(ctx);
 
     if (arg.present("decay"))
       gen->head->decay = arg.get("decay");
@@ -510,7 +513,7 @@ int main(int argc, char **argv) {
       warning("unrecognized options");
 
     delete gen;
-    gen = new Cortex(genfn);
+    gen = new Cortex(ctx);
 
     printf(
       "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g stripped=%d\n",
@@ -524,7 +527,7 @@ int main(int argc, char **argv) {
   if (cmd == "spec") {
     uint8_t *cutvec = NULL;
 
-    Cortex *gen = new Cortex(arg.get("0"), O_RDONLY);
+    Cortex *gen = new Cortex(ctx, O_RDONLY);
     gen->dump(stdout);
 
     delete gen;
@@ -532,7 +535,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "rand") {
-    Cortex *gen = new Cortex(arg.get("0"));
+    Cortex *gen = new Cortex(ctx);
     double stddev = arg.get("stddev", "1.0");
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -594,10 +597,7 @@ int main(int argc, char **argv) {
       refsfn
     );
 
-    Cortex *gen = new Cortex(
-      arg.get("0", "/opt/makemore/share/tewel/identity.gen"),
-      O_RDONLY
-    );
+    Cortex *gen = new Cortex(ctx, O_RDONLY);
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -685,7 +685,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
-    Cortex *gen = new Cortex(arg.get("0"));
+    Cortex *gen = new Cortex(ctx);
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -745,7 +745,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
-    Cortex *gen = new Cortex(arg.get("0"));
+    Cortex *gen = new Cortex(ctx);
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -817,7 +817,7 @@ int main(int argc, char **argv) {
     double mul = arg.get("mul", "1.0");
     int lossreg = arg.get("lossreg", "1");
 
-    Cortex *gen = new Cortex(arg.get("0"));
+    Cortex *gen = new Cortex(ctx);
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");
@@ -899,7 +899,7 @@ int main(int argc, char **argv) {
     int lossreg = arg.get("lossreg", "1");
     double noise = arg.get("noise", "0.5");
 
-    Cortex *gen = new Cortex(arg.get("0"));
+    Cortex *gen = new Cortex(ctx);
 
     Cortex *enc = NULL;
     std::string encfn = arg.get("enc", "");

@@ -2,7 +2,5 @@
 .*.sw*
 tewel
 tewel-*
-*.gen
-*.enc
-*.dis
+*.ctx
 junk

@@ -95,5 +95,5 @@ colonel-cuda.o: colonel.inc
 colonel-nocuda.o: colonel.inc
 
 
-identity.gen: identity.spec tewel
-	./tewel make $@ spec=identity.spec clobber=1
+identity.ctx: identity.txt tewel
+	./tewel make $@ spec=identity.txt clobber=1
