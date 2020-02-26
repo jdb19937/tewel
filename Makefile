@@ -95,7 +95,5 @@ colonel-cuda.o: colonel.inc
 colonel-nocuda.o: colonel.inc
 
 
-identity.gen: tewel
-	rm -f $@
-	./tewel new gen=$@
-	./tewel push gen=$@ type=iden ic=3 oc=3
+identity.gen: identity.spec tewel
+	./tewel make $@ spec=identity.spec
