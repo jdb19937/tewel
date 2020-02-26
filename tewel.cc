@@ -409,7 +409,7 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
-  std::string ctx = argv[1];
+  std::string ctx = argv[0];
   ++argv;
   --argc;
 
