@@ -25,23 +25,25 @@ static void usage() {
     "Usage:\n"
     "        tewel help\n"
     "                print this message\n"
-    "        tewel new gen.mm\n"
-    "                create a new generator\n"
-    "        tewel dump gen.mm\n"
+    "        tewel head gen.dat\n"
+    "                display header contents\n"
+    "        tewel head gen.dat decay=... nu=... b1=... b2=... eps=...\n"
+    "                edit header contents\n"
+    "        tewel spec gen.dat > gen.spec\n"
     "                display layer header contents\n"
-    "        tewel scram gen.mm [stddev]\n"
+    "        tewel make spec=gen.txt out=gen.dat\n"
+    "                create a new generator\n"
+    "        tewel scram out=gen.dat [stddev]\n"
     "                randomize generator state\n"
-    "        tewel push gen.mm -t type [...]\n"
-    "                append a layer to a generator\n"
-    "        tewel synth gen.mm in.ppm > out.ppm\n"
-    "                input ppm to a generator\n"
-    "        tewel learnauto gen.mm -src samples.dat ...\n"
+    "        tewel synth gen=gen.dat src=... out=...\n"
+    "                run generator\n"
+    "        tewel learnauto gen=gen.dat src=...\n"
     "                train generator on sample paired with self\n"
-    "        tewel learnfunc gen.mm -src samples.dat ...\n"
+    "        tewel learnfunc gen=gen.dat src=... tgt=...\n"
     "                train generator on paired samples\n"
-    "        tewel learnstyl gen.mm -src samples.dat -dis dis.mm ...\n"
+    "        tewel learnstyl gen=gen.dat src=... tgt=... -dis=dis.dat\n"
     "                train generator on paired samples versus discriminator\n"
-    "        tewel learnhans gen.mm -src samples.dat -dis dis.mm ...\n"
+    "        tewel learnhans gen=gen.dat src=... tgt=... -dis=dis.dat\n"
     "                train generator on paired samples versus discriminator\n"
   );
 }
@@ -98,7 +100,7 @@ void learnauto(
       gen->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
+      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
@@ -153,7 +155,7 @@ void learnfunc(
       gen->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
+      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
@@ -244,7 +246,7 @@ void learnstyl(
       dis->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
+      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
@@ -379,7 +381,7 @@ void learnhans(
       dis->save();
 
       char buf[4096];
-      sprintf(buf, "rounds=%lu dt=%lf ", gen->rounds, dt);
+      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
       if (enc)
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
@@ -523,7 +525,7 @@ int main(int argc, char **argv) {
   if (cmd == "spec") {
     uint8_t *cutvec = NULL;
 
-    Cortex *gen = new Cortex(arg.get("gen"));
+    Cortex *gen = new Cortex(arg.get("gen"), O_RDONLY);
     gen->dump(stdout);
 
     delete gen;
