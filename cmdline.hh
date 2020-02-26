@@ -19,8 +19,6 @@ struct Cmdline {
 
     operator const std::string &() const
       { return x; }
-    operator const char *() const
-      { return x.c_str(); }
     operator int() const
       { return strtoi(x); }
     operator double() const

@@ -784,8 +784,18 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
+    std::string srcfn;
+    if (arg.present("src")) {
+      srcfn = (std::string)arg.get("src");
+    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
+      srcfn = ctx + "/src.dat";
+    } else {
+      arg.get("src");
+      assert(0);
+    }
+
     Kleption *src = new Kleption(
-      arg.get("src"), iw, ih, ic,
+      srcfn, iw, ih, ic,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
@@ -841,8 +851,18 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
+    std::string srcfn;
+    if (arg.present("src")) {
+      srcfn = (std::string)arg.get("src");
+    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
+      srcfn = ctx + "/src.dat";
+    } else {
+      arg.get("src");
+      assert(0);
+    }
+
     Kleption *src = new Kleption(
-      arg.get("src"), iw, ih, ic,
+      srcfn, iw, ih, ic,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
@@ -854,8 +874,18 @@ int main(int argc, char **argv) {
 
     Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
 
+    std::string tgtfn;
+    if (arg.present("tgt")) {
+      tgtfn = (std::string)arg.get("tgt");
+    } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
+      tgtfn = ctx + "/tgt.dat";
+    } else {
+      arg.get("tgt");
+      assert(0);
+    }
+
     Kleption *tgt = new Kleption(
-      arg.get("tgt"), gen->ow, gen->oh, gen->oc,
+      tgtfn, gen->ow, gen->oh, gen->oc,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
@@ -930,8 +960,18 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
+    std::string srcfn;
+    if (arg.present("src")) {
+      srcfn = (std::string)arg.get("src");
+    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
+      srcfn = ctx + "/src.dat";
+    } else {
+      arg.get("src");
+      assert(0);
+    }
+
     Kleption *src = new Kleption(
-      arg.get("src"), iw, ih, ic,
+      srcfn, iw, ih, ic,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
@@ -943,8 +983,18 @@ int main(int argc, char **argv) {
 
     Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", ""));
 
+    std::string styfn;
+    if (arg.present("sty")) {
+      styfn = (std::string)arg.get("sty");
+    } else if (ctx_is_dir && fexists(ctx + "/sty.dat")) {
+      styfn = ctx + "/sty.dat";
+    } else {
+      arg.get("sty");
+      assert(0);
+    }
+
     Kleption *sty = new Kleption(
-      arg.get("sty"), gen->ow, gen->oh, gen->oc,
+      styfn, gen->ow, gen->oh, gen->oc,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, stykind,
       tw, th, tc
     );
@@ -1029,8 +1079,18 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
+    std::string srcfn;
+    if (arg.present("src")) {
+      srcfn = (std::string)arg.get("src");
+    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
+      srcfn = ctx + "/src.dat";
+    } else {
+      arg.get("src");
+      assert(0);
+    }
+
     Kleption *src = new Kleption(
-      arg.get("src"), iw, ih, ic,
+      srcfn, iw, ih, ic,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
@@ -1042,8 +1102,18 @@ int main(int argc, char **argv) {
 
     Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
 
+    std::string tgtfn;
+    if (arg.present("tgt")) {
+      tgtfn = (std::string)arg.get("tgt");
+    } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
+      tgtfn = ctx + "/tgt.dat";
+    } else {
+      arg.get("tgt");
+      assert(0);
+    }
+
     Kleption *tgt = new Kleption(
-      arg.get("tgt"), gen->ow, gen->oh, gen->oc,
+      tgtfn, gen->ow, gen->oh, gen->oc,
       Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
