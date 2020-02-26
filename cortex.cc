@@ -784,7 +784,7 @@ void Cortex::_clear() {
   b2 = 0.001;
   eps = 1e-8;
 
-  decay = 0.01;
+  decay = 0.0;
   rms = 0.0;
   max = 0.0;
   rounds = 0;
@@ -827,6 +827,11 @@ void Cortex::open(const std::string &_fn, int flags) {
 
   rounds = ntohll(head->rounds);
   new_rounds = 0;
+
+  rms = head->rms;
+  max = head->max;
+  decay = head->decay > 0 ? head->decay : 0.01;
+  assert(decay > 0);
 
   stripped = ntohl(head->stripped) ? 1 : 0;
   nu = head->nu;
@@ -901,8 +906,12 @@ void Cortex::close() {
 }
 
 // static
-void Cortex::create(const std::string &fn) {
-  int fd = ::open(fn.c_str(), O_RDWR | O_CREAT | O_EXCL, 0700);
+void Cortex::create(const std::string &fn, bool clobber) {
+  int fd = ::open(
+    fn.c_str(),
+    O_RDWR | O_CREAT | (clobber ? 0 : O_EXCL),
+    0700
+  );
   assert(fd != -1);
 
   Head head;
@@ -911,6 +920,9 @@ void Cortex::create(const std::string &fn) {
   head.version = htonl(2);
   head.stripped = 0;
   head.rounds = 0;
+  head.decay = 0.01;
+  head.rms = 0;
+  head.max = 0;
   head.nu = 1e-4;
   head.b1 = 0.1;
   head.b2 = 0.001;
@@ -924,13 +936,9 @@ void Cortex::create(const std::string &fn) {
   assert(ret == 0);
 }
 
-void Cortex::dump(FILE *outfp, const uint8_t *cutvec) {
+void Cortex::dump(FILE *outfp) {
   int i = 0;
   unsigned int basei = 0;
-
-  if (!cutvec || cutvec[0])
-    fprintf(outfp, "rounds=%lu nu=%g b1=%g b2=%g eps=%g\n", rounds, nu, b1, b2, eps);
-  i = 1;
 
   while (basei < basen) {
     assert(i < 4096);
@@ -949,12 +957,10 @@ void Cortex::dump(FILE *outfp, const uint8_t *cutvec) {
     memcpy(stype, &ntype, 4);
     stype[4] = 0;
 
-    if (!cutvec || cutvec[i])
-      fprintf(outfp, "t=%s len=%d ic=%d oc=%d\n", stype, len, ic, oc);
+    fprintf(outfp, "type=%s ic=%d oc=%d\n", stype, ic, oc);
 
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);
-    ++i;
   }
   assert(basei == basen);
 }
@@ -1191,6 +1197,9 @@ void Cortex::save() {
   new_rounds = 0;
   head->rounds = htonll(rounds);
 
+  head->max = max;
+  head->rms = rms;
+
   if (head->nu != nu) {
     nu = head->nu;
     warning("nu changed");
@@ -1206,6 +1215,15 @@ void Cortex::save() {
   if (head->eps != eps) {
     eps = head->eps;
     warning("eps changed");
+  }
+
+  if (head->decay == 0) {
+    assert(decay > 0);
+    head->decay = decay;
+  }
+  if (head->decay != decay) {
+    decay = head->decay;
+    warning("decay changed");
   }
 
   dek(kbase, basen, base);

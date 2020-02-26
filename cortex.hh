@@ -20,7 +20,8 @@ struct Cortex {
     uint32_t stripped;
     uint64_t rounds;
     double nu, b1, b2, eps;
-    char blank[4040];
+    double rms, max, decay;
+    char blank[4016];
   };
 
   bool is_open, is_prep;
@@ -56,11 +57,11 @@ struct Cortex {
 
   void _clear();
 
-  static void create(const std::string &);
+  static void create(const std::string &, bool clobber = false);
   void open(const std::string &_fn, int flags = O_RDWR);
   void close();
 
-  void dump(FILE * = stdout, const uint8_t *cutvec = NULL);
+  void dump(FILE * = stdout);
   void unprepare();
   bool prepare(int _iw, int _ih);
   void load();

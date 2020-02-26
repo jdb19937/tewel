@@ -427,23 +427,31 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (cmd == "new") {
-    std::string genfn = arg.get("gen");
-    if (!arg.unused.empty())
-      error("unrecognized options");
-    Cortex::create(genfn);
-    return 0;
-  }
-
   if (cmd == "make") {
-    std::string spec = arg.get("spec", "/dev/stdin");
+    std::string spec = arg.get("spec", "/dev/null");
     std::string outfn = arg.get("out");
+
+    double decay = arg.get("decay", "1e-2");
+    double nu = arg.get("nu", "1e-4");
+    double b1 = arg.get("b1", "1e-1");
+    double b2 = arg.get("b2", "1e-3");
+    double eps = arg.get("eps", "1e-8");
+
+    int clobber = arg.get("clobber", "0");
+
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    Cortex::create(outfn);
+    Cortex::create(outfn, (bool)clobber);
 
     Cortex *out = new Cortex(outfn);
+
+    out->head->decay = decay;
+    out->head->nu = nu;
+    out->head->b1 = b1;
+    out->head->b2 = b2;
+    out->head->eps = eps;
+
     FILE *specfp = fopen(spec.c_str(), "r");
     if (!specfp)
       error(std::string("can't open ") + spec + ": " + strerror(errno));
@@ -482,12 +490,12 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (cmd == "edit") {
+  if (cmd == "head") {
     std::string genfn = arg.get("gen");
     Cortex *gen = new Cortex(genfn);
 
-    if (arg.present("rounds"))
-      gen->head->rounds = htonll(strtoul(arg.get("rounds")));
+    if (arg.present("decay"))
+      gen->head->decay = arg.get("decay");
     if (arg.present("nu"))
       gen->head->nu = arg.get("nu");
     if (arg.present("b1"))
@@ -497,29 +505,28 @@ int main(int argc, char **argv) {
     if (arg.present("eps"))
       gen->head->eps = arg.get("eps");
 
-    delete gen;
+    if (!arg.unused.empty())
+      warning("unrecognized options");
 
-    gen = new Cortex(genfn);
-    gen->dump(stdout);
     delete gen;
+    gen = new Cortex(genfn);
+
+    printf(
+      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g\n",
+      gen->rounds, gen->rms, gen->max, gen->decay,
+      gen->nu, gen->b1, gen->b2, gen->eps
+    );
 
     return 0;
   }
 
-  if (cmd == "dump") {
+  if (cmd == "spec") {
     uint8_t *cutvec = NULL;
-    if (arg.present("cut")) {
-      cutvec = new uint8_t[4096];
-      if (!parsecut(arg.get("cut"), cutvec))
-        error("bad cut spec");
-    }
 
     Cortex *gen = new Cortex(arg.get("gen"));
-    gen->dump(stdout, cutvec);
+    gen->dump(stdout);
 
     delete gen;
-    if (cutvec)
-      delete[] cutvec;
     return 0;
   }
 

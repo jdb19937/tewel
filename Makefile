@@ -98,4 +98,4 @@ colonel-nocuda.o: colonel.inc
 identity.gen: tewel
 	rm -f $@
 	./tewel new gen=$@
-	./tewel push gen=$@ t=iden ic=3 oc=3
+	./tewel push gen=$@ type=iden ic=3 oc=3
