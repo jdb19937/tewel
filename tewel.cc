@@ -508,9 +508,9 @@ int main(int argc, char **argv) {
     int reload = arg.get("reload", "0");
     double delay = arg.get("delay", "0.0");
 
-    Kleption::Trav trav = Kleption::get_trav(arg.get("trav", "scan"));
-    if (trav == Kleption::TRAV_NONE)
-      error("trav must be scan or rand or refs");
+    Kleption::Trav srctrav = Kleption::get_trav(arg.get("srctrav", "scan"));
+    if (srctrav == Kleption::TRAV_NONE)
+      error("srctrav must be scan or rand or refs");
 
     Kleption::Flags srcflags = 0;
 
@@ -537,8 +537,8 @@ int main(int argc, char **argv) {
     std::string srcrefs = arg.get("srcrefs", "");
     const char *refsfn = NULL;
     if (srcrefs != "") {
-      if (trav != Kleption::TRAV_REFS)
-        error("srcrefs given without trav=refs");
+      if (srctrav != Kleption::TRAV_REFS)
+        error("srcrefs given without srctrav=refs");
       refsfn = srcrefs.c_str();
     }
 
@@ -549,7 +549,7 @@ int main(int argc, char **argv) {
     Kleption *src = new Kleption(
       arg.get("src", "/dev/stdin"),
       pw, ph, pc,
-      srcflags, trav, srckind,
+      srcflags, srctrav, srckind,
       sw, sh, sc,
       refsfn
     );
