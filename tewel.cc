@@ -41,7 +41,7 @@ static void usage() {
     "                train generator on sample paired with self\n"
     "        tewel learnfunc gen.dat src=... tgt=...\n"
     "                train generator on paired samples\n"
-    "        tewel learnstyl gen.dat src=... tgt=... -dis=dis.dat\n"
+    "        tewel learnstyl gen.dat src=... sty=... -dis=dis.dat\n"
     "                train generator on paired samples versus discriminator\n"
     "        tewel learnhans gen.dat src=... tgt=... -dis=dis.dat\n"
     "                train generator on paired samples versus discriminator\n"
@@ -168,7 +168,7 @@ void learnfunc(
 
 void learnstyl(
   Kleption *src,
-  Kleption *tgt,
+  Kleption *sty,
   Cortex *gen,
   Cortex *dis,
   Cortex *enc,
@@ -230,7 +230,7 @@ void learnstyl(
     dis->target(kfake);
     dis->learn(dismul);
 
-    assert(tgt->pick(dis->kinp));
+    assert(sty->pick(dis->kinp));
     dis->synth();
     dis->target(kreal);
     dis->learn(dismul);
@@ -856,26 +856,26 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    std::string stydim = arg.get("stydim", "0x0x0");
     int tw = 0, th = 0, tc = 0;
-    if (!parsedim(tgtdim, &tw, &th, &tc))
-      error("bad tgtdim format");
+    if (!parsedim(stydim, &tw, &th, &tc))
+      error("bad stydim format");
 
-    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+    Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", ""));
 
-    Kleption *tgt = new Kleption(
-      arg.get("tgt"), gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
+    Kleption *sty = new Kleption(
+      arg.get("sty"), gen->ow, gen->oh, gen->oc,
+      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, stykind,
       tw, th, tc
     );
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, tgt, gen, dis, enc, repint, mul, lossreg);
+    learnstyl(src, sty, gen, dis, enc, repint, mul, lossreg);
 
     delete src;
-    delete tgt;
+    delete sty;
 
     delete gen;
     if (enc)
