@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -243,6 +244,18 @@ void argvec(int argc, char **argv, std::vector<std::string> *vec) {
   vec->resize(argc);
   for (int i = 0; i < argc; ++i)
     (*vec)[i] = std::string(argv[i]);
+}
+
+bool is_dir(const std::string &fn) {
+  struct stat buf;
+  int ret = ::stat(fn.c_str(), &buf);
+  if (ret != 0)
+    return false;
+  return (S_ISDIR(buf.st_mode));
+}
+
+bool fexists(const std::string &fn) {
+  return (access(fn.c_str(), F_OK) != -1);
 }
 
 }

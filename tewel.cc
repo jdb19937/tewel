@@ -28,9 +28,9 @@ static void usage() {
     "\n"
     "        tewel make new.ctx spec=new.txt ...\n"
     "                create a new generator\n"
-    "        tewel rand any.ctx [stddev=value]\n"
+    "        tewel reset any.ctx\n"
     "                randomize generator state\n"
-    "        tewel head any.ctx [key=val ...]\n"
+    "        tewel edit any.ctx [key=val ...]\n"
     "                display or edit header contents\n"
     "        tewel spec any.ctx > any.txt\n"
     "                display layer headers\n"
@@ -409,9 +409,16 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
+  if (cmd == "help" || cmd == "h") {
+    usage();
+    return 0;
+  }
+
   std::string ctx = argv[0];
   ++argv;
   --argc;
+
+  bool ctx_is_dir = is_dir(ctx);
 
   Cmdline arg(argc, argv, "0");
 
@@ -428,12 +435,10 @@ int main(int argc, char **argv) {
   else
     seedrand();
 
-  if (cmd == "help" || cmd == "h") {
-    usage();
-    return 0;
-  }
-
   if (cmd == "make") {
+    if (ctx_is_dir)
+      error("dir exists with name of file");
+
     std::string spec = arg.get("spec", "/dev/stdin");
     int clobber = arg.get("clobber", "0");
 
@@ -506,7 +511,10 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (cmd == "head") {
+  if (cmd == "edit") {
+    if (ctx_is_dir)
+      error("dir exists with name of file");
+
     Cortex *gen = new Cortex(ctx);
 
     if (arg.present("decay"))
@@ -536,6 +544,10 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "spec") {
+    if (ctx_is_dir)
+      error("dir exists with name of file");
+    if (!arg.unused.empty())
+      warning("unrecognized options");
     Cortex *gen = new Cortex(ctx, O_RDONLY);
 
     printf(
@@ -550,10 +562,15 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "bindump") {
-    unsigned int a = 1, b = 65536;
+    if (ctx_is_dir)
+      error("dir exists with name of file");
+    unsigned int a = 0, b = (1 << 31);
     if (arg.present("cut"))
       if (!parserange(arg.get("cut"), &a, &b))
         error("cut must be number or number range");
+
+    if (!arg.unused.empty())
+      warning("unrecognized options");
 
     Cortex *gen = new Cortex(ctx, O_RDONLY);
     gen->bindump(stdout, a, b);
@@ -561,19 +578,31 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (cmd == "rand") {
+  if (cmd == "reset") {
+    if (ctx_is_dir)
+      error("dir exists with name of file");
     Cortex *gen = new Cortex(ctx);
-    double stddev = arg.get("stddev", "1.0");
-    if (!arg.unused.empty())
-      error("unrecognized options");
 
-    gen->scram(stddev);
+    gen->head->rounds = 0;
+    gen->head->rms = 0;
+    gen->head->max = 0;
+
+    if (arg.present("rdev"))
+      gen->head->rdev = arg.get("rdev");
+
+    if (!arg.unused.empty())
+      warning("unrecognized options");
+
+    double rdev = gen->head->rdev;
+    gen->scram(rdev);
 
     delete gen;
     return 0;
   }
 
   if (cmd == "synth") {
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+
     int limit = arg.get("limit", "-1");
     int reload = arg.get("reload", "0");
     double delay = arg.get("delay", "0.0");
@@ -624,12 +653,16 @@ int main(int argc, char **argv) {
       refsfn
     );
 
-    Cortex *gen = new Cortex(ctx, O_RDONLY);
+    Cortex *gen = new Cortex(genfn, O_RDONLY);
 
     Cortex *enc = NULL;
-    std::string encfn = arg.get("enc", "");
-    if (encfn != "")
-      enc = new Cortex(encfn);
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    }
+    
+   
 
     src->load();
     assert(src->pw > 0);
@@ -707,17 +740,21 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "learnauto") {
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+
     int iw = arg.get("iw");
     int ih = arg.get("ih");
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
-    Cortex *gen = new Cortex(ctx);
+    Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
-    std::string encfn = arg.get("enc", "");
-    if (encfn != "")
-      enc = new Cortex(encfn);
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    }
 
     int ic;
     if (enc) {
@@ -767,17 +804,21 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnfunc") {
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+
     int iw = arg.get("iw");
     int ih = arg.get("ih");
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
-    Cortex *gen = new Cortex(ctx);
+    Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
-    std::string encfn = arg.get("enc", "");
-    if (encfn != "")
-      enc = new Cortex(encfn);
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    }
 
     int ic;
     if (enc) {
@@ -833,6 +874,8 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "learnstyl") {
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+
     int iw = arg.get("iw");
     int ih = arg.get("ih");
 
@@ -844,12 +887,14 @@ int main(int argc, char **argv) {
     double mul = arg.get("mul", "1.0");
     int lossreg = arg.get("lossreg", "1");
 
-    Cortex *gen = new Cortex(ctx);
+    Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
-    std::string encfn = arg.get("enc", "");
-    if (encfn != "")
-      enc = new Cortex(encfn);
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    }
 
     int ic;
     if (enc) {
@@ -863,7 +908,15 @@ int main(int argc, char **argv) {
       ic = gen->ic;
     }
 
-    Cortex *dis = new Cortex(arg.get("dis"));
+    Cortex *dis = NULL;
+    if (arg.present("dis")) {
+      dis = new Cortex(arg.get("dis"));
+    } else if (ctx_is_dir && fexists(ctx + "/dis.ctx")) {
+      dis = new Cortex(ctx + "/dis.ctx");
+    } else {
+      error("dis argument required");
+    }
+
     dis->prepare(gen->ow, gen->oh);
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
@@ -914,6 +967,8 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnhans") {
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+
     int iw = arg.get("iw");
     int ih = arg.get("ih");
 
@@ -926,12 +981,14 @@ int main(int argc, char **argv) {
     int lossreg = arg.get("lossreg", "1");
     double noise = arg.get("noise", "0.5");
 
-    Cortex *gen = new Cortex(ctx);
+    Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
-    std::string encfn = arg.get("enc", "");
-    if (encfn != "")
-      enc = new Cortex(encfn);
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    }
 
     int ic;
     if (enc) {
@@ -950,7 +1007,15 @@ int main(int argc, char **argv) {
     if (ih != gen->oh)
       error("iw differs from oh");
 
-    Cortex *dis = new Cortex(arg.get("dis"));
+    Cortex *dis = NULL;
+    if (arg.present("dis")) {
+      dis = new Cortex(arg.get("dis"));
+    } else if (ctx_is_dir && fexists(ctx + "/dis.ctx")) {
+      dis = new Cortex(ctx + "/dis.ctx");
+    } else {
+      error("dis argument required");
+    }
+
     dis->prepare(gen->ow, gen->oh);
     if (dis->ic != gen->oc + ic)
       error("gen oc+ic doesn't match dis ic");

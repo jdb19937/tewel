@@ -79,6 +79,9 @@ void argvec(int argc, char **argv, std::vector<std::string> *vec);
 
 bool parserange(const std::string &str, unsigned int *ap, unsigned int *bp);
 
+bool is_dir(const std::string &fn);
+bool fexists(const std::string &fn);
+
 }
 
 #endif
