@@ -61,7 +61,7 @@ void learnauto(
   Cortex *enc,
   int repint,
   double mul,
-  unsigned long epochs
+  unsigned long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -77,8 +77,8 @@ void learnauto(
   }
 
   double t0 = now();
-  int epoch = 0;
-  while (epochs == 0 || epoch < epochs) {
+  int rep = 0;
+  while (reps == 0 || rep < reps) {
     if (enc) {
       assert(src->pick(enc->kinp));
       enc->synth();
@@ -109,7 +109,7 @@ void learnauto(
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
 
-      ++epoch;
+      ++rep;
     }
   }
 }
@@ -121,7 +121,7 @@ void learnfunc(
   Cortex *enc,
   int repint,
   double mul,
-  unsigned long epochs
+  unsigned long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -133,9 +133,9 @@ void learnfunc(
   kmake(&ktgt, gen->owhc);
 
   double t0 = now();
-  int epoch = 0;
+  int rep = 0;
 
-  while (epochs == 0 || epoch < epochs) {
+  while (reps == 0 || rep < reps) {
     if (enc) {
       Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
       enc->synth();
@@ -168,7 +168,7 @@ void learnfunc(
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
 
-      ++epoch;
+      ++rep;
     }
   }
 
@@ -184,7 +184,7 @@ void learnstyl(
   int repint,
   double mul,
   bool lossreg,
-  unsigned long epochs
+  unsigned long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -208,9 +208,9 @@ void learnstyl(
   kfill(kfake, dis->owhc, 1.0);
 
   double t0 = now();
-  int epoch = 0;
+  int rep = 0;
 
-  while (epochs == 0 || epoch < epochs) {
+  while (reps == 0 || rep < reps) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -263,7 +263,7 @@ void learnstyl(
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
 
-      ++epoch;
+      ++rep;
     }
   }
 
@@ -280,7 +280,7 @@ void learnhans(
   double mul,
   bool lossreg,
   double noise,
-  double epochs
+  double reps
 ) {
 
   int iw, ih, ic, iwhc;
@@ -324,9 +324,9 @@ void learnhans(
   kfill(kfake, dis->owhc, 1.0);
 
   double t0 = now();
-  int epoch = 0;
+  int rep = 0;
 
-  while (epochs == 0 || epoch < epochs) {
+  while (reps == 0 || rep < reps) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -402,7 +402,7 @@ void learnhans(
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
 
-      ++epoch;
+      ++rep;
     }
   }
 
@@ -860,12 +860,12 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+    unsigned long reps = strtoul(arg.get("reps", "0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnauto(src, gen, enc, repint, mul, epochs);
+    learnauto(src, gen, enc, repint, mul, reps);
 
     delete src;
     delete gen;
@@ -972,12 +972,12 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+    unsigned long reps = strtoul(arg.get("reps", "0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnfunc(src, tgt, gen, enc, repint, mul, epochs);
+    learnfunc(src, tgt, gen, enc, repint, mul, reps);
 
     delete src;
     delete tgt;
@@ -1102,12 +1102,12 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+    unsigned long reps = strtoul(arg.get("reps", "0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, sty, gen, dis, enc, repint, mul, lossreg, epochs);
+    learnstyl(src, sty, gen, dis, enc, repint, mul, lossreg, reps);
 
     delete src;
     delete sty;
@@ -1242,14 +1242,14 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+    unsigned long reps = strtoul(arg.get("reps", "0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    fprintf(stderr, "dim=%dx%d epochs=%lu\n", iw, ih, epochs);
+    fprintf(stderr, "dim=%dx%d reps=%lu\n", iw, ih, reps);
 
-    learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, epochs);
+    learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, reps);
 
     delete src;
     delete tgt;
