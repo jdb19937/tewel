@@ -108,9 +108,9 @@ void learnauto(
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
-    }
 
-    ++epoch;
+      ++epoch;
+    }
   }
 }
 
@@ -167,9 +167,9 @@ void learnfunc(
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
-    }
 
-    ++epoch;
+      ++epoch;
+    }
   }
 
   kfree(ktgt);
@@ -262,9 +262,9 @@ void learnstyl(
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
-    }
 
-    ++epoch;
+      ++epoch;
+    }
   }
 
   kfree(ktmp);
@@ -401,9 +401,9 @@ void learnhans(
         sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
-    }
 
-    ++epoch;
+      ++epoch;
+    }
   }
 
   kfree(ktmp);
