@@ -645,11 +645,11 @@ int main(int argc, char **argv) {
     if (repeat)
       srcflags |= Kleption::FLAG_REPEAT;
 
-    std::string outcrop = arg.get("outcrop", "center");
-    if (outcrop == "center")
+    std::string crop = arg.get("crop", "center");
+    if (crop == "center")
       srcflags |= Kleption::FLAG_CENTER;
-    else if (outcrop != "random")
-      error("outcrop must be random or center");
+    else if (crop != "random")
+      error("crop must be random or center");
 
     int pw = 0, ph = 0;
     if (arg.present("dim")) {
@@ -824,8 +824,6 @@ int main(int argc, char **argv) {
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/src")) {
       srcfn = ctx + "/src";
     } else {
@@ -911,8 +909,6 @@ int main(int argc, char **argv) {
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/src")) {
       srcfn = ctx + "/src";
     } else {
@@ -936,8 +932,6 @@ int main(int argc, char **argv) {
     std::string tgtfn;
     if (arg.present("tgt")) {
       tgtfn = (std::string)arg.get("tgt");
-    } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
-      tgtfn = ctx + "/tgt.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
       tgtfn = ctx + "/tgt";
     } else {
@@ -1041,8 +1035,6 @@ int main(int argc, char **argv) {
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/src")) {
       srcfn = ctx + "/src";
     } else {
@@ -1066,8 +1058,6 @@ int main(int argc, char **argv) {
     std::string styfn;
     if (arg.present("sty")) {
       styfn = (std::string)arg.get("sty");
-    } else if (ctx_is_dir && fexists(ctx + "/sty.dat")) {
-      styfn = ctx + "/sty.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/sty")) {
       styfn = ctx + "/sty";
     } else {
@@ -1181,8 +1171,6 @@ int main(int argc, char **argv) {
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/src")) {
       srcfn = ctx + "/src";
     } else {
@@ -1206,8 +1194,6 @@ int main(int argc, char **argv) {
     std::string tgtfn;
     if (arg.present("tgt")) {
       tgtfn = (std::string)arg.get("tgt");
-    } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
-      tgtfn = ctx + "/tgt.dat";
     } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
       tgtfn = ctx + "/tgt";
     } else {
