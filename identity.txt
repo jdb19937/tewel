@@ -1,2 +1,2 @@
 v=2
-type=iden ic=3 oc=3
+type=iden idim=3 odim=3

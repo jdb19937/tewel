@@ -956,7 +956,7 @@ void Cortex::dump(FILE *outfp) {
     memcpy(stype, &ntype, 4);
     stype[4] = 0;
 
-    fprintf(outfp, "type=%s ic=%d oc=%d\n", stype, ic, oc);
+    fprintf(outfp, "type=%s idim=%d odim=%d\n", stype, ic, oc);
 
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);

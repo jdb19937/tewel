@@ -395,6 +395,7 @@ void learnhans(
   kfree(kinp);
 }
 
+
 int main(int argc, char **argv) {
   setbuf(stdout, NULL);
   ++argv;
@@ -472,7 +473,7 @@ int main(int argc, char **argv) {
 
       freeargstrad(specargc, specargv);
       if (!specargs.unused.empty())
-        error("unrecognized options");
+        error("bad options in spec header");
     } else {
       error("no header line in spec");
     }
@@ -485,12 +486,12 @@ int main(int argc, char **argv) {
 
       Cmdline specargs(specargc, specargv, "");
       std::string type = specargs.get("type");
-      int ic = specargs.get("ic", "0");
-      int oc = specargs.get("oc", "0");
+      int ic = specargs.get("idim", "0");
+      int oc = specargs.get("odim", "0");
 
       freeargstrad(specargc, specargv);
       if (!specargs.unused.empty())
-        error("unrecognized options");
+        error("bad options in spec layer");
 
       if (ic == 0)
         ic = poc;
@@ -527,6 +528,8 @@ int main(int argc, char **argv) {
       gen->head->b2 = arg.get("b2");
     if (arg.present("eps"))
       gen->head->eps = arg.get("eps");
+    if (arg.present("rdev"))
+      gen->head->rdev = arg.get("rdev");
 
     if (!arg.unused.empty())
       warning("unrecognized options");
@@ -673,16 +676,16 @@ int main(int argc, char **argv) {
     if (enc) {
       enc->prepare(src->pw, src->ph);
       if (enc->ic != 3)
-        error("encoder must have ic=3");
+        error("encoder must have idim=3");
 
       gen->prepare(enc->ow, enc->oh);
       if (enc->oc != gen->ic)
-        error("encoder oc doesn't match generator ic");
+        error("encoder odim doesn't match generator idim");
       ic = enc->ic;
     } else {
       gen->prepare(src->pw, src->ph);
       if (gen->ic != 3)
-        error("generator must have ic=3");
+        error("generator must have idim=3");
       ic = gen->ic;
     }
 
@@ -742,8 +745,24 @@ int main(int argc, char **argv) {
   if (cmd == "learnauto") {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
-    int iw = arg.get("iw");
-    int ih = arg.get("ih");
+    int iw, ih;
+    if (arg.present("idim")) {
+      if (!parsedim2(arg.get("idim"), &iw, &ih))
+        error("idim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
+      std::string idim;
+
+      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
+      if (!idimfp)
+        error("can't open idim.txt");
+      if (!read_line(idimfp, &idim))
+        error("can't read line from idim.txt");
+      fclose(idimfp);
+
+      if (!parsedim2(idim, &iw, &ih))
+        error("idim in idim.txt must be like 256 or like 256x256");
+    }
+
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
@@ -789,6 +808,8 @@ int main(int argc, char **argv) {
       srcfn = (std::string)arg.get("src");
     } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
       srcfn = ctx + "/src.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
+      srcfn = ctx + "/src";
     } else {
       arg.get("src");
       assert(0);
@@ -816,8 +837,24 @@ int main(int argc, char **argv) {
   if (cmd == "learnfunc") {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
-    int iw = arg.get("iw");
-    int ih = arg.get("ih");
+    int iw, ih;
+    if (arg.present("idim")) {
+      if (!parsedim2(arg.get("idim"), &iw, &ih))
+        error("idim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
+      std::string idim;
+
+      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
+      if (!idimfp)
+        error("can't open idim.txt");
+      if (!read_line(idimfp, &idim))
+        error("can't read line from idim.txt");
+      fclose(idimfp);
+
+      if (!parsedim2(idim, &iw, &ih))
+        error("idim in idim.txt must be like 256 or like 256x256");
+    }
+
     int repint = arg.get("repint", "64");
     double mul = arg.get("mul", "1.0");
 
@@ -856,6 +893,8 @@ int main(int argc, char **argv) {
       srcfn = (std::string)arg.get("src");
     } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
       srcfn = ctx + "/src.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
+      srcfn = ctx + "/src";
     } else {
       arg.get("src");
       assert(0);
@@ -879,6 +918,8 @@ int main(int argc, char **argv) {
       tgtfn = (std::string)arg.get("tgt");
     } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
       tgtfn = ctx + "/tgt.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
+      tgtfn = ctx + "/tgt";
     } else {
       arg.get("tgt");
       assert(0);
@@ -906,8 +947,23 @@ int main(int argc, char **argv) {
   if (cmd == "learnstyl") {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
-    int iw = arg.get("iw");
-    int ih = arg.get("ih");
+    int iw, ih;
+    if (arg.present("idim")) {
+      if (!parsedim2(arg.get("idim"), &iw, &ih))
+        error("idim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
+      std::string idim;
+
+      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
+      if (!idimfp)
+        error("can't open idim.txt");
+      if (!read_line(idimfp, &idim))
+        error("can't read line from idim.txt");
+      fclose(idimfp);
+
+      if (!parsedim2(idim, &iw, &ih))
+        error("idim in idim.txt must be like 256 or like 256x256");
+    }
 
     if (iw <= 0)
       uerror("input width must be positive");
@@ -965,6 +1021,8 @@ int main(int argc, char **argv) {
       srcfn = (std::string)arg.get("src");
     } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
       srcfn = ctx + "/src.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
+      srcfn = ctx + "/src";
     } else {
       arg.get("src");
       assert(0);
@@ -988,6 +1046,8 @@ int main(int argc, char **argv) {
       styfn = (std::string)arg.get("sty");
     } else if (ctx_is_dir && fexists(ctx + "/sty.dat")) {
       styfn = ctx + "/sty.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/sty")) {
+      styfn = ctx + "/sty";
     } else {
       arg.get("sty");
       assert(0);
@@ -1019,8 +1079,23 @@ int main(int argc, char **argv) {
   if (cmd == "learnhans") {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
-    int iw = arg.get("iw");
-    int ih = arg.get("ih");
+    int iw, ih;
+    if (arg.present("idim")) {
+      if (!parsedim2(arg.get("idim"), &iw, &ih))
+        error("idim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
+      std::string idim;
+
+      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
+      if (!idimfp)
+        error("can't open idim.txt");
+      if (!read_line(idimfp, &idim))
+        error("can't read line from idim.txt");
+      fclose(idimfp);
+
+      if (!parsedim2(idim, &iw, &ih))
+        error("idim in idim.txt must be like 256 or like 256x256");
+    }
 
     if (iw <= 0)
       uerror("input width must be positive");
@@ -1084,6 +1159,8 @@ int main(int argc, char **argv) {
       srcfn = (std::string)arg.get("src");
     } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
       srcfn = ctx + "/src.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
+      srcfn = ctx + "/src";
     } else {
       arg.get("src");
       assert(0);
@@ -1107,6 +1184,8 @@ int main(int argc, char **argv) {
       tgtfn = (std::string)arg.get("tgt");
     } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
       tgtfn = ctx + "/tgt.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
+      tgtfn = ctx + "/tgt";
     } else {
       arg.get("tgt");
       assert(0);
@@ -1120,6 +1199,8 @@ int main(int argc, char **argv) {
 
     if (!arg.unused.empty())
       error("unrecognized options");
+
+    fprintf(stderr, "idim=%dx%d\n", iw, ih);
 
     learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise);
 
