@@ -44,6 +44,10 @@ inline uint64_t strtoul(const std::string &str) {
   return (uint64_t)::strtoul(str.c_str(), NULL, 0);
 }
 
+inline int64_t strtol(const std::string &str) {
+  return (int64_t)::strtol(str.c_str(), NULL, 0);
+}
+
 inline int strtoi(const std::string &str) {
   return (int)::strtol(str.c_str(), NULL, 0);
 }
