@@ -60,7 +60,8 @@ void learnauto(
   Cortex *gen,
   Cortex *enc,
   int repint,
-  double mul
+  double mul,
+  unsigned long epochs
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -76,7 +77,8 @@ void learnauto(
   }
 
   double t0 = now();
-  while (1) {
+  int epoch = 0;
+  while (epochs == 0 || epoch < epochs) {
     if (enc) {
       assert(src->pick(enc->kinp));
       enc->synth();
@@ -107,6 +109,8 @@ void learnauto(
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
     }
+
+    ++epoch;
   }
 }
 
@@ -116,7 +120,8 @@ void learnfunc(
   Cortex *gen,
   Cortex *enc,
   int repint,
-  double mul
+  double mul,
+  unsigned long epochs
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -128,8 +133,9 @@ void learnfunc(
   kmake(&ktgt, gen->owhc);
 
   double t0 = now();
+  int epoch = 0;
 
-  while (1) {
+  while (epochs == 0 || epoch < epochs) {
     if (enc) {
       Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
       enc->synth();
@@ -162,6 +168,8 @@ void learnfunc(
       sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
       fprintf(stderr, "%s\n", buf);
     }
+
+    ++epoch;
   }
 
   kfree(ktgt);
@@ -175,7 +183,8 @@ void learnstyl(
   Cortex *enc,
   int repint,
   double mul,
-  bool lossreg
+  bool lossreg,
+  unsigned long epochs
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -199,8 +208,9 @@ void learnstyl(
   kfill(kfake, dis->owhc, 1.0);
 
   double t0 = now();
+  int epoch = 0;
 
-  while (1) {
+  while (epochs == 0 || epoch < epochs) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -253,6 +263,8 @@ void learnstyl(
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
     }
+
+    ++epoch;
   }
 
   kfree(ktmp);
@@ -267,7 +279,8 @@ void learnhans(
   int repint,
   double mul,
   bool lossreg,
-  double noise
+  double noise,
+  double epochs
 ) {
 
   int iw, ih, ic, iwhc;
@@ -311,8 +324,9 @@ void learnhans(
   kfill(kfake, dis->owhc, 1.0);
 
   double t0 = now();
+  int epoch = 0;
 
-  while (1) {
+  while (epochs == 0 || epoch < epochs) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -388,6 +402,8 @@ void learnhans(
       sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
       fprintf(stderr, "%s\n", buf);
     }
+
+    ++epoch;
   }
 
   kfree(ktmp);
@@ -844,10 +860,12 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
+    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnauto(src, gen, enc, repint, mul);
+    learnauto(src, gen, enc, repint, mul, epochs);
 
     delete src;
     delete gen;
@@ -954,10 +972,12 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
+    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnfunc(src, tgt, gen, enc, repint, mul);
+    learnfunc(src, tgt, gen, enc, repint, mul, epochs);
 
     delete src;
     delete tgt;
@@ -1082,10 +1102,12 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
+    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, sty, gen, dis, enc, repint, mul, lossreg);
+    learnstyl(src, sty, gen, dis, enc, repint, mul, lossreg, epochs);
 
     delete src;
     delete sty;
@@ -1220,12 +1242,14 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
+    unsigned long epochs = strtoul(arg.get("epochs", "0"));
+
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    fprintf(stderr, "dim=%dx%d\n", iw, ih);
+    fprintf(stderr, "dim=%dx%d epochs=%lu\n", iw, ih, epochs);
 
-    learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise);
+    learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, epochs);
 
     delete src;
     delete tgt;
