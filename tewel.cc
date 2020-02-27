@@ -435,6 +435,9 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
+  if (startswith(ctx, "//"))
+    ctx = "/opt/makemore/share/tewel/" + std::string(ctx.c_str() + 2);
+
   bool ctx_is_dir = is_dir(ctx);
 
   Cmdline arg(argc, argv, "0");
@@ -456,7 +459,10 @@ int main(int argc, char **argv) {
     if (ctx_is_dir)
       error("dir exists with name of file");
 
-    std::string spec = arg.get("spec", "/dev/stdin");
+    std::string spec = arg.get("spec");
+    if (startswith(spec, "//"))
+      spec = "/opt/makemore/share/tewel/" + std::string(spec.c_str() + 2);
+
     int clobber = arg.get("clobber", "0");
 
     if (!arg.unused.empty())
