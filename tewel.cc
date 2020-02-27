@@ -651,22 +651,10 @@ int main(int argc, char **argv) {
     else if (outcrop != "random")
       error("outcrop must be random or center");
 
-    int pw, ph;
+    int pw = 0, ph = 0;
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &pw, &ph))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
-      if (!parsedim2(dim, &pw, &ph))
-        error("dim in dim.txt must be like 256 or like 256x256");
     }
     int pc = enc ? enc->ic : gen->ic;
 
@@ -688,17 +676,7 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
-    std::string srcfn;
-    if (arg.present("src")) {
-      srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
-    } else {
-      arg.get("src");
-      assert(0);
-    }
+    std::string srcfn = arg.get("src");
 
     Kleption *src = new Kleption(
       srcfn,
@@ -714,16 +692,17 @@ int main(int argc, char **argv) {
     src->load();
     assert(src->pw > 0);
     assert(src->ph > 0);
-    assert(enc->ic == src->pc);
 
     int ic;
     if (enc) {
+      assert(enc->ic == src->pc);
       enc->prepare(src->pw, src->ph);
       gen->prepare(enc->ow, enc->oh);
       if (enc->oc != gen->ic)
         error("encoder oc doesn't match generator ic");
       ic = enc->ic;
     } else {
+      assert(gen->ic == src->pc);
       gen->prepare(src->pw, src->ph);
       ic = gen->ic;
     }
