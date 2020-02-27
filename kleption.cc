@@ -759,7 +759,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%ux%u+%u+%u+%u.ppm", pw, ph, x0, y0, v);
+        sprintf(buf, "%ux%ux%u+%u+%u+%u.ppm", pw, ph, pc, x0, y0, v);
         *idp = buf;
       }
       return true;
