@@ -1226,7 +1226,7 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    fprintf(stderr, "dim=%dx%d reps=%lu\n", iw, ih, reps);
+    fprintf(stderr, "dim=%dx%d reps=%ld\n", iw, ih, reps);
 
     learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, reps);
 
