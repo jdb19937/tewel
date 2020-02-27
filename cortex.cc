@@ -798,7 +798,7 @@ void Cortex::open(const std::string &_fn, int flags) {
   fn = _fn;
 
   assert(flags == O_RDWR || flags == O_RDONLY);
-  fd = ::open(fn.c_str(), flags, 0700);
+  fd = ::open(fn.c_str(), flags, 0644);
   assert(fd >= 0);
 
   struct stat stbuf;
@@ -910,7 +910,7 @@ void Cortex::create(const std::string &fn, bool clobber) {
   int fd = ::open(
     fn.c_str(),
     O_RDWR | O_CREAT | (clobber ? 0 : O_EXCL),
-    0700
+    0644
   );
   assert(fd != -1);
 
