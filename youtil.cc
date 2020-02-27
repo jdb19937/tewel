@@ -350,7 +350,7 @@ bool is_dir(const std::string &fn) {
 }
 
 bool fexists(const std::string &fn) {
-  return (access(fn.c_str(), F_OK) != -1);
+  return (::access(fn.c_str(), F_OK) != -1);
 }
 
 std::string fmt(const std::string &x, ...) {
@@ -359,12 +359,12 @@ std::string fmt(const std::string &x, ...) {
 
   va_list ap0;
   va_copy(ap0, ap);
-  ssize_t yn = vsnprintf(NULL, 0, x.c_str(), ap0);
+  ssize_t yn = ::vsnprintf(NULL, 0, x.c_str(), ap0);
   assert(yn > 0);
 
   std::string y;
   y.resize(yn + 1);
-  ssize_t vyn = vsnprintf((char *)y.data(), yn + 1, x.c_str(), ap);
+  ssize_t vyn = ::vsnprintf((char *)y.data(), yn + 1, x.c_str(), ap);
   assert(yn == vyn);
 
   return y;
