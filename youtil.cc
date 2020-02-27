@@ -360,7 +360,7 @@ std::string fmt(const std::string &x, ...) {
   va_list ap0;
   va_copy(ap0, ap);
   ssize_t yn = vsnprintf(NULL, 0, x.c_str(), ap0);
-  assert(yn >= 0);
+  assert(yn > 0);
 
   std::string y;
   y.resize(yn + 1);
