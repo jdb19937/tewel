@@ -145,7 +145,7 @@ Kleption::Kleption(
     ) {
       kind = KIND_PIC;
     } else {
-      warning("can't identify output kind from extension, assuming pic");
+      warning(std::string("can't identify kind from extension, assuming pic for ") + fn);
       kind = KIND_PIC;
     }
     return;
@@ -202,7 +202,7 @@ Kleption::Kleption(
     ) {
       kind = KIND_PIC;
     } else {
-      warning("can't identify kind from extension, assuming pic");
+      warning(std::string("can't identify kind from extension, assuming pic for ") + fn);
       kind = KIND_PIC;
     }
     return;

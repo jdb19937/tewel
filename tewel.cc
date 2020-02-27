@@ -486,8 +486,8 @@ int main(int argc, char **argv) {
 
       Cmdline specargs(specargc, specargv, "");
       std::string type = specargs.get("type");
-      int ic = specargs.get("idim", "0");
-      int oc = specargs.get("odim", "0");
+      int ic = specargs.get("in", "0");
+      int oc = specargs.get("out", "0");
 
       freeargstrad(specargc, specargv);
       if (!specargs.unused.empty())
@@ -606,6 +606,15 @@ int main(int argc, char **argv) {
   if (cmd == "synth") {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
+    Cortex *gen = new Cortex(genfn, O_RDONLY);
+
+    Cortex *enc = NULL;
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    }
+
     int limit = arg.get("limit", "-1");
     int reload = arg.get("reload", "0");
     double delay = arg.get("delay", "0.0");
@@ -626,10 +635,25 @@ int main(int argc, char **argv) {
     else if (outcrop != "random")
       error("outcrop must be random or center");
 
-    std::string outdim = arg.get("outdim", "0x0x0");
-    int pw = 0, ph = 0, pc = 3;
-    if (!parsedim(outdim, &pw, &ph, &pc))
-      error("bad outdim format");
+    int pw, ph;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &pw, &ph))
+        error("dim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
+      std::string dim;
+
+      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
+      if (!dimfp)
+        error("can't open dim.txt");
+      if (!read_line(dimfp, &dim))
+        error("can't read line from dim.txt");
+      fclose(dimfp);
+
+      if (!parsedim2(dim, &pw, &ph))
+        error("dim in dim.txt must be like 256 or like 256x256");
+    }
+    int pc = enc ? enc->ic : gen->ic;
+
 
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
@@ -648,44 +672,43 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
+    std::string srcfn;
+    if (arg.present("src")) {
+      srcfn = (std::string)arg.get("src");
+    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
+      srcfn = ctx + "/src.dat";
+    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
+      srcfn = ctx + "/src";
+    } else {
+      arg.get("src");
+      assert(0);
+    }
+
     Kleption *src = new Kleption(
-      arg.get("src", "/dev/stdin"),
+      srcfn,
       pw, ph, pc,
       srcflags, srctrav, srckind,
       sw, sh, sc,
       refsfn
     );
 
-    Cortex *gen = new Cortex(genfn, O_RDONLY);
-
-    Cortex *enc = NULL;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
-    }
     
    
 
     src->load();
     assert(src->pw > 0);
     assert(src->ph > 0);
-    assert(src->pc == 3);
+    assert(enc->ic == src->pc);
 
     int ic;
     if (enc) {
       enc->prepare(src->pw, src->ph);
-      if (enc->ic != 3)
-        error("encoder must have idim=3");
-
       gen->prepare(enc->ow, enc->oh);
       if (enc->oc != gen->ic)
-        error("encoder odim doesn't match generator idim");
+        error("encoder oc doesn't match generator ic");
       ic = enc->ic;
     } else {
       gen->prepare(src->pw, src->ph);
-      if (gen->ic != 3)
-        error("generator must have idim=3");
       ic = gen->ic;
     }
 
@@ -746,21 +769,21 @@ int main(int argc, char **argv) {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
     int iw, ih;
-    if (arg.present("idim")) {
-      if (!parsedim2(arg.get("idim"), &iw, &ih))
-        error("idim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
-      std::string idim;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &iw, &ih))
+        error("dim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
+      std::string dim;
 
-      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
-      if (!idimfp)
-        error("can't open idim.txt");
-      if (!read_line(idimfp, &idim))
-        error("can't read line from idim.txt");
-      fclose(idimfp);
+      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
+      if (!dimfp)
+        error("can't open dim.txt");
+      if (!read_line(dimfp, &dim))
+        error("can't read line from dim.txt");
+      fclose(dimfp);
 
-      if (!parsedim2(idim, &iw, &ih))
-        error("idim in idim.txt must be like 256 or like 256x256");
+      if (!parsedim2(dim, &iw, &ih))
+        error("dim in dim.txt must be like 256 or like 256x256");
     }
 
     int repint = arg.get("repint", "64");
@@ -838,21 +861,21 @@ int main(int argc, char **argv) {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
     int iw, ih;
-    if (arg.present("idim")) {
-      if (!parsedim2(arg.get("idim"), &iw, &ih))
-        error("idim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
-      std::string idim;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &iw, &ih))
+        error("dim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
+      std::string dim;
 
-      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
-      if (!idimfp)
-        error("can't open idim.txt");
-      if (!read_line(idimfp, &idim))
-        error("can't read line from idim.txt");
-      fclose(idimfp);
+      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
+      if (!dimfp)
+        error("can't open dim.txt");
+      if (!read_line(dimfp, &dim))
+        error("can't read line from dim.txt");
+      fclose(dimfp);
 
-      if (!parsedim2(idim, &iw, &ih))
-        error("idim in idim.txt must be like 256 or like 256x256");
+      if (!parsedim2(dim, &iw, &ih))
+        error("dim in dim.txt must be like 256 or like 256x256");
     }
 
     int repint = arg.get("repint", "64");
@@ -948,21 +971,21 @@ int main(int argc, char **argv) {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
     int iw, ih;
-    if (arg.present("idim")) {
-      if (!parsedim2(arg.get("idim"), &iw, &ih))
-        error("idim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
-      std::string idim;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &iw, &ih))
+        error("dim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
+      std::string dim;
 
-      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
-      if (!idimfp)
-        error("can't open idim.txt");
-      if (!read_line(idimfp, &idim))
-        error("can't read line from idim.txt");
-      fclose(idimfp);
+      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
+      if (!dimfp)
+        error("can't open dim.txt");
+      if (!read_line(dimfp, &dim))
+        error("can't read line from dim.txt");
+      fclose(dimfp);
 
-      if (!parsedim2(idim, &iw, &ih))
-        error("idim in idim.txt must be like 256 or like 256x256");
+      if (!parsedim2(dim, &iw, &ih))
+        error("dim in dim.txt must be like 256 or like 256x256");
     }
 
     if (iw <= 0)
@@ -1080,21 +1103,21 @@ int main(int argc, char **argv) {
     std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
     int iw, ih;
-    if (arg.present("idim")) {
-      if (!parsedim2(arg.get("idim"), &iw, &ih))
-        error("idim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/idim.txt")) {
-      std::string idim;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &iw, &ih))
+        error("dim must be like 256 or like 256x256");
+    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
+      std::string dim;
 
-      FILE *idimfp = fopen((ctx + "/idim.txt").c_str(), "r");
-      if (!idimfp)
-        error("can't open idim.txt");
-      if (!read_line(idimfp, &idim))
-        error("can't read line from idim.txt");
-      fclose(idimfp);
+      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
+      if (!dimfp)
+        error("can't open dim.txt");
+      if (!read_line(dimfp, &dim))
+        error("can't read line from dim.txt");
+      fclose(dimfp);
 
-      if (!parsedim2(idim, &iw, &ih))
-        error("idim in idim.txt must be like 256 or like 256x256");
+      if (!parsedim2(dim, &iw, &ih))
+        error("dim in dim.txt must be like 256 or like 256x256");
     }
 
     if (iw <= 0)
@@ -1200,7 +1223,7 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    fprintf(stderr, "idim=%dx%d\n", iw, ih);
+    fprintf(stderr, "dim=%dx%d\n", iw, ih);
 
     learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise);
 

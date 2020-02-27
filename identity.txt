@@ -1,2 +1,2 @@
 v=2
-type=iden idim=3 odim=3
+type=iden in=3 out=3

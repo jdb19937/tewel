@@ -59,6 +59,7 @@ inline void error(const std::string &str) {
 
 extern bool parsedim(const std::string &dim, int *wp, int *hp, int *cp);
 extern bool parsedim2(const std::string &dim, int *wp, int *hp);
+extern bool parsedim23(const std::string &dim, int *wp, int *hp, int *cp);
 
 inline double now() {
   struct timeval tv;

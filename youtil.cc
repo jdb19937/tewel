@@ -101,6 +101,64 @@ bool parsedim2(const std::string &dim, int *wp, int *hp) {
   return true;
 }
 
+bool parsedim23(const std::string &dim, int *wp, int *hp, int *cp) {
+  const char *cdim = dim.c_str();
+
+  if (!isdigit(*cdim))
+    return false;
+
+  int w = 0;
+  while (isdigit(*cdim)) {
+    w *= 10;
+    w += (*cdim - '0');
+    ++cdim;
+  }
+  if (!*cdim) {
+    *wp = w;
+    *hp = w;
+    *cp = 3;
+    return true;
+  }
+
+  if (*cdim != 'x')
+    return false;
+  ++cdim;
+
+  int h = 0;
+  while (isdigit(*cdim)) {
+    h *= 10;
+    h += (*cdim - '0');
+    ++cdim;
+  }
+
+  if (!*cdim) {
+    *wp = w;
+    *hp = h;
+    *cp = 3;
+    return true;
+  }
+
+  if (*cdim != 'x')
+    return false;
+  ++cdim;
+
+  int c = 0;
+  while (isdigit(*cdim)) {
+    c *= 10;
+    c += (*cdim - '0');
+    ++cdim;
+  }
+
+  if (!*cdim) {
+    *wp = w;
+    *hp = h;
+    *cp = c;
+    return true;
+  }
+
+  return false;
+}
+
 bool parsedim(const std::string &dim, int *wp, int *hp, int *cp) {
   const char *cdim = dim.c_str();
 
