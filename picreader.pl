@@ -5,6 +5,7 @@ $| = 1;
 my $fn = shift(@ARGV);
 
 if (my $filter = $ENV{TEWEL_PICREADER_FILTER}) {
+  $filter =~ s#^//#/opt/makemore/share/tewel/#;
   open(STDOUT, "| $filter") or die "$0: $filter: $!";
 }
 

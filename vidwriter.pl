@@ -4,6 +4,7 @@
 my $fn = shift(@ARGV);
 
 if (my $filter = $ENV{TEWEL_VIDWRITER_FILTER}) {
+  $filter =~ s#^//#/opt/makemore/share/tewel/#;
   open(STDIN, "$filter |") or die "$0: $filter: $!";
 }
 
