@@ -20,6 +20,10 @@
 
 using namespace makemore;
 
+namespace makemore{
+  extern int verbose;
+}
+
 static void usage() {
   fprintf(stderr,
     "Usage:\n"
@@ -61,7 +65,7 @@ void learnauto(
   Cortex *enc,
   int repint,
   double mul,
-  unsigned long reps
+  long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -78,7 +82,7 @@ void learnauto(
 
   double t0 = now();
   int rep = 0;
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     if (enc) {
       assert(src->pick(enc->kinp));
       enc->synth();
@@ -102,12 +106,12 @@ void learnauto(
         enc->save();
       gen->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms
+      );
 
       ++rep;
     }
@@ -121,7 +125,7 @@ void learnfunc(
   Cortex *enc,
   int repint,
   double mul,
-  unsigned long reps
+  long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -135,7 +139,7 @@ void learnfunc(
   double t0 = now();
   int rep = 0;
 
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     if (enc) {
       Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
       enc->synth();
@@ -161,12 +165,12 @@ void learnfunc(
         enc->save();
       gen->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g\n",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms
+      );
 
       ++rep;
     }
@@ -184,7 +188,7 @@ void learnstyl(
   int repint,
   double mul,
   bool lossreg,
-  unsigned long reps
+  long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -210,7 +214,7 @@ void learnstyl(
   double t0 = now();
   int rep = 0;
 
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -256,12 +260,12 @@ void learnstyl(
       gen->save();
       dis->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g disrms=%g\n",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms, dis->rms
+      );
 
       ++rep;
     }
@@ -280,7 +284,7 @@ void learnhans(
   double mul,
   bool lossreg,
   double noise,
-  double reps
+  long reps
 ) {
 
   int iw, ih, ic, iwhc;
@@ -326,7 +330,7 @@ void learnhans(
   double t0 = now();
   int rep = 0;
 
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -395,12 +399,12 @@ void learnhans(
       gen->save();
       dis->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g disrms=%g\n",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms, dis->rms
+      );
 
       ++rep;
     }
@@ -435,10 +439,16 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
+  Cmdline arg(argc, argv, "0");
+  verbose = arg.get("verbose", "0");
+  info(fmt("verbose=%d", verbose));
+
+  if (startswith(ctx, "//"))
+    ctx = "/opt/makemore/share/tewel/" + std::string(ctx.c_str() + 2);
+
   bool ctx_is_dir = is_dir(ctx);
 
-  Cmdline arg(argc, argv, "0");
-
+   
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
 
@@ -452,11 +462,16 @@ int main(int argc, char **argv) {
   else
     seedrand();
 
+  int lowmem = arg.get("lowmem", "0");
+
   if (cmd == "make") {
     if (ctx_is_dir)
       error("dir exists with name of file");
 
-    std::string spec = arg.get("spec", "/dev/stdin");
+    std::string spec = arg.get("spec");
+    if (startswith(spec, "//"))
+      spec = "/opt/makemore/share/tewel/" + std::string(spec.c_str() + 2);
+
     int clobber = arg.get("clobber", "0");
 
     if (!arg.unused.empty())
@@ -468,28 +483,31 @@ int main(int argc, char **argv) {
 
     FILE *specfp = fopen(spec.c_str(), "r");
     if (!specfp)
-      error(std::string("can't open ") + spec + ": " + strerror(errno));
+      error(str("can't open ") + spec + ": " + strerror(errno));
 
     std::string specline;
     if (read_line(specfp, &specline)) {
-      int specargc;
-      char **specargv;
-      parseargstrad(specline, &specargc, &specargv);
+      strmap specopt;
 
-      Cmdline specargs(specargc, specargv, "");
-      int v = specargs.get("v", "0");
-      if (v != 2)
-        error("missing magic v=2");
-      out->head->decay = specargs.get("decay", "1e-2");
-      out->head->nu = specargs.get("nu", "1e-4");
-      out->head->b1 = specargs.get("b1", "1e-1");
-      out->head->b2 = specargs.get("b2", "1e-3");
-      out->head->eps = specargs.get("eps", "1e-8");
-      out->head->rdev = specargs.get("rdev", "0.25");
+      specopt["decay"] = "1e-2";
+      specopt["nu"] = "1e-4";
+      specopt["b1"] = "1e-1";
+      specopt["b2"] = "1e-3";
+      specopt["eps"] = "1e-8";
+      specopt["rdev"] = "0.25";
 
-      freeargstrad(specargc, specargv);
-      if (!specargs.unused.empty())
-        error("bad options in spec header");
+      if (!parsekv(specline, &specopt))
+        error(str("can't parse kv in header of ") + spec);
+
+      if (specopt["v"] != "2")
+        error(str("missing magic v=2 in ") + spec);
+
+      out->head->decay = strtod(specopt["decay"]);
+      out->head->nu = strtod(specopt["nu"]);
+      out->head->b1 = strtod(specopt["b1"]);
+      out->head->b2 = strtod(specopt["b2"]);
+      out->head->eps = strtod(specopt["eps"]);
+      out->head->rdev = strtod(specopt["rdev"]);
     } else {
       error("no header line in spec");
     }
@@ -640,16 +658,18 @@ int main(int argc, char **argv) {
       error("srctrav must be scan or rand or refs");
 
     Kleption::Flags srcflags = 0;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
 
     int repeat = arg.get("repeat", "0");
     if (repeat)
       srcflags |= Kleption::FLAG_REPEAT;
 
-    std::string outcrop = arg.get("outcrop", "center");
-    if (outcrop == "center")
+    std::string crop = arg.get("crop", "center");
+    if (crop == "center")
       srcflags |= Kleption::FLAG_CENTER;
-    else if (outcrop != "random")
-      error("outcrop must be random or center");
+    else if (crop != "random")
+      error("crop must be random or center");
 
     int pw = 0, ph = 0;
     if (arg.present("dim")) {
@@ -713,10 +733,14 @@ int main(int argc, char **argv) {
     if (outkind != Kleption::KIND_SDL)
       arg.get("out");
 
+    Kleption::Flags outflags = Kleption::FLAG_WRITER;
+    if (lowmem)
+      outflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *out = new Kleption(
       arg.get("out", ""),
       gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_WRITER, Kleption::TRAV_SCAN, outkind
+      outflags, Kleption::TRAV_SCAN, outkind
     );
 
     if (!arg.unused.empty())
@@ -760,37 +784,82 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+
+  std::map<std::string, std::string> diropt;
+
+  diropt["repint"] = "64";
+  diropt["reps"] = "-1";
+  diropt["mul"] = "1.0";
+  diropt["lossreg"] = "1";
+  diropt["noise"] = "0.5";
+  diropt["srcdim"] = "0x0x0";
+  diropt["tgtdim"] = "0x0x0";
+  diropt["stydim"] = "0x0x0";
+  diropt["srckind"] = "";
+  diropt["tgtkind"] = "";
+  diropt["stykind"] = "";
+  
+  if (ctx_is_dir) {
+    if (!fexists(ctx + "/gen.ctx"))
+      error(fmt("%s/gen.ctx: %s", ctx.c_str(), strerror(errno)));
+    diropt["gen"] = ctx + "/gen.ctx";
+
+    if (fexists(ctx + "/enc.ctx"))
+      diropt["enc"] = ctx + "/enc.ctx";
+    if (fexists(ctx + "/dis.ctx"))
+      diropt["dis"] = ctx + "/dis.ctx";
+
+    std::string diroptfn = ctx + "/opt.txt";
+    if (fexists(diroptfn)) {
+      info(fmt("reading default options from %s", diroptfn.c_str()));
+
+      std::string line;
+
+      FILE *optfp = fopen(diroptfn.c_str(), "r");
+      if (!optfp)
+        error(fmt("can't open %s", diroptfn.c_str()));
+      if (!read_line(optfp, &line))
+        error(fmt("can't read line from %s", diroptfn.c_str()));
+      if (getc(optfp) != EOF)
+        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
+      fclose(optfp);
+
+      if (!parsekv(line, &diropt))
+        error(fmt("can't parse options in %s", diroptfn.c_str()));
+      info(kvstr(diropt));
+
+      if (diropt.count("src") && !startswith(diropt["src"], "/"))
+        diropt["src"] = ctx + "/" + diropt["src"];
+      if (diropt.count("tgt") && !startswith(diropt["tgt"], "/"))
+        diropt["tgt"] = ctx + "/" + diropt["tgt"];
+      if (diropt.count("sty") && !startswith(diropt["sty"], "/"))
+        diropt["sty"] = ctx + "/" + diropt["sty"];
+    }
+  }
+
+
   if (cmd == "learnauto") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
-      if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+    } else if (diropt.count("dim")) {
+      if (!parsedim2(diropt["dim"], &iw, &ih))
+        error("dim must be like 256 or like 256x256");
     }
 
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -812,34 +881,36 @@ int main(int argc, char **argv) {
     if (ic != gen->oc)
       error("input and output channels don't match");
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -855,36 +926,28 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnfunc") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
       if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+        error("dim must be like 256 or like 256x256");
     }
 
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -899,59 +962,63 @@ int main(int argc, char **argv) {
       ic = gen->ic;
     }
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
-    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(tgtdim, &tw, &th, &tc))
       error("bad tgtdim format");
 
-    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", diropt["tgtkind"]));
 
     std::string tgtfn;
     if (arg.present("tgt")) {
       tgtfn = (std::string)arg.get("tgt");
-    } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
-      tgtfn = ctx + "/tgt.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
-      tgtfn = ctx + "/tgt";
+    } else if (diropt.count("tgt")) {
+      tgtfn = diropt["tgt"];
     } else {
       arg.get("tgt");
       assert(0);
     }
 
+    Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      tgtflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *tgt = new Kleption(
       tgtfn, gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
+      tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -967,41 +1034,33 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "learnstyl") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
       if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+        error("dim must be like 256 or like 256x256");
     }
 
     if (iw <= 0)
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
-    int lossreg = arg.get("lossreg", "1");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
+    int lossreg = arg.get("lossreg", diropt["lossreg"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -1019,8 +1078,8 @@ int main(int argc, char **argv) {
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
-    } else if (ctx_is_dir && fexists(ctx + "/dis.ctx")) {
-      dis = new Cortex(ctx + "/dis.ctx");
+    } else if (diropt.count("dis")) {
+      dis = new Cortex(diropt["dis"]);
     } else {
       error("dis argument required");
     }
@@ -1029,59 +1088,63 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
-      srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+      srcfn = (std::string) arg.get("src");
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
-    std::string stydim = arg.get("stydim", "0x0x0");
+    std::string stydim = arg.get("stydim", diropt["stydim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(stydim, &tw, &th, &tc))
       error("bad stydim format");
 
-    Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", ""));
+    Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", diropt["stykind"]));
 
     std::string styfn;
     if (arg.present("sty")) {
       styfn = (std::string)arg.get("sty");
-    } else if (ctx_is_dir && fexists(ctx + "/sty.dat")) {
-      styfn = ctx + "/sty.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/sty")) {
-      styfn = ctx + "/sty";
+    } else if (diropt.count("sty")) {
+      styfn = diropt["sty"];
     } else {
       arg.get("sty");
       assert(0);
     }
 
+    Kleption::Flags styflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      styflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *sty = new Kleption(
       styfn, gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, stykind,
+      styflags, Kleption::TRAV_RAND, stykind,
       tw, th, tc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -1101,42 +1164,34 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnhans") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
       if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+        error("dim must be like 256 or like 256x256");
     }
 
     if (iw <= 0)
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
-    int lossreg = arg.get("lossreg", "1");
-    double noise = arg.get("noise", "0.5");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
+    int lossreg = arg.get("lossreg", diropt["lossreg"]);
+    double noise = arg.get("noise", diropt["noise"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -1159,8 +1214,8 @@ int main(int argc, char **argv) {
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
-    } else if (ctx_is_dir && fexists(ctx + "/dis.ctx")) {
-      dis = new Cortex(ctx + "/dis.ctx");
+    } else if (diropt.count("dis")) {
+      dis = new Cortex(diropt["dis"]);
     } else {
       error("dis argument required");
     }
@@ -1169,64 +1224,68 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc + ic)
       error("gen oc+ic doesn't match dis ic");
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && fexists(ctx + "/src.dat")) {
-      srcfn = ctx + "/src.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
-    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(tgtdim, &tw, &th, &tc))
       error("bad tgtdim format");
 
-    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", diropt["tgtkind"]));
 
     std::string tgtfn;
     if (arg.present("tgt")) {
       tgtfn = (std::string)arg.get("tgt");
-    } else if (ctx_is_dir && fexists(ctx + "/tgt.dat")) {
-      tgtfn = ctx + "/tgt.dat";
-    } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
-      tgtfn = ctx + "/tgt";
+    } else if (diropt.count("tgt")) {
+      tgtfn = diropt["tgt"];
     } else {
       arg.get("tgt");
       assert(0);
     }
 
+    Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      tgtflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *tgt = new Kleption(
       tgtfn, gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
+      tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    fprintf(stderr, "dim=%dx%d reps=%lu\n", iw, ih, reps);
+    info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
     learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, reps);
 

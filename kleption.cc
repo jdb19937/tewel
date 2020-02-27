@@ -759,7 +759,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       if (idp) {
         char buf[256];
-        sprintf(buf, "%ux%u+%u+%u+%u.ppm", pw, ph, x0, y0, v);
+        sprintf(buf, "%ux%ux%u+%u+%u+%u.ppm", pw, ph, pc, x0, y0, v);
         *idp = buf;
       }
       return true;
@@ -800,11 +800,11 @@ void Kleption::find(const std::string &id, double *kdat) {
     {
       assert(qid == "");
       assert(dat);
-      assert(sw >= pw);
-      assert(sh >= ph);
 
       unsigned int vpw, vph, vpc, x0, y0;
       sscanf(pid.c_str(), "%ux%ux%u+%u+%u.ppm", &vpw, &vph, &vpc, &x0, &y0);
+      assert(sw == pw);
+      assert(sh == ph);
       assert(vpw == pw);
       assert(vph == ph);
       assert(vpc == pc);
@@ -847,8 +847,6 @@ void Kleption::find(const std::string &id, double *kdat) {
     {
       assert(dat);
       assert(qid == "");
-      assert(sw >= pw);
-      assert(sh >= ph);
 
       unsigned int vpw, vph, vpc, x0, y0, v;
       sscanf(pid.c_str(), "%ux%ux%u+%u+%u+%u.ppm", &vpw, &vph, &vpc, &x0, &y0, &v);
@@ -857,6 +855,9 @@ void Kleption::find(const std::string &id, double *kdat) {
       assert(vpw == pw);
       assert(vph == ph);
       assert(vpc == pc);
+
+      assert(sw == pw);
+      assert(sh == ph);
       if (flags & FLAG_ADDGEO)
         assert(pc == sc + 4);
       else
@@ -882,7 +883,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
+            *edat++ = (double)tmpdat[z + sc * (x + sw * y)] / 255.0;
           if (flags & FLAG_ADDGEO)
             _addgeo(edat, x, y, sw, sh);
         }
@@ -897,6 +898,8 @@ void Kleption::find(const std::string &id, double *kdat) {
 }
 
 bool Kleption::place(const std::string &id, const double *kdat) {
+  info(fmt("placing %s", id.c_str()));
+
   assert(flags & FLAG_WRITER);
   assert(pw > 0);
   assert(ph > 0);

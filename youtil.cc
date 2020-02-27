@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
@@ -17,6 +18,8 @@
 #include "youtil.hh"
 
 namespace makemore {
+
+int verbose = 0;
 
 static inline double btod(uint8_t b) {
   return ((double)b / 256.0);
@@ -347,7 +350,66 @@ bool is_dir(const std::string &fn) {
 }
 
 bool fexists(const std::string &fn) {
-  return (access(fn.c_str(), F_OK) != -1);
+  return (::access(fn.c_str(), F_OK) != -1);
+}
+
+std::string fmt(const std::string &x, ...) {
+  va_list ap;
+  va_start(ap, x);
+
+  va_list ap0;
+  va_copy(ap0, ap);
+  ssize_t yn = ::vsnprintf(NULL, 0, x.c_str(), ap0);
+  assert(yn > 0);
+
+  std::string y;
+  y.resize(yn + 1);
+  ssize_t vyn = ::vsnprintf((char *)y.data(), yn + 1, x.c_str(), ap);
+  assert(yn == vyn);
+
+  return y;
+}
+
+bool parsekv(const std::string &kvstr, strmap *kvp) {
+  const char *p, *q;
+
+  p = kvstr.c_str();
+  while (1) {
+    while (isspace(*p))
+      ++p;
+    if (!*p)
+      return true;
+    const char *q = p;
+    while (*q && *q != '=')
+      ++q;
+    if (*q != '=')
+      return false;
+    std::string k(p, q - p);
+
+    p = q + 1;
+    while (isspace(*p))
+      ++p;
+    q = p;
+    while (*q && !isspace(*q))
+      ++q;
+    std::string v(p, q - p);
+
+    (*kvp)[k] = v;
+
+    p = q;
+  }
+}
+
+std::string kvstr(const strmap &kv) {
+  std::string out;
+  int i = 0;
+  for (auto kvi = kv.begin(); kvi != kv.end(); ++kvi) {
+    if (i > 0)
+      out += " ";
+    out += fmt("%s=%s", kvi->first.c_str(), kvi->second.c_str());
+    ++i;
+  }
+  return out;
 }
 
 }

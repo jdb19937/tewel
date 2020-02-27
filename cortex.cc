@@ -799,7 +799,8 @@ void Cortex::open(const std::string &_fn, int flags) {
 
   assert(flags == O_RDWR || flags == O_RDONLY);
   fd = ::open(fn.c_str(), flags, 0644);
-  assert(fd >= 0);
+  if (fd < 0)
+    error(fmt("%s: %s", fn.c_str(), strerror(errno)));
 
   struct stat stbuf;
   int ret = ::fstat(fd, &stbuf);
@@ -912,7 +913,11 @@ void Cortex::create(const std::string &fn, bool clobber) {
     O_RDWR | O_CREAT | (clobber ? 0 : O_EXCL),
     0644
   );
-  assert(fd != -1);
+  if (fd == -1) {
+    if (errno == EEXIST)
+      error(fn + " already exists, use clobber=1 to overwrite");
+    error(std::string(fn) + ": " + strerror(errno));
+  }
 
   Head head;
   assert(sizeof(Head) == 4096);
