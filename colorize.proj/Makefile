@@ -1,7 +1,7 @@
 FILTER = //decolorize.sh
 PICS = /spin/dan/dne.512
 DIM = 64x64
-TGT = gen.ctx dis.ctx dim.txt tgt/pics.dat src/pics.dat
+TGT = gen.ctx dis.ctx opt.txt tgt/pics.dat src/pics.dat
 
 all: $(TGT)
 
@@ -15,8 +15,8 @@ gen.ctx: gen.txt
 dis.ctx: dis.txt
 	tewel make dis.ctx spec=dis.txt clobber=1
 
-dim.txt:
-	echo $(DIM) > $@
+opt.txt:
+	echo dim=$(DIM) > $@
 
 
 tgt/pics.dat:

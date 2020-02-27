@@ -370,4 +370,48 @@ std::string fmt(const std::string &x, ...) {
   return y;
 }
 
+bool parsekv(const std::string &kvstr, std::map<std::string,std::string> *kvp) {
+  const char *p, *q;
+
+  p = kvstr.c_str();
+  while (1) {
+    while (isspace(*p))
+      ++p;
+    if (!*p)
+      return true;
+    const char *q = p;
+    while (*q && *q != '=')
+      ++q;
+    if (*q != '=')
+      return false;
+    std::string k(p, q - p);
+
+    p = q + 1;
+    while (isspace(*p))
+      ++p;
+    q = p;
+    while (*q && !isspace(*q))
+      ++q;
+    std::string v(p, q - p);
+
+    if (kvp->count(k))
+      warning(fmt("repeated key %s", k.c_str()));
+    (*kvp)[k] = v;
+
+    p = q;
+  }
+}
+
+std::string kvstr(const std::map<std::string,std::string> &kv) {
+  std::string out;
+  int i = 0;
+  for (auto kvi = kv.begin(); kvi != kv.end(); ++kvi) {
+    if (i > 0)
+      out += " ";
+    out += fmt("%s=%s", kvi->first.c_str(), kvi->second.c_str());
+    ++i;
+  }
+  return out;
+}
+
 }

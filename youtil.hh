@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 
 #include <string>
+#include <map>
 #include <vector>
 
 namespace makemore {
@@ -99,6 +100,9 @@ bool is_dir(const std::string &fn);
 bool fexists(const std::string &fn);
 
 std::string fmt(const std::string &x, ...);
+
+bool parsekv(const std::string &kvstr, std::map<std::string,std::string> *kvp);
+std::string kvstr(const std::map<std::string,std::string> &kv);
 
 }
 

@@ -439,16 +439,38 @@ int main(int argc, char **argv) {
   ++argv;
   --argc;
 
+  Cmdline arg(argc, argv, "0");
+  verbose = arg.get("verbose", "0");
+  info(fmt("verbose=%d", verbose));
+
   if (startswith(ctx, "//"))
     ctx = "/opt/makemore/share/tewel/" + std::string(ctx.c_str() + 2);
 
   bool ctx_is_dir = is_dir(ctx);
 
-  Cmdline arg(argc, argv, "0");
+  std::map<std::string, std::string> diropt;
+  if (ctx_is_dir) {
+    std::string diroptfn = ctx + "/opt.txt";
+    if (fexists(diroptfn)) {
+      info(fmt("reading default options from %s", diroptfn.c_str()));
 
-  verbose = arg.get("verbose", "0");
-  info(fmt("verbose=%d", verbose));
+      std::string line;
 
+      FILE *optfp = fopen(diroptfn.c_str(), "r");
+      if (!optfp)
+        error(fmt("can't open %s", diroptfn.c_str()));
+      if (!read_line(optfp, &line))
+        error(fmt("can't read line from %s", diroptfn.c_str()));
+      if (getc(optfp) != EOF)
+        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
+      fclose(optfp);
+
+      if (!parsekv(line, &diropt))
+        error(fmt("can't parse options in %s", diroptfn.c_str()));
+      info(kvstr(diropt));
+    }
+  }
+   
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
 
@@ -788,18 +810,9 @@ int main(int argc, char **argv) {
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
-      if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+    } else if (diropt.count("dim")) {
+      if (!parsedim2(diropt["dim"], &iw, &ih))
+        error("dim must be like 256 or like 256x256");
     }
 
     int repint = arg.get("repint", "64");
@@ -884,18 +897,10 @@ int main(int argc, char **argv) {
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
       if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+        error("dim must be like 256 or like 256x256");
     }
 
     int repint = arg.get("repint", "64");
@@ -1000,18 +1005,10 @@ int main(int argc, char **argv) {
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
       if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+        error("dim must be like 256 or like 256x256");
     }
 
     if (iw <= 0)
@@ -1138,18 +1135,10 @@ int main(int argc, char **argv) {
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &iw, &ih))
         error("dim must be like 256 or like 256x256");
-    } else if (ctx_is_dir && fexists(ctx + "/dim.txt")) {
-      std::string dim;
-
-      FILE *dimfp = fopen((ctx + "/dim.txt").c_str(), "r");
-      if (!dimfp)
-        error("can't open dim.txt");
-      if (!read_line(dimfp, &dim))
-        error("can't read line from dim.txt");
-      fclose(dimfp);
-
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
       if (!parsedim2(dim, &iw, &ih))
-        error("dim in dim.txt must be like 256 or like 256x256");
+        error("dim must be like 256 or like 256x256");
     }
 
     if (iw <= 0)
