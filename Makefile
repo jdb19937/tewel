@@ -53,7 +53,7 @@ install: all
 	install -m 0644 colorize.proj/gen.txt $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
 	install -m 0644 colorize.proj/dis.txt $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
 	install -d 0755 $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
-	install -m 0644 upgrade4x.proj/* $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
+	install -m 0644 upgrade4x.proj/Makefile $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
 	install -m 0644 upgrade4x.proj/gen.txt $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
 	install -m 0644 upgrade4x.proj/dis.txt $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
 
