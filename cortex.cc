@@ -912,7 +912,11 @@ void Cortex::create(const std::string &fn, bool clobber) {
     O_RDWR | O_CREAT | (clobber ? 0 : O_EXCL),
     0644
   );
-  assert(fd != -1);
+  if (fd == -1) {
+    if (errno == EEXIST)
+      error(fn + " already exists, use clobber=1 to overwrite");
+    error(std::string(fn) + ": " + strerror(errno));
+  }
 
   Head head;
   assert(sizeof(Head) == 4096);
