@@ -799,7 +799,8 @@ void Cortex::open(const std::string &_fn, int flags) {
 
   assert(flags == O_RDWR || flags == O_RDONLY);
   fd = ::open(fn.c_str(), flags, 0644);
-  assert(fd >= 0);
+  if (fd < 0)
+    error(fmt("%s: %s", fn.c_str(), strerror(errno)));
 
   struct stat stbuf;
   int ret = ::fstat(fd, &stbuf);

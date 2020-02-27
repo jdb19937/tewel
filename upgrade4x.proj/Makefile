@@ -29,7 +29,7 @@ dis.ctx: dis.txt
 	$(TEWEL) make dis.ctx spec=dis.txt clobber=1
 
 opt.txt:
-	echo gen=gen.ctx dis=dis.ctx src=src.dat tgt=tgt.dat dim=$(DIM) > $@
+	echo src=src.dat tgt=tgt.dat dim=$(DIM) > $@
 
 
 tgt.dat:

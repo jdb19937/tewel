@@ -637,70 +637,16 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  std::map<std::string, std::string> diropt;
-
-  diropt["repint"] = "64";
-  diropt["reps"] = "-1";
-  diropt["mul"] = "1.0";
-  diropt["lossreg"] = "1";
-  diropt["noise"] = "0.5";
-  diropt["srcdim"] = "0x0x0";
-  diropt["tgtdim"] = "0x0x0";
-  diropt["stydim"] = "0x0x0";
-  diropt["srckind"] = "";
-  diropt["tgtkind"] = "";
-  diropt["stykind"] = "";
-  
-  if (ctx_is_dir) {
-    std::string diroptfn = ctx + "/opt.txt";
-    if (fexists(diroptfn)) {
-      info(fmt("reading default options from %s", diroptfn.c_str()));
-
-      std::string line;
-
-      FILE *optfp = fopen(diroptfn.c_str(), "r");
-      if (!optfp)
-        error(fmt("can't open %s", diroptfn.c_str()));
-      if (!read_line(optfp, &line))
-        error(fmt("can't read line from %s", diroptfn.c_str()));
-      if (getc(optfp) != EOF)
-        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
-      fclose(optfp);
-
-      if (!parsekv(line, &diropt))
-        error(fmt("can't parse options in %s", diroptfn.c_str()));
-      info(kvstr(diropt));
-
-      if (diropt.count("gen") && !startswith(diropt["gen"], "/"))
-        diropt["gen"] = ctx + "/" + diropt["gen"];
-      if (diropt.count("enc") && !startswith(diropt["enc"], "/"))
-        diropt["enc"] = ctx + "/" + diropt["enc"];
-      if (diropt.count("dis") && !startswith(diropt["dis"], "/"))
-        diropt["dis"] = ctx + "/" + diropt["dis"];
-      if (diropt.count("src") && !startswith(diropt["src"], "/"))
-        diropt["src"] = ctx + "/" + diropt["src"];
-      if (diropt.count("tgt") && !startswith(diropt["tgt"], "/"))
-        diropt["tgt"] = ctx + "/" + diropt["tgt"];
-      if (diropt.count("sty") && !startswith(diropt["sty"], "/"))
-        diropt["sty"] = ctx + "/" + diropt["sty"];
-      if (diropt.count("srcrefs") && !startswith(diropt["srcrefs"], "/"))
-        diropt["srcrefs"] = ctx + "/" + diropt["srcrefs"];
-
-      if (!diropt.count("gen"))
-        error("no gen defined in opts.txt");
-    }
-  }
-
   if (cmd == "synth") {
-    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
 
     Cortex *gen = new Cortex(genfn, O_RDONLY);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (diropt.count("enc")) {
-      enc = new Cortex(diropt["enc"]);
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
     }
 
     int limit = arg.get("limit", "-1");
@@ -837,6 +783,60 @@ int main(int argc, char **argv) {
     delete src;
     return 0;
   }
+
+
+  std::map<std::string, std::string> diropt;
+
+  diropt["repint"] = "64";
+  diropt["reps"] = "-1";
+  diropt["mul"] = "1.0";
+  diropt["lossreg"] = "1";
+  diropt["noise"] = "0.5";
+  diropt["srcdim"] = "0x0x0";
+  diropt["tgtdim"] = "0x0x0";
+  diropt["stydim"] = "0x0x0";
+  diropt["srckind"] = "";
+  diropt["tgtkind"] = "";
+  diropt["stykind"] = "";
+  
+  if (ctx_is_dir) {
+    if (!fexists(ctx + "/gen.ctx"))
+      error(fmt("%s/gen.ctx: %s", ctx.c_str(), strerror(errno)));
+    diropt["gen"] = ctx + "/gen.ctx";
+
+    if (fexists(ctx + "/enc.ctx"))
+      diropt["enc"] = ctx + "/enc.ctx";
+    if (fexists(ctx + "/dis.ctx"))
+      diropt["dis"] = ctx + "/dis.ctx";
+
+    std::string diroptfn = ctx + "/opt.txt";
+    if (fexists(diroptfn)) {
+      info(fmt("reading default options from %s", diroptfn.c_str()));
+
+      std::string line;
+
+      FILE *optfp = fopen(diroptfn.c_str(), "r");
+      if (!optfp)
+        error(fmt("can't open %s", diroptfn.c_str()));
+      if (!read_line(optfp, &line))
+        error(fmt("can't read line from %s", diroptfn.c_str()));
+      if (getc(optfp) != EOF)
+        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
+      fclose(optfp);
+
+      if (!parsekv(line, &diropt))
+        error(fmt("can't parse options in %s", diroptfn.c_str()));
+      info(kvstr(diropt));
+
+      if (diropt.count("src") && !startswith(diropt["src"], "/"))
+        diropt["src"] = ctx + "/" + diropt["src"];
+      if (diropt.count("tgt") && !startswith(diropt["tgt"], "/"))
+        diropt["tgt"] = ctx + "/" + diropt["tgt"];
+      if (diropt.count("sty") && !startswith(diropt["sty"], "/"))
+        diropt["sty"] = ctx + "/" + diropt["sty"];
+    }
+  }
+
 
   if (cmd == "learnauto") {
     std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
