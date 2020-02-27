@@ -88,16 +88,10 @@ Tewel: a command-line neural synthesizer
 
 \begin_layout Author
 Dan Brumleve
-\begin_inset Foot
-status open
-
-\begin_layout Plain Layout
-MakeMore Software, Inc.
-\end_layout
-
+\begin_inset Newline newline
 \end_inset
 
-
+MakeMore Software, Inc.
 \end_layout
 
 \begin_layout Email
@@ -108,12 +102,48 @@ dan@makemoresoftware.com
 This is an abstract abstract.
 \end_layout
 
+\begin_layout Standard
+\begin_inset CommandInset toc
+LatexCommand tableofcontents
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage pagebreak
+\end_inset
+
+
+\end_layout
+
 \begin_layout Section
 Introduction
 \end_layout
 
-\begin_layout Standard
+\begin_layout Subsection
+Convolutional Neural Networks
+\end_layout
 
+\begin_layout Subsection
+Generator Role
+\end_layout
+
+\begin_layout Subsection
+Encoder Role
+\end_layout
+
+\begin_layout Subsection
+Discriminator Role
+\end_layout
+
+\begin_layout Subsection
+Data Formats
+\end_layout
+
+\begin_layout Section
+Learning
 \end_layout
 
 \begin_layout Subsection
@@ -129,7 +159,66 @@ Enhancement
 \end_layout
 
 \begin_layout Section
-Examples
+Synthesis
+\end_layout
+
+\begin_layout Subsection
+Input From Video File
+\end_layout
+
+\begin_layout Subsection
+Input From Image File
+\end_layout
+
+\begin_layout Subsection
+Input From Camera
+\end_layout
+
+\begin_layout Subsection
+Output To Display
+\end_layout
+
+\begin_layout Subsection
+Output To Image File
+\end_layout
+
+\begin_layout Subsection
+Ouptut To Video File
+\end_layout
+
+\begin_layout Section
+Precomputing
+\end_layout
+
+\begin_layout Subsection
+Input From Directory
+\end_layout
+
+\begin_layout Subsection
+Output To Raw Data File
+\end_layout
+
+\begin_layout Subsection
+Learning From Raw Data File
+\end_layout
+
+\begin_layout Subsection
+Traversal By Reference
+\end_layout
+
+\begin_layout Subsection
+Creating Paired Collections
+\end_layout
+
+\begin_layout Subsection
+Filtering
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
 \end_layout
 
 \end_body
