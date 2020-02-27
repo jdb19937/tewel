@@ -455,6 +455,8 @@ int main(int argc, char **argv) {
   else
     seedrand();
 
+  int lowmem = arg.get("lowmem", "0");
+
   if (cmd == "make") {
     if (ctx_is_dir)
       error("dir exists with name of file");
@@ -646,6 +648,8 @@ int main(int argc, char **argv) {
       error("srctrav must be scan or rand or refs");
 
     Kleption::Flags srcflags = 0;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
 
     int repeat = arg.get("repeat", "0");
     if (repeat)
@@ -719,10 +723,14 @@ int main(int argc, char **argv) {
     if (outkind != Kleption::KIND_SDL)
       arg.get("out");
 
+    Kleption::Flags outflags = Kleption::FLAG_WRITER;
+    if (lowmem)
+      outflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *out = new Kleption(
       arg.get("out", ""),
       gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_WRITER, Kleption::TRAV_SCAN, outkind
+      outflags, Kleption::TRAV_SCAN, outkind
     );
 
     if (!arg.unused.empty())
@@ -837,9 +845,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
@@ -922,9 +934,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
@@ -945,9 +961,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      tgtflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *tgt = new Kleption(
       tgtfn, gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
+      tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
@@ -1048,9 +1068,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
@@ -1071,9 +1095,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags styflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      styflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *sty = new Kleption(
       styfn, gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, stykind,
+      styflags, Kleption::TRAV_RAND, stykind,
       tw, th, tc
     );
 
@@ -1184,9 +1212,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, srckind,
+      srcflags, Kleption::TRAV_RAND, srckind,
       sw, sh, sc
     );
 
@@ -1207,9 +1239,13 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      tgtflags |= Kleption::FLAG_LOWMEM;
+
     Kleption *tgt = new Kleption(
       tgtfn, gen->ow, gen->oh, gen->oc,
-      Kleption::FLAG_REPEAT, Kleption::TRAV_RAND, tgtkind,
+      tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
 
