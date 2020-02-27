@@ -7,7 +7,8 @@ LDFLAGS = -lm
 
 VERSION = 0.4
 
-TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl identity.proj/gen.ctx
+TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl tewel-cuda-nosdl tewel-nocuda-nosdl \
+  identity.proj/gen.ctx
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
 HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh
@@ -18,7 +19,9 @@ SRC = \
   $(HDR) Makefile README LICENSE colonel.inc \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
   zoom2x.sh zoom4x.sh shrink2x.sh shrink4x.sh degrade2x.sh degrade4x.sh \
-  identity.proj/Makefile identity.proj/gen.txt
+  identity.proj/Makefile identity.proj/gen.txt \
+  colorize.proj/Makefile colorize.proj/gen.txt colorize.proj/dis.txt \
+  upgrade4x.proj/Makefile upgrade4x.proj/gen.txt upgrade4x.proj/dis.txt
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
 TARBALL = tewel-$(VERSION).tar.gz
@@ -45,6 +48,10 @@ install: all
 	install -m 0644 identity.proj/Makefile $(DESTDIR)/opt/makemore/share/tewel/identity.proj
 	install -m 0644 identity.proj/gen.txt $(DESTDIR)/opt/makemore/share/tewel/identity.proj
 	install -m 0644 identity.proj/gen.ctx $(DESTDIR)/opt/makemore/share/tewel/identity.proj
+	install -d 0755 $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
+	install -m 0644 colorize.proj/* $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
+	install -d 0755 $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
+	install -m 0644 upgrade4x.proj/* $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
 
 .PHONY: uninstall
 uninstall:
