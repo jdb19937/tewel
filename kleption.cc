@@ -84,8 +84,6 @@ Kleption::Kleption(
   if (_kind == KIND_REF) {
     if (!(flags & FLAG_WRITER))
       error("can't input from ref");
-    if (fn == "")
-      fn = "/dev/stdout";
     kind = KIND_REF;
     return;
   }

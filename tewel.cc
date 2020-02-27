@@ -710,7 +710,7 @@ int main(int argc, char **argv) {
     Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
     if (outkind == Kleption::KIND_UNK)
       error("unknown outkind");
-    if (outkind != Kleption::KIND_SDL && outkind != Kleption::KIND_REF)
+    if (outkind != Kleption::KIND_SDL)
       arg.get("out");
 
     Kleption *out = new Kleption(
