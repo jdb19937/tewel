@@ -20,6 +20,10 @@
 
 using namespace makemore;
 
+namespace makemore{
+  extern int verbose;
+}
+
 static void usage() {
   fprintf(stderr,
     "Usage:\n"
@@ -441,6 +445,9 @@ int main(int argc, char **argv) {
   bool ctx_is_dir = is_dir(ctx);
 
   Cmdline arg(argc, argv, "0");
+
+  verbose = arg.get("verbose", "0");
+  info(fmt("verbose=%d", verbose));
 
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));

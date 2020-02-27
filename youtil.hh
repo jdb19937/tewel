@@ -53,12 +53,22 @@ inline int strtoi(const std::string &str) {
 }
 
 inline void warning(const std::string &str) {
-  fprintf(stderr, "Warning: %s\n", str.c_str());
+  extern int verbose;
+  if (verbose >= 0)
+    fprintf(stderr, "warning: %s\n", str.c_str());
 }
 
 inline void error(const std::string &str) {
-  fprintf(stderr, "Error: %s\n", str.c_str());
+  extern int verbose;
+  if (verbose >= -1)
+    fprintf(stderr, "error: %s\n", str.c_str());
   exit(1);
+}
+
+inline void info(const std::string &str) {
+  extern int verbose;
+  if (verbose >= 1)
+    fprintf(stderr, "info: %s\n", str.c_str());
 }
 
 extern bool parsedim(const std::string &dim, int *wp, int *hp, int *cp);
@@ -87,6 +97,8 @@ bool parserange(const std::string &str, unsigned int *ap, unsigned int *bp);
 
 bool is_dir(const std::string &fn);
 bool fexists(const std::string &fn);
+
+std::string fmt(const std::string &x, ...);
 
 }
 

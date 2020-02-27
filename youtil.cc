@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
@@ -17,6 +18,8 @@
 #include "youtil.hh"
 
 namespace makemore {
+
+int verbose = 0;
 
 static inline double btod(uint8_t b) {
   return ((double)b / 256.0);
@@ -348,6 +351,23 @@ bool is_dir(const std::string &fn) {
 
 bool fexists(const std::string &fn) {
   return (access(fn.c_str(), F_OK) != -1);
+}
+
+std::string fmt(const std::string &x, ...) {
+  va_list ap;
+  va_start(ap, x);
+
+  va_list ap0;
+  va_copy(ap0, ap);
+  ssize_t yn = vsnprintf(NULL, 0, x.c_str(), ap0);
+  assert(yn >= 0);
+
+  std::string y;
+  y.resize(yn + 1);
+  ssize_t vyn = vsnprintf((char *)y.data(), yn + 1, x.c_str(), ap);
+  assert(yn == vyn);
+
+  return y;
 }
 
 }

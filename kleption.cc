@@ -897,6 +897,8 @@ void Kleption::find(const std::string &id, double *kdat) {
 }
 
 bool Kleption::place(const std::string &id, const double *kdat) {
+  info(fmt("placing %s", id.c_str()));
+
   assert(flags & FLAG_WRITER);
   assert(pw > 0);
   assert(ph > 0);
