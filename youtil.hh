@@ -101,8 +101,13 @@ bool fexists(const std::string &fn);
 
 std::string fmt(const std::string &x, ...);
 
-bool parsekv(const std::string &kvstr, std::map<std::string,std::string> *kvp);
-std::string kvstr(const std::map<std::string,std::string> &kv);
+typedef std::map<std::string,std::string> strmap;
+bool parsekv(const std::string &kvstr, strmap *kvp);
+std::string kvstr(const strmap &kv);
+
+inline std::string str(const char *x) {
+  return std::string(x);
+}
 
 }
 

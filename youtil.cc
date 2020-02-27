@@ -370,7 +370,7 @@ std::string fmt(const std::string &x, ...) {
   return y;
 }
 
-bool parsekv(const std::string &kvstr, std::map<std::string,std::string> *kvp) {
+bool parsekv(const std::string &kvstr, strmap *kvp) {
   const char *p, *q;
 
   p = kvstr.c_str();
@@ -394,15 +394,13 @@ bool parsekv(const std::string &kvstr, std::map<std::string,std::string> *kvp) {
       ++q;
     std::string v(p, q - p);
 
-    if (kvp->count(k))
-      warning(fmt("repeated key %s", k.c_str()));
     (*kvp)[k] = v;
 
     p = q;
   }
 }
 
-std::string kvstr(const std::map<std::string,std::string> &kv) {
+std::string kvstr(const strmap &kv) {
   std::string out;
   int i = 0;
   for (auto kvi = kv.begin(); kvi != kv.end(); ++kvi) {

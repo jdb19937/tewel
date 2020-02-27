@@ -505,28 +505,31 @@ int main(int argc, char **argv) {
 
     FILE *specfp = fopen(spec.c_str(), "r");
     if (!specfp)
-      error(std::string("can't open ") + spec + ": " + strerror(errno));
+      error(str("can't open ") + spec + ": " + strerror(errno));
 
     std::string specline;
     if (read_line(specfp, &specline)) {
-      int specargc;
-      char **specargv;
-      parseargstrad(specline, &specargc, &specargv);
+      strmap specopt;
 
-      Cmdline specargs(specargc, specargv, "");
-      int v = specargs.get("v", "0");
-      if (v != 2)
-        error("missing magic v=2");
-      out->head->decay = specargs.get("decay", "1e-2");
-      out->head->nu = specargs.get("nu", "1e-4");
-      out->head->b1 = specargs.get("b1", "1e-1");
-      out->head->b2 = specargs.get("b2", "1e-3");
-      out->head->eps = specargs.get("eps", "1e-8");
-      out->head->rdev = specargs.get("rdev", "0.25");
+      specopt["decay"] = "1e-2";
+      specopt["nu"] = "1e-4";
+      specopt["b1"] = "1e-1";
+      specopt["b2"] = "1e-3";
+      specopt["eps"] = "1e-8";
+      specopt["rdev"] = "0.25";
 
-      freeargstrad(specargc, specargv);
-      if (!specargs.unused.empty())
-        error("bad options in spec header");
+      if (!parsekv(specline, &specopt))
+        error(str("can't parse kv in header of ") + spec);
+
+      if (specopt["v"] != "2")
+        error(str("missing magic v=2 in ") + spec);
+
+      out->head->decay = strtod(specopt["decay"]);
+      out->head->nu = strtod(specopt["nu"]);
+      out->head->b1 = strtod(specopt["b1"]);
+      out->head->b2 = strtod(specopt["b2"]);
+      out->head->eps = strtod(specopt["eps"]);
+      out->head->rdev = strtod(specopt["rdev"]);
     } else {
       error("no header line in spec");
     }
