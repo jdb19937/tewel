@@ -9,7 +9,6 @@ VERSION = 0.4
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
-  identity.proj/gen.ctx \
   tewel.pdf
 
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
@@ -22,9 +21,6 @@ SRC = \
   $(HDR) Makefile README LICENSE colonel.inc \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
   zoom2x.sh zoom4x.sh shrink2x.sh shrink4x.sh degrade2x.sh degrade4x.sh \
-  identity.proj/Makefile identity.proj/gen.txt \
-  colorize.proj/Makefile colorize.proj/gen.txt colorize.proj/dis.txt \
-  upgrade4x.proj/Makefile upgrade4x.proj/gen.txt upgrade4x.proj/dis.txt \
   tewel.lyx
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
@@ -49,18 +45,6 @@ install: all
 	install -m 0755 *.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.sh $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.pdf $(DESTDIR)/opt/makemore/share/tewel
-	install -d 0755 $(DESTDIR)/opt/makemore/share/tewel/identity.proj
-	install -m 0644 identity.proj/Makefile $(DESTDIR)/opt/makemore/share/tewel/identity.proj
-	install -m 0644 identity.proj/gen.txt $(DESTDIR)/opt/makemore/share/tewel/identity.proj
-	install -m 0644 identity.proj/gen.ctx $(DESTDIR)/opt/makemore/share/tewel/identity.proj
-	install -d 0755 $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
-	install -m 0644 colorize.proj/Makefile $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
-	install -m 0644 colorize.proj/gen.txt $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
-	install -m 0644 colorize.proj/dis.txt $(DESTDIR)/opt/makemore/share/tewel/colorize.proj
-	install -d 0755 $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
-	install -m 0644 upgrade4x.proj/Makefile $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
-	install -m 0644 upgrade4x.proj/gen.txt $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
-	install -m 0644 upgrade4x.proj/dis.txt $(DESTDIR)/opt/makemore/share/tewel/upgrade4x.proj
 
 .PHONY: uninstall
 uninstall:
@@ -114,12 +98,6 @@ tewel-nocuda-nosdl: $(OBJ) colonel-nocuda.o display-nosdl.o
 $(OBJ): $(HDR)
 colonel-cuda.o: colonel.inc
 colonel-nocuda.o: colonel.inc
-
-identity.proj/gen.ctx: identity.proj/gen.txt tewel-nocuda-nosdl
-	./tewel-nocuda-nosdl make $@ spec=$< clobber=1
-
-
-
 
 %.pdf: %.lyx
 	lyx --export pdf3 $^
