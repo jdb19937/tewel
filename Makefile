@@ -39,6 +39,7 @@ install: all
 	install -m 0644 README $(DESTDIR)/opt/makemore/share/tewel/README
 	install -m 0644 LICENSE $(DESTDIR)/opt/makemore/share/tewel/LICENSE
 	install -m 0644 identity.ctx $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0644 identity.txt $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.sh $(DESTDIR)/opt/makemore/share/tewel
 
