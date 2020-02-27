@@ -4,7 +4,7 @@ DIM = 64x64
 LIMIT = 4096
 REPS = 1000000
 TEWEL = tewel
-TGT = gen.ctx dis.ctx opt.txt tgt/pics.dat src/pics.dat
+TGT = gen.ctx dis.ctx opt.txt tgt.dat src.dat
 
 .PHONY: all
 all: $(TGT)
@@ -20,7 +20,6 @@ learn: all
 .PHONY: clean
 clean:
 	rm -f $(TGT)
-	rm -rf src tgt
 
 
 gen.ctx: gen.txt
@@ -30,17 +29,15 @@ dis.ctx: dis.txt
 	$(TEWEL) make dis.ctx spec=dis.txt clobber=1
 
 opt.txt:
-	echo dim=$(DIM) > $@
+	echo gen=gen.ctx dis=dis.ctx src=src.dat tgt=tgt.dat dim=$(DIM) > $@
 
 
-tgt/pics.dat:
-	mkdir tgt
+tgt.dat:
 	$(TEWEL) synth //identity.proj \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
 		dim=$(DIM) limit=$(LIMIT) src=$(PICS) out=$@
 
-src/pics.dat:
-	mkdir src
+src.dat:
 	TEWEL_PICREADER_FILTER=$(FILTER) \
 	$(TEWEL) synth //identity.proj \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \

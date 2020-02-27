@@ -448,28 +448,6 @@ int main(int argc, char **argv) {
 
   bool ctx_is_dir = is_dir(ctx);
 
-  std::map<std::string, std::string> diropt;
-  if (ctx_is_dir) {
-    std::string diroptfn = ctx + "/opt.txt";
-    if (fexists(diroptfn)) {
-      info(fmt("reading default options from %s", diroptfn.c_str()));
-
-      std::string line;
-
-      FILE *optfp = fopen(diroptfn.c_str(), "r");
-      if (!optfp)
-        error(fmt("can't open %s", diroptfn.c_str()));
-      if (!read_line(optfp, &line))
-        error(fmt("can't read line from %s", diroptfn.c_str()));
-      if (getc(optfp) != EOF)
-        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
-      fclose(optfp);
-
-      if (!parsekv(line, &diropt))
-        error(fmt("can't parse options in %s", diroptfn.c_str()));
-      info(kvstr(diropt));
-    }
-  }
    
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
@@ -659,16 +637,70 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  std::map<std::string, std::string> diropt;
+
+  diropt["repint"] = "64";
+  diropt["reps"] = "-1";
+  diropt["mul"] = "1.0";
+  diropt["lossreg"] = "1";
+  diropt["noise"] = "0.5";
+  diropt["srcdim"] = "0x0x0";
+  diropt["tgtdim"] = "0x0x0";
+  diropt["stydim"] = "0x0x0";
+  diropt["srckind"] = "";
+  diropt["tgtkind"] = "";
+  diropt["stykind"] = "";
+  
+  if (ctx_is_dir) {
+    std::string diroptfn = ctx + "/opt.txt";
+    if (fexists(diroptfn)) {
+      info(fmt("reading default options from %s", diroptfn.c_str()));
+
+      std::string line;
+
+      FILE *optfp = fopen(diroptfn.c_str(), "r");
+      if (!optfp)
+        error(fmt("can't open %s", diroptfn.c_str()));
+      if (!read_line(optfp, &line))
+        error(fmt("can't read line from %s", diroptfn.c_str()));
+      if (getc(optfp) != EOF)
+        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
+      fclose(optfp);
+
+      if (!parsekv(line, &diropt))
+        error(fmt("can't parse options in %s", diroptfn.c_str()));
+      info(kvstr(diropt));
+
+      if (diropt.count("gen") && !startswith(diropt["gen"], "/"))
+        diropt["gen"] = ctx + "/" + diropt["gen"];
+      if (diropt.count("enc") && !startswith(diropt["enc"], "/"))
+        diropt["enc"] = ctx + "/" + diropt["enc"];
+      if (diropt.count("dis") && !startswith(diropt["dis"], "/"))
+        diropt["dis"] = ctx + "/" + diropt["dis"];
+      if (diropt.count("src") && !startswith(diropt["src"], "/"))
+        diropt["src"] = ctx + "/" + diropt["src"];
+      if (diropt.count("tgt") && !startswith(diropt["tgt"], "/"))
+        diropt["tgt"] = ctx + "/" + diropt["tgt"];
+      if (diropt.count("sty") && !startswith(diropt["sty"], "/"))
+        diropt["sty"] = ctx + "/" + diropt["sty"];
+      if (diropt.count("srcrefs") && !startswith(diropt["srcrefs"], "/"))
+        diropt["srcrefs"] = ctx + "/" + diropt["srcrefs"];
+
+      if (!diropt.count("gen"))
+        error("no gen defined in opts.txt");
+    }
+  }
+
   if (cmd == "synth") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     Cortex *gen = new Cortex(genfn, O_RDONLY);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int limit = arg.get("limit", "-1");
@@ -807,7 +839,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "learnauto") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -818,16 +850,16 @@ int main(int argc, char **argv) {
         error("dim must be like 256 or like 256x256");
     }
 
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -849,20 +881,20 @@ int main(int argc, char **argv) {
     if (ic != gen->oc)
       error("input and output channels don't match");
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
@@ -878,7 +910,7 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    long reps = strtol(arg.get("reps", "-1"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -894,7 +926,7 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnfunc") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -906,16 +938,16 @@ int main(int argc, char **argv) {
         error("dim must be like 256 or like 256x256");
     }
 
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -930,20 +962,20 @@ int main(int argc, char **argv) {
       ic = gen->ic;
     }
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
@@ -959,18 +991,18 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(tgtdim, &tw, &th, &tc))
       error("bad tgtdim format");
 
-    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", diropt["tgtkind"]));
 
     std::string tgtfn;
     if (arg.present("tgt")) {
       tgtfn = (std::string)arg.get("tgt");
-    } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
-      tgtfn = ctx + "/tgt";
+    } else if (diropt.count("tgt")) {
+      tgtfn = diropt["tgt"];
     } else {
       arg.get("tgt");
       assert(0);
@@ -986,7 +1018,7 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    long reps = strtol(arg.get("reps", "-1"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -1002,7 +1034,7 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "learnstyl") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -1018,17 +1050,17 @@ int main(int argc, char **argv) {
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
-    int lossreg = arg.get("lossreg", "1");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
+    int lossreg = arg.get("lossreg", diropt["lossreg"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -1046,8 +1078,8 @@ int main(int argc, char **argv) {
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
-    } else if (ctx_is_dir && fexists(ctx + "/dis.ctx")) {
-      dis = new Cortex(ctx + "/dis.ctx");
+    } else if (diropt.count("dis")) {
+      dis = new Cortex(diropt["dis"]);
     } else {
       error("dis argument required");
     }
@@ -1056,20 +1088,20 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc)
       error("gen oc doesn't match dis ic");
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
-      srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+      srcfn = (std::string) arg.get("src");
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
@@ -1085,18 +1117,18 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    std::string stydim = arg.get("stydim", "0x0x0");
+    std::string stydim = arg.get("stydim", diropt["stydim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(stydim, &tw, &th, &tc))
       error("bad stydim format");
 
-    Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", ""));
+    Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", diropt["stykind"]));
 
     std::string styfn;
     if (arg.present("sty")) {
       styfn = (std::string)arg.get("sty");
-    } else if (ctx_is_dir && is_dir(ctx + "/sty")) {
-      styfn = ctx + "/sty";
+    } else if (diropt.count("sty")) {
+      styfn = diropt["sty"];
     } else {
       arg.get("sty");
       assert(0);
@@ -1112,7 +1144,7 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    long reps = strtol(arg.get("reps", "-1"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -1132,7 +1164,7 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnhans") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -1148,18 +1180,18 @@ int main(int argc, char **argv) {
       uerror("input width must be positive");
     if (ih <= 0)
       uerror("input height must be positive");
-    int repint = arg.get("repint", "64");
-    double mul = arg.get("mul", "1.0");
-    int lossreg = arg.get("lossreg", "1");
-    double noise = arg.get("noise", "0.5");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
+    int lossreg = arg.get("lossreg", diropt["lossreg"]);
+    double noise = arg.get("noise", diropt["noise"]);
 
     Cortex *gen = new Cortex(genfn);
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
       enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+    } else if (diropt.count("enc")) {
+      enc = new Cortex(diropt["enc"]);
     }
 
     int ic;
@@ -1182,8 +1214,8 @@ int main(int argc, char **argv) {
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
-    } else if (ctx_is_dir && fexists(ctx + "/dis.ctx")) {
-      dis = new Cortex(ctx + "/dis.ctx");
+    } else if (diropt.count("dis")) {
+      dis = new Cortex(diropt["dis"]);
     } else {
       error("dis argument required");
     }
@@ -1192,20 +1224,20 @@ int main(int argc, char **argv) {
     if (dis->ic != gen->oc + ic)
       error("gen oc+ic doesn't match dis ic");
 
-    std::string srcdim = arg.get("srcdim", "0x0x0");
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))
       error("bad srcdim format");
 
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
     std::string srcfn;
     if (arg.present("src")) {
       srcfn = (std::string)arg.get("src");
-    } else if (ctx_is_dir && is_dir(ctx + "/src")) {
-      srcfn = ctx + "/src";
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
     } else {
       arg.get("src");
       assert(0);
@@ -1221,18 +1253,18 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    std::string tgtdim = arg.get("tgtdim", "0x0x0");
+    std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(tgtdim, &tw, &th, &tc))
       error("bad tgtdim format");
 
-    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", ""));
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", diropt["tgtkind"]));
 
     std::string tgtfn;
     if (arg.present("tgt")) {
       tgtfn = (std::string)arg.get("tgt");
-    } else if (ctx_is_dir && is_dir(ctx + "/tgt")) {
-      tgtfn = ctx + "/tgt";
+    } else if (diropt.count("tgt")) {
+      tgtfn = diropt["tgt"];
     } else {
       arg.get("tgt");
       assert(0);
@@ -1248,12 +1280,12 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    long reps = strtol(arg.get("reps", "-1"));
+    long reps = strtol(arg.get("reps", diropt["reps"]));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    fprintf(stderr, "dim=%dx%d reps=%ld\n", iw, ih, reps);
+    info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
     learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, reps);
 
