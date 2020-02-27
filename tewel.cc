@@ -106,12 +106,12 @@ void learnauto(
         enc->save();
       gen->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms
+      );
 
       ++rep;
     }
@@ -165,12 +165,12 @@ void learnfunc(
         enc->save();
       gen->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf", gen->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g\n",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms
+      );
 
       ++rep;
     }
@@ -260,12 +260,12 @@ void learnstyl(
       gen->save();
       dis->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g disrms=%g\n",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms, dis->rms
+      );
 
       ++rep;
     }
@@ -399,12 +399,12 @@ void learnhans(
       gen->save();
       dis->save();
 
-      char buf[4096];
-      sprintf(buf, "genrounds=%lu dt=%lf ", gen->rounds, dt);
-      if (enc)
-        sprintf(buf + strlen(buf), "encrms=%lf ", enc->rms);
-      sprintf(buf + strlen(buf), "genrms=%lf disrms=%lf", gen->rms, dis->rms);
-      fprintf(stderr, "%s\n", buf);
+      printf(
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g disrms=%g\n",
+         gen->fn.c_str(), gen->rounds, dt,
+        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
+        gen->rms, dis->rms
+      );
 
       ++rep;
     }
