@@ -61,7 +61,7 @@ void learnauto(
   Cortex *enc,
   int repint,
   double mul,
-  unsigned long reps
+  long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -78,7 +78,7 @@ void learnauto(
 
   double t0 = now();
   int rep = 0;
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     if (enc) {
       assert(src->pick(enc->kinp));
       enc->synth();
@@ -121,7 +121,7 @@ void learnfunc(
   Cortex *enc,
   int repint,
   double mul,
-  unsigned long reps
+  long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -135,7 +135,7 @@ void learnfunc(
   double t0 = now();
   int rep = 0;
 
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     if (enc) {
       Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
       enc->synth();
@@ -184,7 +184,7 @@ void learnstyl(
   int repint,
   double mul,
   bool lossreg,
-  unsigned long reps
+  long reps
 ) {
   if (enc) {
     assert(enc->ow == gen->iw);
@@ -210,7 +210,7 @@ void learnstyl(
   double t0 = now();
   int rep = 0;
 
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -280,7 +280,7 @@ void learnhans(
   double mul,
   bool lossreg,
   double noise,
-  double reps
+  long reps
 ) {
 
   int iw, ih, ic, iwhc;
@@ -326,7 +326,7 @@ void learnhans(
   double t0 = now();
   int rep = 0;
 
-  while (reps == 0 || rep < reps) {
+  while (reps < 0 || rep < reps) {
     double genmul = mul;
     double dismul = mul;
     if (lossreg) {
@@ -839,7 +839,7 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -951,7 +951,7 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -1081,7 +1081,7 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
@@ -1221,7 +1221,7 @@ int main(int argc, char **argv) {
       tw, th, tc
     );
 
-    unsigned long reps = strtoul(arg.get("reps", "0"));
+    long reps = strtol(arg.get("reps", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
