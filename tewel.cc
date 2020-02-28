@@ -107,7 +107,7 @@ void learnauto(
       gen->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g",
+        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g\n",
          gen->fn.c_str(), gen->rounds, dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
