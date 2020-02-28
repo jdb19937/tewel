@@ -1,7 +1,7 @@
 PICS = /spin/dan/dne.512
 FILTER = //degrade4x.sh
 DIM = 64x64
-LIMIT = 4096
+LIMIT = 65536
 REPS = 1000000
 TEWEL = tewel
 TGT = gen.ctx dis.ctx opt.txt tgt.dat src.dat
@@ -9,13 +9,10 @@ TGT = gen.ctx dis.ctx opt.txt tgt.dat src.dat
 .PHONY: all
 all: $(TGT)
 
-.PHONY: bootstrap
-bootstrap: all
-	$(TEWEL) learnauto . reps=32
-
 .PHONY: learn
 learn: all
-	$(TEWEL) learnhans . reps=4096
+	$(TEWEL) learnfunc . reps=128
+	$(TEWEL) learnhans . reps=65536
 
 .PHONY: clean
 clean:

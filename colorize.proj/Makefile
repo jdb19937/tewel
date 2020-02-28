@@ -9,13 +9,10 @@ TGT = gen.ctx dis.ctx opt.txt tgt.dat src.dat
 .PHONY: all
 all: $(TGT)
 
-.PHONY: bootstrap
-bootstrap: all
-	$(TEWEL) learnauto . reps=32
-
 .PHONY: learn
 learn: all
-	$(TEWEL) learnhans . reps=4096
+	$(TEWEL) learnfunc . reps=128
+	$(TEWEL) learnhans . reps=65536
 
 .PHONY: clean
 clean:
