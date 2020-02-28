@@ -159,7 +159,6 @@ tewel
 \end_layout
 
 \begin_layout Verbatim
-
 $ git clone --branch 0.4 https://github.com/jdb19937/tewel tewel-0.4
 \end_layout
 
@@ -172,12 +171,10 @@ Or, you can download a tarball directly from the MakeMore Software website.
 \end_layout
 
 \begin_layout Verbatim
-
 $ wget https://makemoresoftware.com/download/tewel-0.4.tar.gz
 \end_layout
 
 \begin_layout Verbatim
-
 $ tar -xzvf tewel-0.4.tar.gz
 \end_layout
 
@@ -201,12 +198,10 @@ make
 \end_layout
 
 \begin_layout Verbatim
-
 $ cd tewel-0.4
 \end_layout
 
 \begin_layout Verbatim
-
 $ make
 \end_layout
 
@@ -223,7 +218,6 @@ make install
 \end_layout
 
 \begin_layout Verbatim
-
 $ sudo make install
 \end_layout
 
@@ -248,12 +242,10 @@ Alternatively you can skip the previous steps, download a pre-built Debian
 \end_layout
 
 \begin_layout Verbatim
-
 $ wget https://makemoresoftware.com/download/tewel_0.4-1_amd64.deb
 \end_layout
 
 \begin_layout Verbatim
-
 $ dpkg -i tewel_0.4-1_amd64.deb
 \end_layout
 
@@ -281,13 +273,11 @@ tewel
 \end_layout
 
 \begin_layout Verbatim
-
 $ ls /opt/makemore/bin/tewel
 \end_layout
 
 \begin_layout Verbatim
-
-tewel
+/opt/makemore/bin/tewel
 \end_layout
 
 \begin_layout Standard
@@ -307,7 +297,6 @@ PATH
 \end_layout
 
 \begin_layout Verbatim
-
 $ export PATH=
 \begin_inset Quotes erd
 \end_inset
@@ -380,57 +369,46 @@ spec
 \end_layout
 
 \begin_layout Verbatim
-
 $ cat /opt/makemore/share/tewel/example.txt
 \end_layout
 
 \begin_layout Verbatim
-
 v=2
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=3 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=3
 \end_layout
 
@@ -473,7 +451,6 @@ tewel
 \end_layout
 
 \begin_layout Verbatim
-
 $ tewel make example.ctx spec=/opt/makemore/share/tewel/example.txt
 \end_layout
 
@@ -486,57 +463,46 @@ All of the information in the spec is also in the cortex file, and tewel
 \end_layout
 
 \begin_layout Verbatim
-
 $ tewel spec example.ctx
 \end_layout
 
 \begin_layout Verbatim
-
 v=2 decay=0.01 nu=0.0001 b1=0.1 b2=0.001 eps=1e-08 rdev=0.25
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=3 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=relu in=16 out=16
 \end_layout
 
 \begin_layout Verbatim
-
 type=con1 in=16 out=3 
 \end_layout
 
@@ -668,13 +634,12 @@ example.ctx
 \end_layout
 
 \begin_layout Verbatim
-
 $ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.png out=example.png
 \end_layout
 
 \begin_layout Paragraph*
 The result might look something like this.
- Or it might be a solid color, orsomething else.
+ Or it might be a solid color, or have noisy textures.
  
 \begin_inset Newline newline
 \end_inset
@@ -743,6 +708,15 @@ vidwriter.pl
 \family default
 , extending support to a variety of image and video formats with ImageMagick
  and ffmpeg.
+ The above example requires ImageMagick to be installed for 
+\family typewriter
+picreader.pl
+\family default
+ and 
+\family typewriter
+picwriter.pl
+\family default
+ to decode and encode the PNG files.
 \begin_inset Newline newline
 \end_inset
 
@@ -755,77 +729,62 @@ Now let's try training it to reproduce its input, from a single image with
 \end_layout
 
 \begin_layout Verbatim
-
 $ tewel learnauto example.ctx src=/opt/makemore/share/tewel/dan.png dim=8x8
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=64 dt=0.0907309 genrms=0.417825
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=128 dt=0.060941 genrms=0.327466
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=192 dt=0.060957 genrms=0.230874
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=256 dt=0.0602391 genrms=0.181224
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=320 dt=0.0606279 genrms=0.146288
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=384 dt=0.0599592 genrms=0.119872
 \end_layout
 
 \begin_layout Verbatim
-
 [...]
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=6912 dt=0.0594611 genrms=0.0246048
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=6976 dt=0.0601001 genrms=0.0219939
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=7040 dt=0.0603499 genrms=0.0215087
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=7104 dt=0.0607641 genrms=0.0219187
 \end_layout
 
 \begin_layout Verbatim
-
 gen=example.ctx genrounds=7168 dt=0.0601418 genrms=0.0203409
 \end_layout
 
 \begin_layout Verbatim
-
 ^C
 \end_layout
 
 \begin_layout Paragraph*
-
 The error fell to 
 \begin_inset Formula $0.02$
 \end_inset
@@ -841,15 +800,22 @@ The error fell to
 outkind=sdl
 \family default
  option.
+ The prefix 
+\family typewriter
+//
+\family default
+ expands to 
+\family typewriter
+/opt/makemore/share
+\family default
+ as a shortcut.
 \end_layout
 
 \begin_layout Verbatim
-
-$ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.png outkind=sdl
+$ tewel synth example.ctx src=//dan.png outkind=sdl
 \end_layout
 
 \begin_layout Paragraph*
-
 \begin_inset space ~
 \end_inset
 
@@ -868,7 +834,6 @@ $ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.png outkind=sdl
 \end_layout
 
 \begin_layout Paragraph*
-
 Not very colorful, but much better! We should expect this generator to approach
  a perfect reconstruction with more training because there is an exact solution;
  the generator can simply copy each pixel value forward to the next layer
@@ -885,9 +850,35 @@ Not very colorful, but much better! We should expect this generator to approach
  There are other solutions and the generator isn't guaranteed to learn that
  particular one; perhaps the first layer shifts the image one pixel to the
  left, and the last layer shifts it back to the right.
- But a valid intuition, based on assumption of convexity, is that a function
- should be learnable if there is an exact solution, even if that is not
- the solution that is learned.
+ But a valid intuition, based on assumptions of convexity, is that a function
+ should be learnable if there is an exact solution.
+\end_layout
+
+\begin_layout Paragraph*
+Let's try synthesizing from the pretrained upscaler cortex included in the
+ distribution.
+ First we'll degrade the image with ImageMagick by scaling it down and up
+ again, replacing every pixel value in each 4x4 block with the block's average.
+ Then we'll feed that image into the synthesizer.
+\end_layout
+
+\begin_layout Verbatim
+$ convert /opt/makemore/share/tewel/dan.png -scale 25% - |convert - -scale
+ 400% png:dan.4x.png
+\end_layout
+
+\begin_layout Verbatim
+$ tewel synth //upscale4x.ctx src=//dan.png out=dan.restored.png
+\end_layout
+
+\begin_layout Paragraph*
+\begin_inset Graphics
+	filename manual-fig3.png
+	scale 50
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
