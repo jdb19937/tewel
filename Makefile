@@ -8,7 +8,8 @@ LDFLAGS = -lm
 VERSION = 0.4
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
-  tewel-cuda-nosdl tewel-nocuda-nosdl
+  tewel-cuda-nosdl tewel-nocuda-nosdl \
+  tewel.pdf
 
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
@@ -98,5 +99,8 @@ $(OBJ): $(HDR)
 colonel-cuda.o: colonel.inc
 colonel-nocuda.o: colonel.inc
 
-%.pdf: %.lyx
-	lyx --export pdf3 $^
+%.tex: %.lyx
+	lyx --export latex $^
+%.pdf: %.tex
+	pdflatex $^
+	pdflatex $^
