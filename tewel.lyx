@@ -669,20 +669,19 @@ example.ctx
 
 \begin_layout Verbatim
 
-$ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.ppm out=example.ppm
+$ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.png out=example.png
 \end_layout
 
 \begin_layout Paragraph*
 The result might look something like this.
+ Or it might be a solid color, orsomething else.
+ 
 \begin_inset Newline newline
 \end_inset
 
 
-\end_layout
-
-\begin_layout Standard
 \begin_inset Graphics
-	filename /home/dan/example.png
+	filename manual-fig1.png
 	scale 50
 
 \end_inset
@@ -756,7 +755,139 @@ Now let's try training it to reproduce its input, from a single image with
 \end_layout
 
 \begin_layout Verbatim
-$ tewel learnauto example.ctx src=/opt/makemore/share/tewel/dan.ppm dim=8x8
+
+$ tewel learnauto example.ctx src=/opt/makemore/share/tewel/dan.png dim=8x8
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=64 dt=0.0907309 genrms=0.417825
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=128 dt=0.060941 genrms=0.327466
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=192 dt=0.060957 genrms=0.230874
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=256 dt=0.0602391 genrms=0.181224
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=320 dt=0.0606279 genrms=0.146288
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=384 dt=0.0599592 genrms=0.119872
+\end_layout
+
+\begin_layout Verbatim
+
+[...]
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=6912 dt=0.0594611 genrms=0.0246048
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=6976 dt=0.0601001 genrms=0.0219939
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=7040 dt=0.0603499 genrms=0.0215087
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=7104 dt=0.0607641 genrms=0.0219187
+\end_layout
+
+\begin_layout Verbatim
+
+gen=example.ctx genrounds=7168 dt=0.0601418 genrms=0.0203409
+\end_layout
+
+\begin_layout Verbatim
+
+^C
+\end_layout
+
+\begin_layout Paragraph*
+
+The error fell to 
+\begin_inset Formula $0.02$
+\end_inset
+
+, or 
+\begin_inset Formula $2\%$
+\end_inset
+
+ of the difference between black and white.
+ What does it look like now? If you are working locally, you can try sending
+ the output to your display with the 
+\family typewriter
+outkind=sdl
+\family default
+ option.
+\end_layout
+
+\begin_layout Verbatim
+
+$ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.png outkind=sdl
+\end_layout
+
+\begin_layout Paragraph*
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset Newline newline
+\end_inset
+
+
+\begin_inset Graphics
+	filename manual-fig2.png
+	scale 50
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+
+Not very colorful, but much better! We should expect this generator to approach
+ a perfect reconstruction with more training because there is an exact solution;
+ the generator can simply copy each pixel value forward to the next layer
+ (using a weight value of 
+\begin_inset Formula $1$
+\end_inset
+
+), and ignore all neighboring pixels and color channels (using a weight
+ value of 
+\begin_inset Formula $0$
+\end_inset
+
+).
+ There are other solutions and the generator isn't guaranteed to learn that
+ particular one; perhaps the first layer shifts the image one pixel to the
+ left, and the last layer shifts it back to the right.
+ But a valid intuition, based on assumption of convexity, is that a function
+ should be learnable if there is an exact solution, even if that is not
+ the solution that is learned.
 \end_layout
 
 \begin_layout Standard
