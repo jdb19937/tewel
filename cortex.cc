@@ -910,7 +910,7 @@ void Cortex::close() {
 void Cortex::create(const std::string &fn, bool clobber) {
   int fd = ::open(
     fn.c_str(),
-    O_RDWR | O_CREAT | (clobber ? 0 : O_EXCL),
+    O_RDWR | O_CREAT | (clobber ? O_TRUNC : O_EXCL),
     0644
   );
   if (fd == -1) {
