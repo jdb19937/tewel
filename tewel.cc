@@ -494,7 +494,7 @@ int main(int argc, char **argv) {
       specopt["b1"] = "1e-1";
       specopt["b2"] = "1e-3";
       specopt["eps"] = "1e-8";
-      specopt["rdev"] = "0.25";
+      specopt["rdev"] = "0.1";
 
       if (!parsekv(specline, &specopt))
         error(str("can't parse kv in header of ") + spec);

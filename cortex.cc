@@ -926,7 +926,7 @@ void Cortex::create(const std::string &fn, bool clobber) {
   head.stripped = 0;
   head.rounds = 0;
   head.decay = 0.01;
-  head.rdev = 0.25;
+  head.rdev = 0.1;
   head.rms = 0;
   head.max = 0;
   head.nu = 1e-4;
@@ -1277,6 +1277,8 @@ void Cortex::save() {
 }
 
 void Cortex::scram(double dev) {
+  info(fmt("scrambling %s with dev=%g", fn.c_str(), dev));
+
   assert(is_open);
   assert(!is_prep);
 

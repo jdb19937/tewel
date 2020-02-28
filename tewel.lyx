@@ -83,7 +83,7 @@ figs-within-sections
 \begin_body
 
 \begin_layout Title
-Tewel: A Command-Line Neural Synthesizer
+tewel: a command-line neural synthesizer
 \end_layout
 
 \begin_layout Author
@@ -119,166 +119,795 @@ LatexCommand tableofcontents
 \end_layout
 
 \begin_layout Section
-Introduction
+Installing Tewel
 \end_layout
 
 \begin_layout Subsection
-Convolutional Neural Networks
+Prerequisites
+\end_layout
+
+\begin_layout Subsubsection*
+Required for Compilation
+\end_layout
+
+\begin_layout Standard
+g++, GNU Make.
+\end_layout
+
+\begin_layout Subsubsection*
+Optional
+\end_layout
+
+\begin_layout Standard
+CUDA Toolkit, SDL 2.0, FFmpeg, ImageMagick, perl 5.
 \end_layout
 
 \begin_layout Subsection
-Generator Role
+Compile Source and Install
+\end_layout
+
+\begin_layout Subsubsection*
+Clone from GitHub
+\end_layout
+
+\begin_layout Standard
+You can obtain the source code for 
+\family typewriter
+tewel
+\family default
+ by cloning the GitHub repository:
+\end_layout
+
+\begin_layout Verbatim
+
+$ git clone --branch 0.4 https://github.com/jdb19937/tewel tewel-0.4
+\end_layout
+
+\begin_layout Subsubsection*
+Download from MakeMore Software
+\end_layout
+
+\begin_layout Standard
+Or, you can download a tarball directly from the MakeMore Software website.
+\end_layout
+
+\begin_layout Verbatim
+
+$ wget https://makemoresoftware.com/download/tewel-0.4.tar.gz
+\end_layout
+
+\begin_layout Verbatim
+
+$ tar -xzvf tewel-0.4.tar.gz
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+Once you have the source directory cloned or unpacked, 
+\family typewriter
+cd
+\family default
+ into it and run 
+\family typewriter
+make
+\family default
+:
+\end_layout
+
+\begin_layout Verbatim
+
+$ cd tewel-0.4
+\end_layout
+
+\begin_layout Verbatim
+
+$ make
+\end_layout
+
+\begin_layout Verbatim
+
+\end_layout
+
+\begin_layout Standard
+When it has finished, run 
+\family typewriter
+make install
+\family default
+ as super-user to install the software and examples:
+\end_layout
+
+\begin_layout Verbatim
+
+$ sudo make install
+\end_layout
+
+\begin_layout Verbatim
+
 \end_layout
 
 \begin_layout Subsection
-Encoder Role
+Install Debian Package
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+Alternatively you can skip the previous steps, download a pre-built Debian
+ package instead, and install that:
+\end_layout
+
+\begin_layout Verbatim
+
+$ wget https://makemoresoftware.com/download/tewel_0.4-1_amd64.deb
+\end_layout
+
+\begin_layout Verbatim
+
+$ dpkg -i tewel_0.4-1_amd64.deb
 \end_layout
 
 \begin_layout Subsection
-Discriminator Role
+Verify Installation
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+If everything worked, 
+\family typewriter
+tewel
+\family default
+ is installed in 
+\family typewriter
+/opt/makemore/bin
+\family default
+:
+\end_layout
+
+\begin_layout Verbatim
+
+$ ls /opt/makemore/bin/tewel
+\end_layout
+
+\begin_layout Verbatim
+
+tewel
+\end_layout
+
+\begin_layout Standard
+To invoke 
+\family typewriter
+tewel
+\family default
+ without using its full path, like the examples in this manual, add 
+\family typewriter
+/opt/makemore/bin
+\family default
+ to your 
+\family typewriter
+PATH
+\family default
+ environment variable:
+\end_layout
+
+\begin_layout Verbatim
+
+$ export PATH=
+\begin_inset Quotes erd
+\end_inset
+
+/opt/makemore/bin:$PATH
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+To make this change persistent, append the same command to your 
+\family typewriter
+.bashrc
+\family default
+ file.
 \end_layout
 
 \begin_layout Subsection
-Data Formats
+Support
+\end_layout
+
+\begin_layout Standard
+Please report any issues to 
+\bar under
+dan@makemoresoftware.com
+\bar default
+.
 \end_layout
 
 \begin_layout Section
+Creating Convolutional Neural Networks
+\end_layout
+
+\begin_layout Paragraph*
+A convolutional neural network consists of a sequence of 
+\emph on
+layers
+\emph default
+.
+ 
+\family typewriter
+tewel
+\family default
+ supports 1x1, 3x3, 5x5, and 7x7 convolutional layers, linear-rectifier
+ and absolute-value activation layers, and 2x, 4x, and 8x upscaling and
+ downscaling layers.
+ Layers have flat toroidal topology – the edges wrap around, like in the
+ game Asteroids.
+ Each layer is configured with a number of input and output 
+\emph on
+channels
+\emph default
+, such that each layer has a number of output channels equal to the number
+ of input channels of the following layer.
+ Neural networks created with 
+\family typewriter
+tewel
+\family default
+ are defined by a 
+\emph on
+spec
+\emph default
+, which is a text file that looks like this:
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Verbatim
+
+$ cat /opt/makemore/share/tewel/example.txt
+\end_layout
+
+\begin_layout Verbatim
+
+v=2
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=3 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=3
+\end_layout
+
+\begin_layout Paragraph*
+This spec defines a sequence of five 3x3 convolutions (
+\family typewriter
+con1
+\family default
+) interspersed with linear rectifiers (
+\family typewriter
+relu
+\family default
+).
+ The first layer has 3 input channels and the last has 3 output channels.
+ The intermediate layers have 16-channel input and output.
+ The first line in the spec is a header, specifying a required magic version
+ number 
+\family typewriter
+v=2
+\family default
+.
+ The header can also contain default training and initialization parameters.
+ The neural network itself is stored in a separate binary 
+\emph on
+cortex
+\emph default
+ file (
+\family typewriter
+\series medium
+.ctx
+\family default
+\series default
+) which is created by 
+\family typewriter
+\series medium
+tewel
+\family default
+\series default
+ from the spec:
+\end_layout
+
+\begin_layout Verbatim
+
+$ tewel make example.ctx spec=/opt/makemore/share/tewel/example.txt
+\end_layout
+
+\begin_layout Paragraph*
+All of the information in the spec is also in the cortex file, and tewel
+ can reproduce the spec from it.
+ Default values have been assigned to some header parameters governing training,
+ reporting, and initialization.
+ Later we'll discuss these parameters in detail.
+\end_layout
+
+\begin_layout Verbatim
+
+$ tewel spec example.ctx
+\end_layout
+
+\begin_layout Verbatim
+
+v=2 decay=0.01 nu=0.0001 b1=0.1 b2=0.001 eps=1e-08 rdev=0.25
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=3 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=relu in=16 out=16
+\end_layout
+
+\begin_layout Verbatim
+
+type=con1 in=16 out=3 
+\end_layout
+
+\begin_layout Verbatim
+
+\end_layout
+
+\begin_layout Paragraph*
+Neural networks created with 
+\family typewriter
+tewel
+\family default
+ have three different roles: 
+\emph on
+generator
+\emph default
+, 
+\emph on
+discriminator
+\emph default
+, or 
+\emph on
+encoder
+\emph default
+.
+ The generator is given some input and learns to produce some desirable
+ output.
+ An optional encoder functions as a front-end to the generator – they are
+ trained together, with the same effect as training a generator with the
+ encoder layers prepended, the use being that it is possible to extract
+ the encoder output for purposes of compression or representation.
+ A discriminator provides an alternate loss function to the generator by
+ learning to separate the generator output from a target data set.
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+The number of output channels of the encoder, if present, must match the
+ number of input channels of the generator.
+ Command 
+\family typewriter
+learnstyl
+\family default
+ requires a discriminator with a number of input channels equal to the number
+ of output channels of the generator.
+ Command 
+\family typewriter
+learnhans
+\family default
+ requires a discriminator with a number of input channels equal to the number
+ of output channels of the generator plus the number of input channels of
+ the encoder (or if not present, of the generator).
+ Otherwise there are no constraints on the design of a neural network with
+ respect to its role.
+ The 
+\family typewriter
+learnfunc
+\family default
+ and 
+\family typewriter
+learnauto
+\family default
+ commands train a generator (or an encoder-generator) without a discriminator,
+ simply subtracting output from target to calculate loss.
+\end_layout
+
+\begin_layout Paragraph*
+Every 
+\family typewriter
+tewel
+\family default
+ invocation consists of a command, followed by a generator argument, followed
+ by some options in 
+\family typewriter
+key=value
+\family default
+ format.
+ The generator argument can be the name of a cortex file (like 
+\family typewriter
+example.ctx
+\family default
+ created above), and for commands that refer to an existing generator the
+ argument can be a 
+\emph on
+project
+\emph default
+ directory containing a cortex file named 
+\family typewriter
+gen.ctx
+\family default
+.
+ A project is an optional way to associate a generator with an encoder and
+ a discriminator.
+ A project may contain a file named 
+\family typewriter
+opt.txt
+\family default
+ containing one line of 
+\family typewriter
+key=value
+\family default
+ options specifying the location of the training data and method-specific
+ parameters; this allows the training commands to be invoked with only the
+ project directory and no extra options.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage pagebreak
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Synthesizing and Learning
+\end_layout
+
+\begin_layout Paragraph*
+The synth commands reads data from an input source, sends it through a generator
+, and places the output somewhere else.
+ Let's try it with the 
+\family typewriter
+example.ctx
+\family default
+ file we created, which is already initialized with random weights.
+\end_layout
+
+\begin_layout Verbatim
+
+$ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.ppm out=example.ppm
+\end_layout
+
+\begin_layout Paragraph*
+The result might look something like this.
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Graphics
+	filename /home/dan/example.png
+	scale 50
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+tewel has built-in support for the PPM image format (
+\family typewriter
+.ppm
+\family default
+), raw 8-bit-per-value RGB files (
+\family typewriter
+.rgb
+\family default
+), and raw double-precision data files (
+\family typewriter
+.dat
+\family default
+).
+ Built-in formats can be concatenated to represent raw video frame sequences.
+ The 
+\family typewriter
+picreader
+\family default
+, 
+\family typewriter
+picwriter
+\family default
+, 
+\family typewriter
+vidreader
+\family default
+, and 
+\family typewriter
+vidwriter
+\family default
+ options can be assigned the path of a script to perform format conversion.
+ Default scripts 
+\family typewriter
+picreader.pl
+\family default
+, 
+\family typewriter
+picwriter.pl
+\family default
+, 
+\family typewriter
+vidreader.pl
+\family default
+ and 
+\family typewriter
+vidwriter.pl
+\family default
+ are installed in 
+\family typewriter
+/opt/makemore/share
+\family default
+, extending support to a variety of image and video formats with ImageMagick
+ and ffmpeg.
+\begin_inset Newline newline
+\end_inset
+
+
+\end_layout
+
+\begin_layout Paragraph*
+Now let's try training it to reproduce its input, from a single image with
+ a 8x8 patch size.
+\end_layout
+
+\begin_layout Verbatim
+$ tewel learnauto example.ctx src=/opt/makemore/share/tewel/dan.ppm dim=8x8
+\end_layout
+
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
+\end_layout
+
+\begin_layout Part
 Synthesis
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Input From Video File
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Input From Image File
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Input From Camera
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Output To Display
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Output To Image File
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Ouptut To Video File
 \end_layout
 
-\begin_layout Section
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
+\end_layout
+
+\begin_layout Part
 Precomputing
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Input From Directory
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Output To Raw Data File
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Learning From Raw Data File
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Creating Paired Collections
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 Traversal By Reference
 \end_layout
 
-\begin_layout Subsubsection
+\begin_layout Subsection
 Fixed Random Seeding
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Filtering
 \end_layout
 
-\begin_layout Section
-Designing Generators
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Part
+Designing A Generator
+\end_layout
+
+\begin_layout Section
 Spec Files
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Cortex Files
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Convolutional and Activation Layers
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Compressing Encoder/Generator
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Scaling Layers
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Styling Generator/Discriminator
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Enhancing Generator/Discriminator
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Super-Resolution Generator
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 Noise Injection
 \end_layout
 
-\begin_layout Section
-Learning Modes
+\begin_layout Standard
+\begin_inset Newpage clearpage
+\end_inset
+
+
 \end_layout
 
-\begin_layout Subsection
-Function Learning
-\end_layout
-
-\begin_layout Subsection
-Style Transfer
-\end_layout
-
-\begin_layout Subsection
-Enhancement
-\end_layout
-
-\begin_layout Section
+\begin_layout Part
 Examples
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 colorizer
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 upscale4x
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 starry
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 benny
 \end_layout
 
-\begin_layout Subsection
+\begin_layout Section
 trolly
 \end_layout
 

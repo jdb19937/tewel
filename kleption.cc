@@ -803,8 +803,8 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       unsigned int vpw, vph, vpc, x0, y0;
       sscanf(pid.c_str(), "%ux%ux%u+%u+%u.ppm", &vpw, &vph, &vpc, &x0, &y0);
-      assert(sw == pw);
-      assert(sh == ph);
+      assert(sw >= pw);
+      assert(sh >= ph);
       assert(vpw == pw);
       assert(vph == ph);
       assert(vpc == pc);
