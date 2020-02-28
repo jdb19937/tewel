@@ -8,8 +8,7 @@ LDFLAGS = -lm
 VERSION = 0.4
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
-  tewel-cuda-nosdl tewel-nocuda-nosdl \
-  tewel.pdf
+  tewel-cuda-nosdl tewel-nocuda-nosdl
 
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
