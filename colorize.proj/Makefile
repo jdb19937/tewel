@@ -1,7 +1,7 @@
 PICS = /spin/dan/dne.512
 FILTER = //decolorize.sh
 DIM = 64x64
-LIMIT = 4096
+LIMIT = 65536
 REPS = 1000000
 TEWEL = tewel
 TGT = gen.ctx dis.ctx opt.txt tgt.dat src.dat
