@@ -1,0 +1,46 @@
+v=2 decay=0.01 nu=0.0001 b1=0.1 b2=0.001 eps=1e-08 rdev=0.05
+type=dns3 in=3 out=192
+type=grnd out=224
+type=lrnd out=256
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=ups1 out=64
+type=grnd out=96
+type=lrnd out=128
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=ups1 out=32
+type=grnd out=48
+type=lrnd out=64
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=ups1 out=16
+type=grnd out=24
+type=lrnd out=32
+type=con1 
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1
+type=relu
+type=con1 out=3
