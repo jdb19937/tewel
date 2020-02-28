@@ -20,7 +20,7 @@ SRC = \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE colonel.inc \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
-  zoom2x.sh zoom4x.sh shrink2x.sh shrink4x.sh degrade2x.sh degrade4x.sh degrade8x.sh \
+  zoom2x.sh zoom4x.sh zoom8x.sh shrink2x.sh shrink4x.sh shrink8x.sh degrade2x.sh degrade4x.sh degrade8x.sh \
   tewel.lyx
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
