@@ -107,7 +107,7 @@ void learnauto(
       gen->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g %sgenrms=%g\n",
          gen->fn.c_str(), gen->rounds, dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
@@ -166,7 +166,7 @@ void learnfunc(
       gen->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g %sgenrms=%g\n",
          gen->fn.c_str(), gen->rounds, dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
@@ -261,7 +261,7 @@ void learnstyl(
       dis->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g %sgenrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds, dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms, dis->rms
@@ -400,7 +400,7 @@ void learnhans(
       dis->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%lf %sgenrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g %sgenrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds, dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms, dis->rms
@@ -572,7 +572,7 @@ int main(int argc, char **argv) {
     gen = new Cortex(ctx);
 
     printf(
-      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%lf stripped=%d\n",
+      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g stripped=%d\n",
       gen->rounds, gen->rms, gen->max, gen->decay,
       gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev, gen->stripped
     );
