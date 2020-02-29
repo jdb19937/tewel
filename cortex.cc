@@ -35,6 +35,8 @@ const uint32_t TYPE_DNS1 = CC4('d','n','s','1');
 const uint32_t TYPE_DNS2 = CC4('d','n','s','2');
 const uint32_t TYPE_DNS3 = CC4('d','n','s','3');
 const uint32_t TYPE_DNS4 = CC4('d','n','s','4');
+const uint32_t TYPE_DNS5 = CC4('d','n','s','5');
+const uint32_t TYPE_SIGM = CC4('s','i','g','m');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
 const uint32_t TYPE_ABSV = CC4('a','b','s','v');
 const uint32_t TYPE_GRND = CC4('g','r','n','d');
@@ -197,8 +199,20 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         assert((oh << s) == ih);
         break;
       }
+    case TYPE_DNS5:
+      {
+        int s = 5;
+        assert(len == 0);
+        assert((ic << (s + s)) == oc);
+        ow = (iw >> s);
+        oh = (ih >> s);
+        assert((ow << s) == iw);
+        assert((oh << s) == ih);
+        break;
+      }
     case TYPE_ABSV:
     case TYPE_RELU:
+    case TYPE_SIGM:
       ow = iw;
       oh = ih;
       assert(ic == oc);
@@ -447,6 +461,28 @@ static double *pipe_synth(
       synth_downscale(in, iw, ih, out, s, ic, oc);
       break;
     }
+  case TYPE_DNS5:
+    {
+      int s = 5;
+
+      ow = (iw >> s);
+      oh = (ih >> s);
+      assert(iw == (ow << s));
+      assert(ih == (oh << s));
+      assert((ic << (s + s)) == oc);
+
+      synth_downscale(in, iw, ih, out, s, ic, oc);
+      break;
+    }
+  case TYPE_SIGM:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      synth_sigm(in, iw, ih, out, ic);
+      break;
+    }
   case TYPE_RELU:
     {
       assert(len == 0);
@@ -647,6 +683,16 @@ void pipe_learn(
       assert(ih == (oh << s));
       break;
     }
+  case TYPE_DNS5:
+    {
+      int s = 5;
+      ow = (iw >> s);
+      oh = (ih >> s);
+      assert(iw == (ow << s));
+      assert(ih == (oh << s));
+      break;
+    }
+  case TYPE_SIGM:
   case TYPE_RELU:
   case TYPE_ABSV:
     assert(ic == oc);
@@ -723,6 +769,12 @@ void pipe_learn(
     break;
   case TYPE_DNS4:
     learn_downscale(in, iw, ih, fout, 4, ic, oc);
+    break;
+  case TYPE_DNS5:
+    learn_downscale(in, iw, ih, fout, 5, ic, oc);
+    break;
+  case TYPE_SIGM:
+    learn_sigm(in, iw, ih, fout, ic);
     break;
   case TYPE_RELU:
     learn_relu(in, iw, ih, fout, ic);
@@ -1372,6 +1424,8 @@ void Cortex::push(const std::string &stype, int nic, int noc) {
   case TYPE_DNS2:
   case TYPE_DNS3:
   case TYPE_DNS4:
+  case TYPE_DNS5:
+  case TYPE_SIGM:
   case TYPE_RELU:
   case TYPE_ABSV:
   case TYPE_GRND:

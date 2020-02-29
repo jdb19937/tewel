@@ -461,6 +461,8 @@ int main(int argc, char **argv) {
     seedrand(strtoul(arg.get("randseed")));
   else
     seedrand();
+  uint32_t firstrand = randuint();
+  info(fmt("first random uint %u", firstrand));
 
   int lowmem = arg.get("lowmem", "0");
 

@@ -10,13 +10,13 @@ if (my $filter = $ENV{TEWEL_VIDREADER_FILTER}) {
 }
 
 my $rate = $ENV{TEWEL_VIDREADER_RATE};
-my $scale = $ENV{TEWEL_VIDWRITER_SCALE};
+my $vf = $ENV{TEWEL_VIDREADER_VF};
 
 exec('ffmpeg',
   '-hide_banner', '-loglevel', 'quiet', '-nostats', '-nostdin',
-  $rate ? ('-r', $rate) : ( ),
-  $scale ? ('-vf', "scale=$scale") : ( ),
   '-i', $fn,
+  $rate ? ('-r', $rate) : ( ),
+  $vf ? ('-vf', $vf) : ( ),
   '-an', '-f', 'rawvideo', '-vcodec', 'ppm',
   '-y', '/dev/stdout'
 );
