@@ -660,6 +660,9 @@ int main(int argc, char **argv) {
     Kleption::Flags srcflags = 0;
     if (lowmem)
       srcflags |= Kleption::FLAG_LOWMEM;
+    int addgeo = arg.get("addgeo", "0");
+    if (addgeo)
+      srcflags |= Kleption::FLAG_ADDGEO;
 
     int repeat = arg.get("repeat", "0");
     if (repeat)
@@ -903,6 +906,9 @@ int main(int argc, char **argv) {
     Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
     if (lowmem)
       srcflags |= Kleption::FLAG_LOWMEM;
+    int addgeo = arg.get("addgeo", "0");
+    if (addgeo)
+      srcflags |= Kleption::FLAG_ADDGEO;
 
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
@@ -984,6 +990,9 @@ int main(int argc, char **argv) {
     Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
     if (lowmem)
       srcflags |= Kleption::FLAG_LOWMEM;
+    int addgeo = arg.get("addgeo", "0");
+    if (addgeo)
+      srcflags |= Kleption::FLAG_ADDGEO;
 
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
@@ -1110,6 +1119,9 @@ int main(int argc, char **argv) {
     Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
     if (lowmem)
       srcflags |= Kleption::FLAG_LOWMEM;
+    int addgeo = arg.get("addgeo", "0");
+    if (addgeo)
+      srcflags |= Kleption::FLAG_ADDGEO;
 
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
@@ -1246,6 +1258,9 @@ int main(int argc, char **argv) {
     Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
     if (lowmem)
       srcflags |= Kleption::FLAG_LOWMEM;
+    int addgeo = arg.get("addgeo", "0");
+    if (addgeo)
+      srcflags |= Kleption::FLAG_ADDGEO;
 
     Kleption *src = new Kleption(
       srcfn, iw, ih, ic,
