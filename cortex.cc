@@ -1097,6 +1097,18 @@ void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
       wmv[(stripped ? 1 : 3) * (voc + x + y * w)] = mat[x + y * w];
   for (int y = 0; y < h; ++y)
     wmv[(stripped ? 1 : 3) * y] = vec[y];
+
+  if (!stripped) {
+    for (int y = 0; y < h; ++y)
+      for (int x = 0; x < w; ++x) {
+        wmv[3 * (voc + x + y * w) + 1] = 0;
+        wmv[3 * (voc + x + y * w) + 2] = 1024.0;
+      }
+    for (int y = 0; y < h; ++y) {
+      wmv[3 * y + 1] = 0;
+      wmv[3 * y + 1] = 1024.0;
+    }
+  }
 }
 
 void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
@@ -1165,6 +1177,19 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
           wmv[(stripped ? 1 : 3) * (voc + x + y * w)] = mat[x + y * w];
       for (int y = 0; y < h; ++y)
         wmv[(stripped ? 1 : 3) * y] = vec[y];
+
+      if (!stripped) {
+        for (int y = 0; y < h; ++y)
+          for (int x = 0; x < w; ++x) {
+            wmv[3 * (voc + x + y * w) + 1] = 0;
+            wmv[3 * (voc + x + y * w) + 2] = 1024.0;
+          }
+        for (int y = 0; y < h; ++y) {
+          wmv[3 * y + 1] = 0;
+          wmv[3 * y + 1] = 1024.0;
+        }
+      }
+
       return;
     }
 
