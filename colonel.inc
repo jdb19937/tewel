@@ -372,7 +372,7 @@ DEFN_KERNEL(learn_sigm,
 
   int outi = ini;
   double outv = 1.0 / (1.0 + exp(-fin[ini]));
-  fin[ini] = fout[outi] / (outv * (1.0 - outv));
+  fin[ini] = fout[outi] * outv * (1.0 - outv);
 }
 
 DEFN_KERNEL(synth_relu,
