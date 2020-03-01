@@ -27,6 +27,7 @@ namespace makemore {
 const uint32_t TYPE_CON0 = CC4('c','o','n','0');
 const uint32_t TYPE_CON1 = CC4('c','o','n','1');
 const uint32_t TYPE_CON2 = CC4('c','o','n','2');
+const uint32_t TYPE_SCAL = CC4('s','c','a','l');
 const uint32_t TYPE_UPS1 = CC4('u','p','s','1');
 const uint32_t TYPE_UPS2 = CC4('u','p','s','2');
 const uint32_t TYPE_UPS3 = CC4('u','p','s','3');
@@ -44,6 +45,29 @@ const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
+
+static int _scale_factor(int ic, int oc) {
+  assert(ic > 0);
+  assert(oc > 0);
+
+  int s = 0;
+  if (ic < oc) {
+    while (ic < oc) {
+      ic <<= 2;
+      --s;
+    }
+  } else if (ic > oc) {
+    while (oc < ic) {
+      oc <<= 2;
+      ++s;
+    }
+  }
+
+  if (ic != oc)
+    error("channel ratio must be multiple of 4 to scale");
+
+  return s;
+}
 
 static void _parse_header(
   layer_header_t& hdr, uint32_t *typep, int *lenp, int *icp, int *ocp
@@ -118,6 +142,23 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         assert(wmvn == len);
         ow = iw;
         oh = ih;
+        break;
+      }
+    case TYPE_SCAL:
+      {
+        int s = _scale_factor(ic, oc);
+        if (s > 0) {
+          ow = (iw << s);
+          oh = (ih << s);
+        } else if (s < 0) {
+          ow = (iw >> -s);
+          oh = (ih >> -s);
+          assert((ow << -s) == iw);
+          assert((oh << -s) == ih);
+        } else {
+          ow = iw;
+          oh = ih;
+        }
         break;
       }
     case TYPE_UPS1:
@@ -373,6 +414,23 @@ static double *pipe_synth(
       oh = ih;
 
       synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
+      break;
+    }
+  case TYPE_SCAL:
+    {
+      int s = _scale_factor(ic, oc);
+
+      ow = (iw << s);
+      oh = (ih << s);
+      assert((oc << (s + s)) == ic);
+
+      if (s > 0) {
+        synth_upscale(in, iw, ih, out, s, ic, oc);
+      } else if (s < 0) {
+        synth_downscale(in, iw, ih, out, -s, ic, oc);
+      } else {
+        synth_pad(in, iw, ih, out, ic, oc, NULL);
+      }
       break;
     }
   case TYPE_UPS1:
@@ -640,6 +698,23 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_SCAL:
+    {
+      int s = _scale_factor(ic, oc);
+      if (s > 0) {
+        ow = (iw << s);
+        oh = (ih << s);
+      } else if (s < 0) {
+        ow = (iw >> -s);
+        oh = (ih >> -s);
+        assert(iw == (ow << -s));
+        assert(ih == (oh << -s));
+      } else {
+        ow = iw;
+        oh = ih;
+      }
+      break;
+    }
   case TYPE_UPS1:
     {
       int s = 1;
@@ -773,6 +848,17 @@ void pipe_learn(
     break;
   case TYPE_CON2:
     learn_conv(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    break;
+  case TYPE_SCAL:
+    {
+      int s = _scale_factor(ic, oc);
+      if (s > 0)
+        learn_upscale(in, iw, ih, fout, s, ic, oc);
+      else if (s < 0) 
+        learn_downscale(in, iw, ih, fout, -s, ic, oc);
+      else
+        learn_pad(in, iw, ih, fout, ic, oc);
+    }
     break;
   case TYPE_UPS1:
     learn_upscale(in, iw, ih, fout, 1, ic, oc);
@@ -1447,6 +1533,7 @@ void Cortex::push(const std::string &stype, int nic, int noc) {
   case TYPE_CON2:
     len = size_conv(2, nic, oc, false);
     break;
+  case TYPE_SCAL:
   case TYPE_UPS1:
   case TYPE_UPS2:
   case TYPE_UPS3:
