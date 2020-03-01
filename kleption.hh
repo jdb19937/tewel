@@ -43,6 +43,7 @@ struct Kleption {
     KIND_VID,
     KIND_SDL,
     KIND_REF,
+    KIND_RND,
 
     KIND_UNK = -1,
   };
@@ -56,6 +57,7 @@ struct Kleption {
     if (kindstr == "vid") return KIND_VID;
     if (kindstr == "sdl") return KIND_SDL;
     if (kindstr == "ref") return KIND_REF;
+    if (kindstr == "rnd") return KIND_RND;
     return KIND_UNK;
   }
 

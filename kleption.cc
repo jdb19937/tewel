@@ -93,6 +93,14 @@ Kleption::Kleption(
     if (flags & FLAG_WRITER)
       error("can't output to camera");
   }
+  if (_kind == KIND_RND) {
+    if (fn == "")
+      fn = "1";
+    if (flags & FLAG_WRITER)
+      error("can't output to random");
+    kind = KIND_RND;
+    return;
+  }
 
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
@@ -159,7 +167,7 @@ Kleption::Kleption(
     if (flags & FLAG_WRITER)
       error("can't output to camera");
     if (trav != TRAV_SCAN)
-      error("reading vid kind requires scan traversal");
+      error("reading cam kind requires scan traversal");
     assert(_kind == KIND_CAM || _kind == KIND_ANY);
     kind = KIND_CAM;
     return;
@@ -227,6 +235,8 @@ void Kleption::unload() {
     return;
 
   switch (kind) {
+  case KIND_RND:
+    break;
   case KIND_CAM:
     assert(cam);
     delete cam;
@@ -314,6 +324,29 @@ void Kleption::load() {
       assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
 
       b = 1;
+    }
+    break;
+  case KIND_RND:
+    {
+      if (pw == 0)
+        pw = sw;
+      if (ph == 0)
+        ph = sh;
+      if (pc == 0)
+        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+      if (sw == 0)
+        sw = pw;
+      if (sh == 0)
+        sh = ph;
+      if (sc == 0)
+        sc = pc - ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+      assert(pw <= sw);
+      assert(ph <= sh);
+      assert(pw > 0);
+      assert(ph > 0);
+      assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
     }
     break;
   case KIND_CAM:
@@ -541,6 +574,46 @@ static void _outcrop(
   if (y0p)
     *y0p = y0;
 }
+static void _outcrop(
+  const double *tmpdat, double *kdat, Kleption::Flags flags,
+  int sw, int sh, int sc, int pw, int ph, int pc,
+  unsigned int *x0p, unsigned int *y0p
+) {
+  assert(pw <= sw);
+  assert(ph <= sh);
+  assert(pc == sc + ((flags & Kleption::FLAG_ADDGEO) ? 4 : 0));
+
+  unsigned int x0, y0, x1, y1;
+  if (flags & Kleption::FLAG_CENTER) {
+    x0 = (sw - pw) / 2;
+    y0 = (sh - ph) / 2;
+  } else {
+    x0 = randuint() % (sw - pw + 1);
+    y0 = randuint() % (sh - ph + 1);
+  }
+  x1 = x0 + pw - 1;
+  y1 = y0 + ph - 1;
+
+  unsigned int pwhc = pw * ph * pc;
+  double *ddat = new double[pwhc];
+  double *edat = ddat;
+
+  for (unsigned int y = y0; y <= y1; ++y)
+    for (unsigned int x = x0; x <= x1; ++x) {
+      for (unsigned int z = 0; z < sc; ++z)
+        *edat++ = tmpdat[z + sc * (x + sw * y)];
+      if (flags & Kleption::FLAG_ADDGEO)
+        _addgeo(edat, x, y, sw, sh);
+    }
+
+  enk(ddat, pwhc, kdat);
+  delete[] ddat;
+
+  if (x0p)
+    *x0p = x0;
+  if (y0p)
+    *y0p = y0;
+}
 
 
 bool Kleption::pick(double *kdat, std::string *idp) {
@@ -601,6 +674,29 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       ++frames;
       return true;
     }
+  case KIND_RND:
+    {
+      unsigned int x0, y0;
+
+      unsigned int swhc = sw * sh * sc;
+      double *rnd = new double[swhc];
+      double mul = strtod(fn);
+      for (unsigned int i = 0; i < swhc; ++i)
+        rnd[i] = randgauss() * mul;
+
+      _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+
+      delete[] rnd;
+
+      if (idp) {
+        char buf[256];
+        sprintf(buf, "%ux%ux%u+%u+%u+%u.ppm", pw, ph, sc, x0, y0, frames);
+        *idp = buf;
+      }
+      ++frames;
+      return true;
+    }
+ 
  
   case KIND_DIR:
     {
@@ -785,6 +881,7 @@ void Kleption::find(const std::string &id, double *kdat) {
   load();
 
   switch (kind) {
+  case KIND_RND:
   case KIND_CAM:
   case KIND_VID:
     assert(0);
