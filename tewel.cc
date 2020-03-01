@@ -107,8 +107,9 @@ void learnauto(
       gen->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g %sgenrms=%g\n",
-         gen->fn.c_str(), gen->rounds, dt,
+        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g\n",
+         gen->fn.c_str(), gen->rounds,
+         dt / (double)repint, (reps - rep) * dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
       );
@@ -166,8 +167,9 @@ void learnfunc(
       gen->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g %sgenrms=%g\n",
-         gen->fn.c_str(), gen->rounds, dt,
+        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g\n",
+         gen->fn.c_str(), gen->rounds,
+         dt / (double)repint, (reps - rep) * dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
       );
@@ -261,8 +263,9 @@ void learnstyl(
       dis->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g %sgenrms=%g disrms=%g\n",
-         gen->fn.c_str(), gen->rounds, dt,
+        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g disrms=%g\n",
+         gen->fn.c_str(), gen->rounds,
+         dt / (double)repint, (reps - rep) * dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms, dis->rms
       );
@@ -400,8 +403,9 @@ void learnhans(
       dis->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g %sgenrms=%g disrms=%g\n",
-         gen->fn.c_str(), gen->rounds, dt,
+        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g disrms=%g\n",
+         gen->fn.c_str(), gen->rounds,
+         dt / (double)repint, (reps - rep) * dt,
         enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms, dis->rms
       );
