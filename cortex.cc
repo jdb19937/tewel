@@ -422,13 +422,15 @@ static double *pipe_synth(
 
       ow = (iw << s);
       oh = (ih << s);
-      assert((oc << (s + s)) == ic);
 
       if (s > 0) {
+        assert((oc << (s + s)) == ic);
         synth_upscale(in, iw, ih, out, s, ic, oc);
       } else if (s < 0) {
+        assert((ic << -(s + s)) == oc);
         synth_downscale(in, iw, ih, out, -s, ic, oc);
       } else {
+        assert(ic == oc);
         synth_pad(in, iw, ih, out, ic, oc, NULL);
       }
       break;
