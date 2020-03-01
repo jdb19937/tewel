@@ -31,6 +31,7 @@ const uint32_t TYPE_UPS1 = CC4('u','p','s','1');
 const uint32_t TYPE_UPS2 = CC4('u','p','s','2');
 const uint32_t TYPE_UPS3 = CC4('u','p','s','3');
 const uint32_t TYPE_UPS4 = CC4('u','p','s','4');
+const uint32_t TYPE_UPS5 = CC4('u','p','s','5');
 const uint32_t TYPE_DNS1 = CC4('d','n','s','1');
 const uint32_t TYPE_DNS2 = CC4('d','n','s','2');
 const uint32_t TYPE_DNS3 = CC4('d','n','s','3');
@@ -149,6 +150,15 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     case TYPE_UPS4:
       {
         int s = 4;
+        assert(len == 0);
+        assert((oc << (s + s)) == ic);
+        ow = (iw << s);
+        oh = (ih << s);
+        break;
+      }
+    case TYPE_UPS5:
+      {
+        int s = 5;
         assert(len == 0);
         assert((oc << (s + s)) == ic);
         ow = (iw << s);
@@ -409,6 +419,17 @@ static double *pipe_synth(
       synth_upscale(in, iw, ih, out, s, ic, oc);
       break;
     }
+  case TYPE_UPS5:
+    {
+      int s = 5;
+
+      ow = (iw << s);
+      oh = (ih << s);
+      assert((oc << (s + s)) == ic);
+
+      synth_upscale(in, iw, ih, out, s, ic, oc);
+      break;
+    }
   case TYPE_DNS1:
     {
       int s = 1;
@@ -647,6 +668,13 @@ void pipe_learn(
       oh = (ih << s);
       break;
     }
+  case TYPE_UPS5:
+    {
+      int s = 5;
+      ow = (iw << s);
+      oh = (ih << s);
+      break;
+    }
   case TYPE_DNS1:
     {
       int s = 1;
@@ -757,6 +785,9 @@ void pipe_learn(
     break;
   case TYPE_UPS4:
     learn_upscale(in, iw, ih, fout, 4, ic, oc);
+    break;
+  case TYPE_UPS5:
+    learn_upscale(in, iw, ih, fout, 5, ic, oc);
     break;
   case TYPE_DNS1:
     learn_downscale(in, iw, ih, fout, 1, ic, oc);
@@ -1420,6 +1451,7 @@ void Cortex::push(const std::string &stype, int nic, int noc) {
   case TYPE_UPS2:
   case TYPE_UPS3:
   case TYPE_UPS4:
+  case TYPE_UPS5:
   case TYPE_DNS1:
   case TYPE_DNS2:
   case TYPE_DNS3:
