@@ -419,6 +419,210 @@ void learnhans(
   kfree(kinp);
 }
 
+static void cpumatmat(const double *a, const double *b, int aw, int ahbw, int bh, double *c) {
+  int ah = ahbw;
+  int bw = ahbw;
+  int ch = bh;
+  int cw = aw;
+
+  for (int cy = 0; cy < ch; ++cy) {
+    if (cy % 16 == 0)
+      info(fmt("multiplying matrix progress=%g", (double)cy / (double)ch));
+    for (int cx = 0; cx < cw; ++cx) {
+      c[cx + cw * cy] = 0;
+      for (int i = 0; i < ahbw; ++i) {
+        c[cx + cw * cy] += a[cx + aw * i] * b[i + bw * cy];
+      }
+    }
+  }
+  info(fmt("multiplying matrix progress=%g", 1));
+}
+
+static void cpumatvec(const double *a, const double *b, int aw, int ahbw, double *c) {
+  int ah = ahbw;
+  int bw = ahbw;
+  int cw = aw;
+
+  for (int cx = 0; cx < cw; ++cx) {
+    c[cx] = 0;
+    for (int i = 0; i < ahbw; ++i) {
+      c[cx] += a[cx + aw * i] * b[i];
+    }
+  }
+}
+
+static void cpuchol(double *m, unsigned int dim) {
+  unsigned int i, j, k; 
+
+  for (k = 0; k < dim; k++) {
+#if 0
+    assert(m[k * dim + k] > 0);
+#endif
+#if 1
+    if (m[k * dim + k] < 0)
+      m[k * dim + k] = 0;
+#endif
+
+
+    m[k * dim + k] = sqrt(m[k * dim + k]);
+    
+#if 1
+    if (m[k * dim + k] > 0) {
+#endif
+      for (j = k + 1; j < dim; j++)
+        m[k * dim + j] /= m[k * dim + k];
+#if 1
+    } else {
+      m[k * dim + k] = 1.0;
+      for (j = k + 1; j < dim; j++)
+        m[k * dim + j] = 0;
+    }
+#endif
+             
+    for (i = k + 1; i < dim; i++)
+      for (j = i; j < dim; j++)
+        m[i * dim + j] -= m[k * dim + i] * m[k * dim + j];
+
+  }
+
+  for (i = 0; i < dim; i++)
+    for (j = 0; j < i; j++)
+      m[i * dim + j] = 0.0;
+}
+
+void matinv(const double *m, double *x, unsigned int n) {
+  memset(x, 0, n * n * sizeof(double));
+
+  for (unsigned int k = 0; k < n; ++k) {
+    x[k * n + k] = 1.0 / m[k * n + k];
+
+    for (unsigned int i = k + 1; i < n; ++i) {
+      x[k * n + i] = 0;
+      double a = 0, b = 0;
+      for (unsigned int j = k; j < i; ++j) {
+        double a = -m[j * n + i];
+        double b = x[k * n + j];
+        double c = m[i * n + i];
+        x[k * n + i] += a * b / c;
+      }
+    }
+  }
+}
+
+void normalize(
+  Kleption *src,
+  Cortex *gen,
+  Cortex *enc,
+  int limit
+) {
+  int i = 0;
+  int owh = enc->ow * enc->oh;
+  int oc = enc->oc;
+  int owhc = owh * oc;
+
+  double *tmp = new double[owhc];
+  double *sum = new double[oc];
+  double *mean = new double[oc];
+  double *summ = new double[oc * oc];
+  double *cov = new double[oc * oc];
+  double *chol = new double[oc * oc];
+  double *unchol = new double[oc * oc];
+
+  memset(sum, 0, oc * sizeof(double));
+  memset(summ, 0, oc * oc * sizeof(double));
+
+  while (1) {
+    if (limit >= 0 && i >= limit)
+      break;
+
+    std::string id;
+    if (!src->pick(enc->kinp, &id))
+      break;
+    enc->synth();
+    dek(enc->kout, enc->owhc, tmp);
+
+    info("encoding " + id);
+
+    for (unsigned int xy = 0; xy < owh; ++xy) {
+      for (unsigned int z = 0; z < oc; ++z) {
+        sum[z] += tmp[z + oc * xy];
+      }
+      for (unsigned int z0 = 0; z0 < oc; ++z0) {
+        for (unsigned int z1 = 0; z1 < oc; ++z1) {
+          summ[z0 + z1 * oc] += tmp[z0 + oc * xy] * tmp[z1 + oc * xy];
+        }
+      }
+    }
+    ++i;
+  }
+  if (i < 2)
+    error("need more samples for normalize");
+  long n = owh * i;
+
+  for (int z = 0; z < oc; ++z) {
+    mean[z] = sum[z] / (double)n;
+  }
+  for (unsigned int z0 = 0; z0 < oc; ++z0) {
+    for (unsigned int z1 = 0; z1 < oc; ++z1) {
+      cov[z0 + z1 * oc] = summ[z0 + z1 * oc] / (double)n - mean[z0] * mean[z1];
+    }
+  }
+
+  memcpy(chol, cov, oc * oc * sizeof(double));
+  cpuchol(chol, oc);
+  matinv(chol, unchol, oc);
+
+  double *em, *eb;
+  int ew, eh;
+  enc->_get_tail_op(&eb, &em, &ew, &eh);
+  assert(ew > 0);
+  assert(eh == oc);
+
+  double *gm, *gb;
+  int gw, gh;
+  gen->_get_head_op(&gb, &gm, &gw, &gh);
+  assert(gw == oc);
+  assert(gh > 0);
+
+  if (eh != gw)
+    error("matrices don't match, gen needs to start with con0 to normalize");
+
+  for (int z = 0; z < oc; ++z)
+    eb[z] -= mean[z];
+  for (int y = 0; y < gh; ++y) {
+    double q = 0;
+    for (int z = 0; z < oc; ++z)
+      q += gm[z + y * gw] * mean[z];
+    gb[y] += q;
+  }
+
+
+  double *tem = new double[ew * eh];
+  cpumatmat(em, unchol, ew, oc, oc, tem);
+  memcpy(em, tem, sizeof(double) * ew * eh);
+
+  double *tgm = new double[gw * gh];
+  cpumatmat(chol, gm, oc, oc, gh, tgm);
+  memcpy(gm, tgm, sizeof(double) * gw * gh);
+
+  gen->_put_head_op(gb, gm, gw, gh);
+  enc->_put_tail_op(eb, em, ew, eh);
+
+  delete[] tmp;
+  delete[] sum;
+  delete[] mean;
+  delete[] summ;
+  delete[] cov;
+  delete[] chol;
+  delete[] unchol;
+
+  delete[] tem;
+  delete[] tgm;
+  delete[] em;
+  delete[] gm;
+  delete[] eb;
+  delete[] gb;
+}
 
 int main(int argc, char **argv) {
   setbuf(stdout, NULL);
@@ -789,6 +993,99 @@ int main(int argc, char **argv) {
     delete gen;
     if (enc)
       delete enc;
+    delete src;
+    return 0;
+  }
+
+  if (cmd == "normalize") {
+    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+
+    Cortex *gen = new Cortex(genfn);
+
+    Cortex *enc;
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
+      enc = new Cortex(ctx + "/enc.ctx");
+    } else {
+      error("normalize requires encoder");
+    }
+
+    int limit = arg.get("limit", "-1");
+
+    Kleption::Trav srctrav = Kleption::get_trav(arg.get("srctrav", "scan"));
+    if (srctrav == Kleption::TRAV_NONE)
+      error("srctrav must be scan or rand or refs");
+
+    Kleption::Flags srcflags = 0;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+    int addgeo = arg.get("addgeo", "0");
+    if (addgeo)
+      srcflags |= Kleption::FLAG_ADDGEO;
+
+    int repeat = arg.get("repeat", "0");
+    if (repeat)
+      srcflags |= Kleption::FLAG_REPEAT;
+
+    std::string crop = arg.get("crop", "center");
+    if (crop == "center")
+      srcflags |= Kleption::FLAG_CENTER;
+    else if (crop != "random")
+      error("crop must be random or center");
+
+    int pw = 0, ph = 0;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &pw, &ph))
+        error("dim must be like 256 or like 256x256");
+    }
+    int pc = enc->ic;
+
+    std::string srcdim = arg.get("srcdim", "0x0x0");
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
+
+    std::string srcrefs = arg.get("srcrefs", "");
+    const char *refsfn = NULL;
+    if (srcrefs != "") {
+      if (srctrav != Kleption::TRAV_REFS)
+        error("srcrefs given without srctrav=refs");
+      refsfn = srcrefs.c_str();
+    }
+
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
+
+    std::string srcfn = arg.get("src");
+
+    Kleption *src = new Kleption(
+      srcfn,
+      pw, ph, pc,
+      srcflags, srctrav, srckind,
+      sw, sh, sc,
+      refsfn
+    );
+
+    src->load();
+    assert(src->pw > 0);
+    assert(src->ph > 0);
+
+    int ic = enc->ic;
+    assert(enc->ic == src->pc);
+    enc->prepare(src->pw, src->ph);
+    gen->prepare(enc->ow, enc->oh);
+    if (enc->oc != gen->ic)
+      error("encoder oc doesn't match generator ic");
+
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    normalize(src, gen, enc, limit);
+
+    delete gen;
+    delete enc;
     delete src;
     return 0;
   }

@@ -1045,6 +1045,135 @@ void Cortex::open(const std::string &_fn, int flags) {
   is_open = true;
 }
 
+void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
+  unsigned int basei = 0;
+  layer_header_t hdr;
+  assert(basei + sizeof(hdr) <= basen);
+  memcpy(hdr, base + basei, sizeof(hdr));
+  basei += sizeof(hdr);
+
+  uint32_t type;
+  int len, vic, voc;
+  _parse_header(hdr, &type, &len, &vic, &voc);
+
+  int tlen = len / (stripped ? 1 : 3);
+  *hp = voc;
+  assert(tlen > voc);
+  tlen -= voc;
+  assert(tlen % voc == 0);
+  *wp = tlen / voc;
+
+  const double *wmv = (double *)(base + basei);
+  *matp = new double[*wp * *hp];
+  for (int y = 0; y < *hp; ++y)
+    for (int x = 0; x < *wp; ++x)
+      (*matp)[x + y * *wp] = wmv[(stripped ? 1 : 3) * (voc + x + y * *wp)];
+  *vecp = new double[*hp];
+  for (int y = 0; y < *hp; ++y)
+    (*vecp)[y] = wmv[(stripped ? 1 : 3) * y];
+}
+
+void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
+  unsigned int basei = 0;
+  layer_header_t hdr;
+  assert(basei + sizeof(hdr) <= basen);
+  memcpy(hdr, base + basei, sizeof(hdr));
+  basei += sizeof(hdr);
+
+  uint32_t type;
+  int len, vic, voc;
+  _parse_header(hdr, &type, &len, &vic, &voc);
+
+  int tlen = len / (stripped ? 1 : 3);
+  assert(h == voc);
+  assert(tlen > voc);
+  tlen -= voc;
+  assert(tlen % voc == 0);
+  assert(w * voc == tlen);
+
+  double *wmv = (double *)(base + basei);
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x)
+      wmv[(stripped ? 1 : 3) * (voc + x + y * w)] = mat[x + y * w];
+  for (int y = 0; y < h; ++y)
+    wmv[(stripped ? 1 : 3) * y] = vec[y];
+}
+
+void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
+  unsigned int basei = 0;
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, vic, voc;
+    _parse_header(hdr, &type, &len, &vic, &voc);
+
+    assert(basei + len * sizeof(double) <= basen);
+    if (basei + len * sizeof(double) == basen) {
+      int tlen = len / (stripped ? 1 : 3);
+      *hp = voc;
+      assert(tlen > voc);
+      tlen -= voc;
+      assert(tlen % voc == 0);
+      *wp = tlen / voc;
+
+      const double *wmv = (double *)(base + basei);
+      *matp = new double[*wp * *hp];
+      for (int y = 0; y < *hp; ++y)
+        for (int x = 0; x < *wp; ++x)
+          (*matp)[x + y * *wp] = wmv[(stripped ? 1 : 3) * (voc + x + y * *wp)];
+      *vecp = new double[*hp];
+      for (int y = 0; y < *hp; ++y)
+        (*vecp)[y] = wmv[(stripped ? 1 : 3) * y];
+      return;
+    }
+
+    basei += len * sizeof(double);
+  }
+  assert(0);
+}
+
+void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
+  unsigned int basei = 0;
+
+  while (basei < basen) {
+    layer_header_t hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, vic, voc;
+    _parse_header(hdr, &type, &len, &vic, &voc);
+
+    assert(basei + len * sizeof(double) <= basen);
+    if (basei + len * sizeof(double) == basen) {
+      int tlen = len / (stripped ? 1 : 3);
+      assert(h == voc);
+      assert(tlen > voc);
+      tlen -= voc;
+      assert(tlen % voc == 0);
+      assert(w * voc == tlen);
+
+      double *wmv = (double *)(base + basei);
+      for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+          wmv[(stripped ? 1 : 3) * (voc + x + y * w)] = mat[x + y * w];
+      for (int y = 0; y < h; ++y)
+        wmv[(stripped ? 1 : 3) * y] = vec[y];
+      return;
+    }
+
+    basei += len * sizeof(double);
+  }
+  assert(0);
+}
+
+
 void Cortex::close() {
   assert(is_open);
 

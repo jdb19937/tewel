@@ -346,7 +346,7 @@ void Kleption::load() {
       assert(ph <= sh);
       assert(pw > 0);
       assert(ph > 0);
-      assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+      assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
     }
     break;
   case KIND_CAM:

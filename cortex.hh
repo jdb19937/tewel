@@ -79,6 +79,11 @@ struct Cortex {
   double *propback();
   double *learn(double mul);
   double *learn(const double *_kout, double mul);
+
+  void _get_head_op(double **vecp, double **matp, int *wp, int *hp);
+  void _put_head_op(const double *vec, const double *mat, int w, int h);
+  void _get_tail_op(double **vecp, double **matp, int *wp, int *hp);
+  void _put_tail_op(const double *vec, const double *mat, int w, int h);
 };
 
 }
