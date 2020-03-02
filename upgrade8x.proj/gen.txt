@@ -6,17 +6,9 @@ type=con1
 type=relu
 type=con1
 type=relu
-type=con1
-type=relu
-type=con1
-type=relu
 type=ups1 out=64
 type=grnd out=96
 type=lrnd out=128
-type=con1
-type=relu
-type=con1
-type=relu
 type=con1
 type=relu
 type=con1
@@ -28,17 +20,9 @@ type=con1
 type=relu
 type=con1
 type=relu
-type=con1
-type=relu
-type=con1
-type=relu
 type=ups1 out=16
 type=grnd out=24
 type=lrnd out=32
-type=con1 
-type=relu
-type=con1
-type=relu
 type=con1
 type=relu
 type=con1
