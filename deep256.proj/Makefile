@@ -59,3 +59,6 @@ tgt.dat: nova2.256.dat cand.256.dat shampane.256.dat lfw.256.dat miniceleb.256.d
 
 src.dat: tgt.dat
 	ln -s $< $@
+
+%.rng: %.256.dat
+	$(TEWEL) synth enc.ctx addgeo=1 dim=$(DIM)x7 src=$< out=$@ verbose=1
