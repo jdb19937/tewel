@@ -950,10 +950,16 @@ int main(int argc, char **argv) {
     if (lowmem)
       outflags |= Kleption::FLAG_LOWMEM;
 
+    std::string outdim = arg.get("outdim", "0x0x0");
+    int ow = 0, oh = 0, oc = 0;
+    if (!parsedim(outdim, &ow, &oh, &oc))
+      error("bad outdim format");
+
     Kleption *out = new Kleption(
       arg.get("out", ""),
       gen->ow, gen->oh, gen->oc,
-      outflags, Kleption::TRAV_SCAN, outkind
+      outflags, Kleption::TRAV_SCAN, outkind,
+      ow, oh, oc
     );
 
     if (!arg.unused.empty())
