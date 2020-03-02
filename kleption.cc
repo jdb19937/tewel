@@ -122,6 +122,10 @@ Kleption::Kleption(
       kind = KIND_DAT;
       return;
     }
+    if (_kind == KIND_RGB) {
+      kind = KIND_RGB;
+      return;
+    }
     if (_kind == KIND_VID) {
       kind = KIND_VID;
       return;
@@ -135,6 +139,8 @@ Kleption::Kleption(
 
     if (endswith(fn, ".dat")) {
       kind = KIND_DAT;
+    } else if (endswith(fn, ".rgb")) {
+      kind = KIND_RGB;
     } else if (endswith(fn, ".rng")) {
       kind = KIND_RNG;
     } else if (
@@ -177,6 +183,10 @@ Kleption::Kleption(
       kind = KIND_DAT;
       return;
     }
+    if (_kind == KIND_RGB) {
+      kind = KIND_RGB;
+      return;
+    }
     if (_kind == KIND_VID) {
       if (!(flags & FLAG_WRITER))
         if (trav != TRAV_SCAN)
@@ -195,6 +205,8 @@ Kleption::Kleption(
 
     if (endswith(fn, ".dat")) {
       kind = KIND_DAT;
+    } else if (endswith(fn, ".rgb")) {
+      kind = KIND_RGB;
     } else if (endswith(fn, ".rng")) {
       kind = KIND_RNG;
     } else if (
@@ -285,6 +297,7 @@ void Kleption::unload() {
     break;
   case KIND_PIC:
   case KIND_DAT:
+  case KIND_RGB:
     assert(dat);
     delete[] dat;
     dat = NULL;
@@ -439,6 +452,7 @@ void Kleption::load() {
         assert(
           subkl->kind == KIND_DIR ||
           subkl->kind == KIND_DAT ||
+          subkl->kind == KIND_RGB ||
           subkl->kind == KIND_PIC
         );
 
@@ -497,6 +511,7 @@ void Kleption::load() {
     assert(sc == 3);
 
     break;
+  case KIND_RGB:
   case KIND_DAT:
     {
       assert(!dat);
@@ -843,6 +858,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       return true;
     }
+  case KIND_RGB:
   case KIND_DAT:
     {
       assert(dat);
@@ -974,6 +990,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       break;
     }
 
+  case KIND_RGB:
   case KIND_DAT:
     {
       assert(dat);
@@ -1065,6 +1082,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
     return true;
 
+  case KIND_RGB:
   case KIND_DAT:
     {
       if (!datwriter) {
