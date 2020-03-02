@@ -43,7 +43,7 @@ struct Kleption {
     KIND_VID,
     KIND_SDL,
     KIND_REF,
-    KIND_RNG,
+    KIND_RVG,
     KIND_RGB,
 
     KIND_UNK = -1,
