@@ -891,7 +891,6 @@ int main(int argc, char **argv) {
     }
     int pc = enc ? enc->ic : gen->ic;
 
-
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
     if (!parsedim(srcdim, &sw, &sh, &sc))

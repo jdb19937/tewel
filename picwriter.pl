@@ -8,7 +8,7 @@ if (my $filter = $ENV{TEWEL_PICWRITER_FILTER}) {
   open(STDIN, "$filter |") or die "$0: $filter: $!";
 }
 
-my ($ext) = ($fn =~ /\.(.+$)/);
+my ($ext) = ($fn =~ /\.([^.]+$)/);
 $ext ||= 'ppm';
 
 system('convert', 'ppm:-', "$ext:$fn.tmp");
