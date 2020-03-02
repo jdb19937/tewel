@@ -994,6 +994,7 @@ int main(int argc, char **argv) {
     if (enc)
       delete enc;
     delete src;
+    delete out;
     return 0;
   }
 

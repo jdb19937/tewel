@@ -16,6 +16,7 @@
 #include "camera.hh"
 #include "display.hh"
 #include "picpipes.hh"
+#include "rando.hh"
 
 #include <algorithm>
 
@@ -63,6 +64,8 @@ Kleption::Kleption(
   datwriter = NULL;
   refwriter = NULL;
 
+  rng = NULL;
+
   if (refsfn) {
     if (trav != TRAV_REFS)
       error("refsfn requires trav refs");
@@ -93,14 +96,6 @@ Kleption::Kleption(
     if (flags & FLAG_WRITER)
       error("can't output to camera");
   }
-  if (_kind == KIND_RND) {
-    if (fn == "")
-      fn = "1";
-    if (flags & FLAG_WRITER)
-      error("can't output to random");
-    kind = KIND_RND;
-    return;
-  }
 
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
@@ -117,6 +112,10 @@ Kleption::Kleption(
         error("outdim required for dir kind");
 
       kind = KIND_DIR;
+      return;
+    }
+    if (_kind == KIND_RNG) {
+      kind = KIND_RNG;
       return;
     }
     if (_kind == KIND_DAT) {
@@ -136,6 +135,8 @@ Kleption::Kleption(
 
     if (endswith(fn, ".dat")) {
       kind = KIND_DAT;
+    } else if (endswith(fn, ".rng")) {
+      kind = KIND_RNG;
     } else if (
       endswith(fn, ".mp4") ||
       endswith(fn, ".avi") ||
@@ -187,9 +188,15 @@ Kleption::Kleption(
       kind = KIND_PIC;
       return;
     }
+    if (_kind == KIND_RNG) {
+      kind = KIND_RNG;
+      return;
+    }
 
     if (endswith(fn, ".dat")) {
       kind = KIND_DAT;
+    } else if (endswith(fn, ".rng")) {
+      kind = KIND_RNG;
     } else if (
       endswith(fn, ".mp4") ||
       endswith(fn, ".avi") ||
@@ -228,6 +235,12 @@ Kleption::~Kleption() {
     fclose(refreader);
   if (refwriter)
     fclose(refwriter);
+  
+  if (rng) {
+    assert(flags & FLAG_WRITER);
+    rng->save(fn);
+    delete rng;
+  }
 }
 
 void Kleption::unload() {
@@ -235,7 +248,10 @@ void Kleption::unload() {
     return;
 
   switch (kind) {
-  case KIND_RND:
+  case KIND_RNG:
+    assert(rng);
+    delete rng;
+    rng = NULL;
     break;
   case KIND_CAM:
     assert(cam);
@@ -326,7 +342,7 @@ void Kleption::load() {
       b = 1;
     }
     break;
-  case KIND_RND:
+  case KIND_RNG:
     {
       if (pw == 0)
         pw = sw;
@@ -347,6 +363,10 @@ void Kleption::load() {
       assert(pw > 0);
       assert(ph > 0);
       assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
+
+      assert(!rng);
+      rng = new Rando(sc);
+      rng->load(fn);
     }
     break;
   case KIND_CAM:
@@ -615,6 +635,18 @@ static void _outcrop(
     *y0p = y0;
 }
 
+static void cpumatvec(const double *a, const double *b, int aw, int ahbw, double *c) {
+  int ah = ahbw;
+  int bw = ahbw;
+  int cw = aw;
+
+  for (int cx = 0; cx < cw; ++cx) {
+    c[cx] = 0;
+    for (int i = 0; i < ahbw; ++i) {
+      c[cx] += a[cx + aw * i] * b[i];
+    }
+  }
+}
 
 bool Kleption::pick(double *kdat, std::string *idp) {
   load();
@@ -674,16 +706,18 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       ++frames;
       return true;
     }
-  case KIND_RND:
+  case KIND_RNG:
     {
-      unsigned int x0, y0;
+      assert(rng);
+      assert(rng->dim == sc);
 
-      unsigned int swhc = sw * sh * sc;
+      unsigned int swh = sw * sh;
+      unsigned int swhc = swh * sc;
       double *rnd = new double[swhc];
-      double mul = strtod(fn);
-      for (unsigned int i = 0; i < swhc; ++i)
-        rnd[i] = randgauss() * mul;
+      for (int xy = 0; xy < swh; ++xy)
+        rng->generate(rnd + xy * sc);
 
+      unsigned int x0, y0;
       _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
       delete[] rnd;
@@ -881,7 +915,7 @@ void Kleption::find(const std::string &id, double *kdat) {
   load();
 
   switch (kind) {
-  case KIND_RND:
+  case KIND_RNG:
   case KIND_CAM:
   case KIND_VID:
     assert(0);
@@ -1013,6 +1047,24 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   }
 
   switch (kind) {
+  case KIND_RNG:
+    {
+      assert(!(flags & FLAG_ADDGEO));
+
+      if (!rng)
+        rng = new Rando(pc);
+
+      unsigned int pwh = pw * ph;
+      unsigned int pwhc = pwh * pc;
+      double *ddat = new double[pwhc];
+      dek(kdat, pwhc, ddat);
+
+      for (int xy = 0; xy < pwh; ++xy)
+        rng->observe(ddat + xy * pc);
+      delete[] ddat;
+    }
+    return true;
+
   case KIND_DAT:
     {
       if (!datwriter) {

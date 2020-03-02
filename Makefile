@@ -11,12 +11,12 @@ TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
   tewel.pdf
 
-OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o
+OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
-HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh
+HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh
 
 SRC = \
-  cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc \
+  cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc rando.cc \
   colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE colonel.inc \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
