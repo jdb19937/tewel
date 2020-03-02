@@ -58,7 +58,7 @@ struct Kleption {
     if (kindstr == "vid") return KIND_VID;
     if (kindstr == "sdl") return KIND_SDL;
     if (kindstr == "ref") return KIND_REF;
-    if (kindstr == "rng") return KIND_RNG;
+    if (kindstr == "rvg") return KIND_RVG;
     if (kindstr == "rgb") return KIND_RGB;
     return KIND_UNK;
   }
@@ -118,8 +118,8 @@ struct Kleption {
   // sdl
   class Display *dsp;
 
-  // rng
-  class Rando *rng;
+  // rvg
+  class Rando *rvg;
 
   Kleption(
     const std::string &_fn,

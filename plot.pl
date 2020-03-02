@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/perl -s
 
 use Chart::Gnuplot;
 use File::Temp qw(tempfile);
@@ -20,6 +20,7 @@ my $chart = Chart::Gnuplot->new(
   output => $fn,
   xlabel => "t",
   ylabel => $k,
+  yrange => [$y0, $y1],
   terminal => "png",
 );
 
