@@ -135,7 +135,7 @@ g++, GNU Make.
 \end_layout
 
 \begin_layout Subsubsection*
-Optional
+Recommended
 \end_layout
 
 \begin_layout Standard
@@ -569,11 +569,15 @@ learnfunc
 learnauto
 \family default
  commands train a generator (or an encoder-generator) without a discriminator,
- simply subtracting output from target to calculate loss.
+ simply subtracting the output from the target to calculate loss.
+\end_layout
+
+\begin_layout Section
+Projects
 \end_layout
 
 \begin_layout Paragraph*
-Every 
+A 
 \family typewriter
 tewel
 \family default
@@ -597,9 +601,17 @@ project
 gen.ctx
 \family default
 .
- A project is an optional way to associate a generator with an encoder and
- a discriminator.
- A project may contain a file named 
+ A project is an optional way to associate a generator with an encoder (named
+ 
+\family typewriter
+enc.ctx
+\family default
+) and a discriminator (named 
+\family typewriter
+dis.ctx
+\family default
+).
+ A project may also contain a file named 
 \family typewriter
 opt.txt
 \family default
@@ -607,16 +619,8 @@ opt.txt
 \family typewriter
 key=value
 \family default
- options specifying the location of the training data and method-specific
- parameters; this allows the training commands to be invoked with only the
- project directory and no extra options.
-\end_layout
-
-\begin_layout Standard
-\begin_inset Newpage pagebreak
-\end_inset
-
-
+ strings specifying default options for training; this allows the training
+ commands to be invoked with only the project directory and no extra options.
 \end_layout
 
 \begin_layout Section
@@ -640,7 +644,12 @@ $ tewel synth example.ctx src=/opt/makemore/tewel/share/dan.png out=example.png
 \begin_layout Paragraph*
 The result might look something like this.
  Or it might be a solid color, or have noisy textures.
- 
+ The output from the generator is clipped to 
+\begin_inset Formula $[0,1]$
+\end_inset
+
+ before being converted to RGB, in its randomized state the output could
+ be outside that range.
 \begin_inset Newline newline
 \end_inset
 
@@ -655,7 +664,11 @@ The result might look something like this.
 \end_layout
 
 \begin_layout Paragraph*
-tewel has built-in support for the PPM image format (
+
+\family typewriter
+tewel
+\family default
+ has built-in support for the PPM image format (
 \family typewriter
 .ppm
 \family default
@@ -867,10 +880,6 @@ $ convert /opt/makemore/share/tewel/dan.png -scale 25% - |convert - -scale
  400% png:dan.4x.png
 \end_layout
 
-\begin_layout Verbatim
-$ tewel synth //upscale4x.ctx src=//dan.png out=dan.restored.png
-\end_layout
-
 \begin_layout Paragraph*
 \begin_inset Graphics
 	filename manual-fig3.png
@@ -881,15 +890,12 @@ $ tewel synth //upscale4x.ctx src=//dan.png out=dan.restored.png
 
 \end_layout
 
-\begin_layout Standard
-\begin_inset Newpage clearpage
-\end_inset
-
-
+\begin_layout Verbatim
+$ tewel synth //upscale4x.ctx src=dan.4x.png out=dan.restored.png
 \end_layout
 
-\begin_layout Part
-Synthesis
+\begin_layout Verbatim
+
 \end_layout
 
 \begin_layout Section
@@ -916,17 +922,6 @@ Output To Image File
 Ouptut To Video File
 \end_layout
 
-\begin_layout Standard
-\begin_inset Newpage clearpage
-\end_inset
-
-
-\end_layout
-
-\begin_layout Part
-Precomputing
-\end_layout
-
 \begin_layout Section
 Input From Directory
 \end_layout
@@ -944,6 +939,10 @@ Creating Paired Collections
 \end_layout
 
 \begin_layout Subsection
+Filtering
+\end_layout
+
+\begin_layout Subsection
 Traversal By Reference
 \end_layout
 
@@ -952,26 +951,80 @@ Fixed Random Seeding
 \end_layout
 
 \begin_layout Section
-Filtering
-\end_layout
-
-\begin_layout Standard
-\begin_inset Newpage clearpage
-\end_inset
-
-
-\end_layout
-
-\begin_layout Part
-Designing A Generator
-\end_layout
-
-\begin_layout Section
 Spec Files
 \end_layout
 
 \begin_layout Section
 Cortex Files
+\end_layout
+
+\begin_layout Section
+Random Vector Generators
+\end_layout
+
+\begin_layout Paragraph*
+A random vector generator generates random vectors determined by a covariance
+ matrix.
+ RVGs are stored in 
+\family typewriter
+.rvg
+\family default
+ files containing a Cholesky decomposition of a covariance matrix.
+ When used as a synthesis source, a 
+\family typewriter
+.rvg
+\family default
+ file produces a stream of random vectors, created by multiplying the Cholesky
+ matrix by a vector of random standard normal numbers.
+ When a 
+\family typewriter
+.rvg
+\family default
+ file is used as a synthesis output, the covariance amongst channels is
+ accumulated and after the source is exhausted the Cholesky decomposition
+ is calculated and the 
+\family typewriter
+.rvg
+\family default
+ file is written.
+\end_layout
+
+\begin_layout Paragraph*
+RVGs are useful for creating random input to a generator (trained along
+ with a compressing encoder) that resembles its training set.
+ For example, if we have an encoder 
+\family typewriter
+enc.ctx
+\family default
+ and training source data in directory 
+\family typewriter
+srcdir
+\family default
+, we can create 
+\family typewriter
+src.rvg
+\family default
+ with the command:
+\end_layout
+
+\begin_layout Verbatim
+$ tewel synth enc.ctx src=srcdir out=src.rvg verbose=1
+\end_layout
+
+\begin_layout Paragraph*
+Then, to feed a sample vector from the RVG into the generator 
+\family typewriter
+gen.ctx
+\family default
+ and output an image 
+\family typewriter
+out.png
+\family default
+:
+\end_layout
+
+\begin_layout Verbatim
+$ tewel synth gen.ctx src=src.rvg out=out.png limit=1
 \end_layout
 
 \begin_layout Section
@@ -1000,17 +1053,6 @@ Super-Resolution Generator
 
 \begin_layout Section
 Noise Injection
-\end_layout
-
-\begin_layout Standard
-\begin_inset Newpage clearpage
-\end_inset
-
-
-\end_layout
-
-\begin_layout Part
-Examples
 \end_layout
 
 \begin_layout Section
