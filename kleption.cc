@@ -64,7 +64,7 @@ Kleption::Kleption(
   datwriter = NULL;
   refwriter = NULL;
 
-  rng = NULL;
+  rvg = NULL;
 
   if (refsfn) {
     if (trav != TRAV_REFS)
@@ -114,8 +114,8 @@ Kleption::Kleption(
       kind = KIND_DIR;
       return;
     }
-    if (_kind == KIND_RNG) {
-      kind = KIND_RNG;
+    if (_kind == KIND_RVG) {
+      kind = KIND_RVG;
       return;
     }
     if (_kind == KIND_DAT) {
@@ -141,8 +141,8 @@ Kleption::Kleption(
       kind = KIND_DAT;
     } else if (endswith(fn, ".rgb")) {
       kind = KIND_RGB;
-    } else if (endswith(fn, ".rng")) {
-      kind = KIND_RNG;
+    } else if (endswith(fn, ".rvg")) {
+      kind = KIND_RVG;
     } else if (
       endswith(fn, ".mp4") ||
       endswith(fn, ".avi") ||
@@ -198,8 +198,8 @@ Kleption::Kleption(
       kind = KIND_PIC;
       return;
     }
-    if (_kind == KIND_RNG) {
-      kind = KIND_RNG;
+    if (_kind == KIND_RVG) {
+      kind = KIND_RVG;
       return;
     }
 
@@ -207,8 +207,8 @@ Kleption::Kleption(
       kind = KIND_DAT;
     } else if (endswith(fn, ".rgb")) {
       kind = KIND_RGB;
-    } else if (endswith(fn, ".rng")) {
-      kind = KIND_RNG;
+    } else if (endswith(fn, ".rvg")) {
+      kind = KIND_RVG;
     } else if (
       endswith(fn, ".mp4") ||
       endswith(fn, ".avi") ||
@@ -248,10 +248,10 @@ Kleption::~Kleption() {
   if (refwriter)
     fclose(refwriter);
   
-  if (rng) {
+  if (rvg) {
     assert(flags & FLAG_WRITER);
-    rng->save(fn);
-    delete rng;
+    rvg->save(fn);
+    delete rvg;
   }
 }
 
@@ -260,10 +260,10 @@ void Kleption::unload() {
     return;
 
   switch (kind) {
-  case KIND_RNG:
-    assert(rng);
-    delete rng;
-    rng = NULL;
+  case KIND_RVG:
+    assert(rvg);
+    delete rvg;
+    rvg = NULL;
     break;
   case KIND_CAM:
     assert(cam);
@@ -355,7 +355,7 @@ void Kleption::load() {
       b = 1;
     }
     break;
-  case KIND_RNG:
+  case KIND_RVG:
     {
       if (pw == 0)
         pw = sw;
@@ -377,9 +377,9 @@ void Kleption::load() {
       assert(ph > 0);
       assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
 
-      assert(!rng);
-      rng = new Rando(sc);
-      rng->load(fn);
+      assert(!rvg);
+      rvg = new Rando(sc);
+      rvg->load(fn);
     }
     break;
   case KIND_CAM:
@@ -721,16 +721,16 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       ++frames;
       return true;
     }
-  case KIND_RNG:
+  case KIND_RVG:
     {
-      assert(rng);
-      assert(rng->dim == sc);
+      assert(rvg);
+      assert(rvg->dim == sc);
 
       unsigned int swh = sw * sh;
       unsigned int swhc = swh * sc;
       double *rnd = new double[swhc];
       for (int xy = 0; xy < swh; ++xy)
-        rng->generate(rnd + xy * sc);
+        rvg->generate(rnd + xy * sc);
 
       unsigned int x0, y0;
       _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
@@ -931,7 +931,7 @@ void Kleption::find(const std::string &id, double *kdat) {
   load();
 
   switch (kind) {
-  case KIND_RNG:
+  case KIND_RVG:
   case KIND_CAM:
   case KIND_VID:
     assert(0);
@@ -1064,12 +1064,12 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   }
 
   switch (kind) {
-  case KIND_RNG:
+  case KIND_RVG:
     {
       assert(!(flags & FLAG_ADDGEO));
 
-      if (!rng)
-        rng = new Rando(pc);
+      if (!rvg)
+        rvg = new Rando(pc);
 
       unsigned int pwh = pw * ph;
       unsigned int pwhc = pwh * pc;
@@ -1077,7 +1077,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       dek(kdat, pwhc, ddat);
 
       for (int xy = 0; xy < pwh; ++xy)
-        rng->observe(ddat + xy * pc);
+        rvg->observe(ddat + xy * pc);
       delete[] ddat;
     }
     return true;
