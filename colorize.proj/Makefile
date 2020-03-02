@@ -32,7 +32,7 @@ tgt.dat:
 		dim=$(DIM) src=$(VID) out=$@
 src.dat:
 	TEWEL_VIDREADER_RATE=16 \
-	TEWEL_VIDREADER_VF="scale=320:-1, hue=s=0" \
+	TEWEL_VIDREADER_VF="scale=320:-1,hue=s=0" \
 	$(TEWEL) synth //identity.proj \
 		randseed=1 verbose=1 crop=random \
 		dim=$(DIM) src=$(VID) out=$@
