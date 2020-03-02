@@ -1,0 +1,26 @@
+v=2 rdev=0.05
+type=con1 in=10 out=8
+type=relu
+type=dns1 out=32
+type=con1 out=16
+type=relu
+type=dns1 out=64
+type=con1 out=32
+type=relu
+type=dns1 out=128
+type=con1 out=64
+type=relu
+type=dns1 out=256
+type=con1 out=128
+type=relu
+type=dns1 out=512
+type=con1 out=256
+type=relu
+type=dns1 out=1024
+type=con1 out=512
+type=relu
+type=dns1 out=2048
+type=con0 out=1024
+type=relu
+type=dns1 out=4096
+type=con0 out=1

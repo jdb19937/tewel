@@ -1,0 +1,22 @@
+v=2 rdev=0.05
+type=con0 in=1024 out=4096
+type=relu
+type=ups2 out=256
+type=con1 out=512
+type=relu
+type=ups1 out=128
+type=con1 out=256
+type=relu
+type=ups1 out=64
+type=con1 out=128
+type=relu
+type=ups1 out=32
+type=con1 out=64
+type=relu
+type=ups1 out=16
+type=con1 out=32
+type=relu
+type=ups1 out=8
+type=con1 out=16
+type=relu
+type=con1 out=3
