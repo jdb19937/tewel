@@ -214,6 +214,46 @@ void ksplice(
   CALL_KERNEL(ksplice, n * xk, x, n, xm, xa, xk, y, ym, ya);
 }
 
+int size_bias(
+  int ic, int ow, int oh, int oc, bool stripped
+) {
+  return ((stripped ? 1 : 3) * (ow * oh * oc));
+}
+
+void synth_bias(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc,
+  const double *wmv, bool stripped
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_bias, outn,
+    in, iw, ih, out, ic, oc, wmv, stripped
+  );
+}
+
+
+void learn_bias(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+) {
+  int outn = iw * ih * oc;
+  int wn = outn;
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_bias1, wn, fin, iw, ih, fout, ic, oc, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_bias2, inn, fin, iw, ih, fout, ic, oc, wmv);
+  CALL_KERNEL(learn_bias3, wn, iw, ih, ic, oc, wmv, nu, b1, b2, eps, rounds);
+}
+
 int size_local(
   int d, int ic, int ow, int oh, int oc, bool stripped
 ) {
@@ -247,7 +287,8 @@ void learn_local(
   double nu, double b1, double b2, double eps, double rounds
 ) {
   int f = d * 2 + 1;
-  int wn = (oc + ic * f * f * oc);
+  int outn = iw * ih * oc;
+  int wn = (outn + ic * f * f * outn);
   int inn = iw * ih * ic;
 
   CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);

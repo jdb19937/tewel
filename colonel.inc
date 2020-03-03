@@ -68,6 +68,126 @@ DEFN_KERNEL(ksplice,
   y[in * ym + ya + ixk] = x[in * xm + xa + ixk];
 }
 
+DEFN_KERNEL(synth_bias,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc,
+  const double *wmv,
+  bool stripped
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+
+  int ini = outi;
+
+  double outv = 0;
+  outv += in[ini];
+  outv += stripped ? wmv[outi] : wmv[outi * 3];
+
+  out[outi] = outv;
+}
+
+
+DEFN_KERNEL(learn_bias1,
+  const double *in, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2
+) {
+  PREF_KERNEL;
+
+  if (!(nu > 0))
+    return;
+
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+  int wn = outn;
+
+  int wi = i;
+  if (wi >= wn)
+    return;
+
+  double dw = 0;
+
+  if (wi < outn) {
+    int outi = wi;
+    dw += fout[outi];
+  }
+
+  double m = wmv[wi * 3 + 1];
+  double v = wmv[wi * 3 + 2];
+
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+
+  wmv[wi * 3 + 1] = m;
+  wmv[wi * 3 + 2] = v;
+}
+
+
+DEFN_KERNEL(learn_bias2,
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc,
+
+  const double *wmv
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  fin[ini] = fout[ini];
+}
+
+
+DEFN_KERNEL(learn_bias3,
+  int iw, int ih,
+  int ic, int oc,
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+) {
+  PREF_KERNEL;
+
+  if (!(nu > 0))
+    return;
+
+  int outn = iw * ih * oc;
+  int wn = outn;
+
+  int wi = i;
+  if (wi >= wn)
+    return;
+
+  double w = wmv[wi * 3 + 0];
+  double m = wmv[wi * 3 + 1];
+  double v = wmv[wi * 3 + 2];
+
+  if (rounds < 1024.0) {
+    m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
+    v = v / (1.0 - pow(1.0 - b2, 1.0 + rounds));
+  }
+
+  w += nu * m / (sqrt(v) + eps);
+
+  wmv[wi * 3 + 0] = w;
+}
+
 DEFN_KERNEL(synth_local,
   const double *in, int iw, int ih,
   double *out,
