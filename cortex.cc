@@ -1952,7 +1952,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   assert(sizeof(hdr[0]) == 4);
   assert(sizeof(hdr) >= 64);
   memcpy((char *)hdr, "MakeMore", 8);
-  hdr[2] = htonl(1);
+  hdr[2] = htonl(2);
   hdr[3] = htonl(type);
   hdr[4] = htonl(len);
   hdr[5] = htonl(nic);
