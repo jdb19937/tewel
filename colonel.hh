@@ -50,6 +50,27 @@ extern void ksplice(
   double *y, int ym, int ya
 );
 
+extern int size_bias(
+  int ic, int ow, int oh, int oc
+);
+
+extern void synth_bias(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc,
+  const double *wmv
+);
+
+extern void learn_bias(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+);
+
 extern int size_local(
   int d, int ic, int ow, int oh, int oc
 );
