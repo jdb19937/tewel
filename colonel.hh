@@ -50,6 +50,27 @@ extern void ksplice(
   double *y, int ym, int ya
 );
 
+extern int size_local(
+  int d, int ic, int ow, int oh, int oc, bool stripped
+);
+
+extern void synth_local(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic, int oc,
+  const double *wmv, bool stripped
+);
+
+extern void learn_local(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+);
+
 
 extern int size_conv(int d, int ic, int oc, bool stripped);
 

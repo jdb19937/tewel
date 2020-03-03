@@ -214,6 +214,47 @@ void ksplice(
   CALL_KERNEL(ksplice, n * xk, x, n, xm, xa, xk, y, ym, ya);
 }
 
+int size_local(
+  int d, int ic, int ow, int oh, int oc, bool stripped
+) {
+  int f = d * 2 + 1;
+  return ((stripped ? 1 : 3) * (ow * oh * oc * (1 + ic * f * f)));
+}
+
+void synth_local(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic, int oc,
+  const double *wmv, bool stripped
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_local, outn,
+    in, iw, ih, out, d, ic, oc, wmv, stripped
+  );
+}
+
+
+void learn_local(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+) {
+  int f = d * 2 + 1;
+  int wn = (oc + ic * f * f * oc);
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_local2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
+  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, nu, b1, b2, eps, rounds);
+}
+
 
 int size_conv(
   int d, int ic, int oc, bool stripped

@@ -68,6 +68,213 @@ DEFN_KERNEL(ksplice,
   y[in * ym + ya + ixk] = x[in * xm + xa + ixk];
 }
 
+DEFN_KERNEL(synth_local,
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic, int oc,
+  const double *wmv,
+  bool stripped
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+
+  int tmp = outi;
+  tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int ix0 = ox - d;
+  int ix1 = ox + d;
+  int iy0 = oy - d;
+  int iy1 = oy + d;
+
+  int f = d * 2 + 1;
+  // int wmvn = 3 * (oc + ic * f * f * oc);
+
+  double outv = 0;
+
+  for (int iyt = iy0; iyt <= iy1; ++iyt) {
+    int iy = (iyt + ih) % ih;
+    for (int ixt = ix0; ixt <= ix1; ++ixt) { 
+      int ix = (ixt + iw) % iw;
+      for (int iz = 0; iz < ic; ++iz) {
+        int ini = iz + ic * (ix + iw * iy);
+
+        int dx = ixt - ix0;
+        int dy = iyt - iy0;
+        int wi = outn + (iz + ic * (dx + f * (dy + f * outi)));
+
+        double v = in[ini];
+        double w = stripped ? wmv[wi] : wmv[wi * 3];
+
+        outv += v * w;
+      }
+    }
+  }
+
+  outv += stripped ? wmv[outi] : wmv[outi * 3];
+
+  out[outi] = outv;
+}
+
+
+DEFN_KERNEL(learn_local1,
+  const double *in, int iw, int ih,
+  const double *fout,
+
+  int d, int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2
+) {
+  PREF_KERNEL;
+
+  if (!(nu > 0))
+    return;
+
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+  int f = d * 2 + 1;
+  int wn = (outn + ic * f * f * outn);
+
+  int wi = i;
+  if (wi >= wn)
+    return;
+
+  double dw = 0;
+
+  if (wi < outn) {
+    int outi = wi;
+    dw += fout[outi];
+  } else {
+    int tmp = wi - outn;
+    int iz = tmp % ic; tmp /= ic;
+    int dx = tmp % f; tmp /= f;
+    int dy = tmp % f; tmp /= f;
+    int outi = tmp % outn;
+
+    tmp = outi;
+    tmp /= oc;
+    int ox = tmp % ow; tmp /= ow;
+    int oy = tmp % oh;
+
+    int ix = (ox - d + dx + iw) % iw;
+    int iy = (oy - d + dy + ih) % ih;
+
+    int ini = iz + ic * (ix + iw * iy);
+
+    dw += fout[outi] * in[ini];
+  }
+
+  double m = wmv[wi * 3 + 1];
+  double v = wmv[wi * 3 + 2];
+
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+
+  wmv[wi * 3 + 1] = m;
+  wmv[wi * 3 + 2] = v;
+}
+
+
+DEFN_KERNEL(learn_local2,
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic, int oc,
+
+  const double *wmv
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  int tmp = ini;
+  int iz = tmp % ic; tmp /= ic;
+  int ix = tmp % iw; tmp /= iw;
+  int iy = tmp;
+
+  int ox0 = ix - d;
+  int ox1 = ix + d;
+  int oy0 = iy - d;
+  int oy1 = iy + d;
+
+  int f = d * 2 + 1;
+  // int wmvn = 3 * (oc + ic * f * f * oc);
+
+  double finv = 0;
+
+  for (int oyt = oy0; oyt <= oy1; ++oyt) {
+    int oy = (oyt + oh) % oh;
+    for (int oxt = ox0; oxt <= ox1; ++oxt) { 
+      int ox = (oxt + ow) % ow;
+      for (int oz = 0; oz < oc; ++oz) {
+        int outi = oz + oc * (ox + ow * oy);
+
+        int dx = ix - oxt + d;
+        int dy = iy - oyt + d;
+        int wi = outn + (iz + ic * (dx + f * (dy + f * outi)));
+
+        double v = fout[outi];
+        double w = wmv[wi * 3];
+        finv += v * w;
+      }
+    }
+  }
+
+  fin[ini] = finv;
+}
+
+
+DEFN_KERNEL(learn_local3,
+  int iw, int ih,
+  int d, int ic, int oc,
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+) {
+  PREF_KERNEL;
+
+  if (!(nu > 0))
+    return;
+
+  int outn = iw * ih * oc;
+  int f = d * 2 + 1;
+  int wn = (outn + ic * f * f * outn);
+
+  int wi = i;
+  if (wi >= wn)
+    return;
+
+  double w = wmv[wi * 3 + 0];
+  double m = wmv[wi * 3 + 1];
+  double v = wmv[wi * 3 + 2];
+
+  if (rounds < 1024.0) {
+    m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
+    v = v / (1.0 - pow(1.0 - b2, 1.0 + rounds));
+  }
+
+  w += nu * m / (sqrt(v) + eps);
+
+  wmv[wi * 3 + 0] = w;
+}
+
 DEFN_KERNEL(synth_conv,
   const double *in, int iw, int ih,
   double *out,
