@@ -70,7 +70,9 @@ static int _scale_factor(int ic, int oc) {
 }
 
 static void _parse_header(
-  layer_header_t& hdr, uint32_t *typep, int *lenp, int *icp, int *ocp
+  layer_header_t& hdr, uint32_t *typep, int *lenp,
+  int *icp = NULL, int *ocp = NULL,
+  int *iwp = NULL, int *ihp = NULL, int *owp = NULL, int *ohp = NULL
 ) {
   assert(sizeof(hdr[0]) == 4);
   assert(sizeof(hdr) >= 64);
@@ -80,17 +82,28 @@ static void _parse_header(
 
   assert(v != 0);
   assert(v < 256);
-  if (v > 1)
-    fprintf(stderr, "Warning: future version %u\n", v);
+  if (v != 2)
+    warning("v != 2");
 
   *typep = ntohl(hdr[3]);
   *lenp = ntohl(hdr[4]);
-  *icp = ntohl(hdr[5]);
-  *ocp = ntohl(hdr[6]);
+
+  if (icp)
+    *icp = ntohl(hdr[5]);
+  if (ocp)
+    *ocp = ntohl(hdr[6]);
+  if (iwp)
+    *iwp = ntohl(hdr[7]);
+  if (ihp)
+    *ihp = ntohl(hdr[8]);
+  if (owp)
+    *owp = ntohl(hdr[9]);
+  if (ohp)
+    *ohp = ntohl(hdr[10]);
 }
 
 
-static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp, bool stripped) {
+static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp) {
   int i = 0;
   size_t kbufn = 0;
   unsigned int basei = 0;
@@ -108,7 +121,17 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 
     uint32_t type;
     int len, vic;
-    _parse_header(hdr, &type, &len, &vic, &oc);
+    int viw, vih, vow, voh;
+    _parse_header(hdr, &type, &len, &vic, &oc, &viw, &vih, &vow, &voh);
+
+    if (viw)
+      assert(viw == iw);
+    if (vih)
+      assert(vih == ih);
+    if (iw == 0)
+      iw = viw;
+    if (ih == 0)
+      ih = vih;
 
     if (i == 0) {
       ic = vic;
@@ -119,10 +142,15 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       assert(ic == vic);
     }
 
+    assert(iw > 0);
+    assert(ih > 0);
+    assert(ic > 0);
+
+
     switch (type) {
     case TYPE_CON0:
       {
-        int wmvn = size_conv(0, ic, oc, stripped);
+        int wmvn = size_conv(0, ic, oc);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -130,7 +158,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_CON1:
       {
-        int wmvn = size_conv(1, ic, oc, stripped);
+        int wmvn = size_conv(1, ic, oc);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -138,7 +166,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_CON2:
       {
-        int wmvn = size_conv(2, ic, oc, stripped);
+        int wmvn = size_conv(2, ic, oc);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -287,6 +315,14 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       assert(0);
     }
 
+    if (vow)
+      assert(vow == ow);
+    if (voh)
+      assert(voh == oh);
+    assert(ow > 0);
+    assert(oh > 0);
+    assert(oc > 0);
+
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);
 
@@ -352,8 +388,7 @@ static double *_kpadone(int bufn) {
 }
 
 static double *pipe_synth(
-  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf,
-  bool stripped
+  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf
 ) {
   if (basen == 0)
     return ((double *)kbuf);
@@ -370,7 +405,13 @@ static double *pipe_synth(
 
   uint32_t type;
   int len, ic, oc;
-  _parse_header(hdr, &type, &len, &ic, &oc);
+  int viw, vih, vow, voh;
+  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh);
+
+  if (viw)
+    assert(viw == iw);
+  if (vih)
+    assert(vih == ih);
 
   int ow, oh;
   kbuf += iw * ih * ic * sizeof(double);
@@ -380,40 +421,40 @@ static double *pipe_synth(
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc, stripped);
+      int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
       break;
     }
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc, stripped);
+      int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
       break;
     }
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc, stripped);
+      int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv, stripped);
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
       break;
     }
   case TYPE_SCAL:
@@ -631,6 +672,11 @@ static double *pipe_synth(
     assert(0);
   }
 
+  if (vow)
+    assert(vow == ow);
+  if (vih)
+    assert(voh == oh);
+
   assert(len * sizeof(double) <= basen);
   base += len * sizeof(double);
   kbase += len * sizeof(double);
@@ -638,7 +684,7 @@ static double *pipe_synth(
 
   return pipe_synth(
     base, basen, kbase,
-    ow, oh, kbuf, stripped
+    ow, oh, kbuf
   );
 }
 
@@ -662,7 +708,13 @@ void pipe_learn(
 
   uint32_t type;
   int len, ic, oc;
-  _parse_header(hdr, &type, &len, &ic, &oc);
+  int viw, vih, vow, voh;
+  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh);
+
+  if (viw)
+    assert(viw == iw);
+  if (vih)
+    assert(vih == ih);
 
   int ow, oh;
 
@@ -670,7 +722,7 @@ void pipe_learn(
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc, false);
+      int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
 
       ow = iw;
@@ -681,7 +733,7 @@ void pipe_learn(
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc, false);
+      int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
 
       ow = iw;
@@ -692,7 +744,7 @@ void pipe_learn(
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc, false);
+      int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
 
       ow = iw;
@@ -822,6 +874,11 @@ void pipe_learn(
   default:
     assert(0);
   }
+
+  if (vow)
+    assert(vow == ow);
+  if (voh)
+    assert(voh == oh);
 
   double *in = (double *)kbuf;
   kbuf += iw * ih * ic * sizeof(double);
@@ -959,7 +1016,6 @@ void Cortex::_clear() {
   rms = 0.0;
   max = 0.0;
   rounds = 0;
-  stripped = false;
 
   new_rounds = 0;
 }
@@ -1005,7 +1061,6 @@ void Cortex::open(const std::string &_fn, int flags) {
   decay = head->decay > 0 ? head->decay : 0.01;
   assert(decay > 0);
 
-  stripped = ntohl(head->stripped) ? 1 : 0;
   nu = head->nu;
   b1 = head->b1;
   b2 = head->b2;
@@ -1056,7 +1111,8 @@ void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
   int len, vic, voc;
   _parse_header(hdr, &type, &len, &vic, &voc);
 
-  int tlen = len / (stripped ? 1 : 3);
+  assert(len % 3 == 0);
+  int tlen = len / 3;
   *hp = voc;
   assert(tlen > voc);
   tlen -= voc;
@@ -1067,10 +1123,10 @@ void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
   *matp = new double[*wp * *hp];
   for (int y = 0; y < *hp; ++y)
     for (int x = 0; x < *wp; ++x)
-      (*matp)[x + y * *wp] = wmv[(stripped ? 1 : 3) * (voc + x + y * *wp)];
+      (*matp)[x + y * *wp] = wmv[3 * (voc + x + y * *wp)];
   *vecp = new double[*hp];
   for (int y = 0; y < *hp; ++y)
-    (*vecp)[y] = wmv[(stripped ? 1 : 3) * y];
+    (*vecp)[y] = wmv[3 * y];
 }
 
 void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
@@ -1084,7 +1140,7 @@ void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
   int len, vic, voc;
   _parse_header(hdr, &type, &len, &vic, &voc);
 
-  int tlen = len / (stripped ? 1 : 3);
+  int tlen = len / 3;
   assert(h == voc);
   assert(tlen > voc);
   tlen -= voc;
@@ -1094,11 +1150,11 @@ void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
   double *wmv = (double *)(base + basei);
   for (int y = 0; y < h; ++y)
     for (int x = 0; x < w; ++x)
-      wmv[(stripped ? 1 : 3) * (voc + x + y * w)] = mat[x + y * w];
+      wmv[3 * (voc + x + y * w)] = mat[x + y * w];
   for (int y = 0; y < h; ++y)
-    wmv[(stripped ? 1 : 3) * y] = vec[y];
+    wmv[3 * y] = vec[y];
 
-  if (!stripped) {
+  {
     for (int y = 0; y < h; ++y)
       for (int x = 0; x < w; ++x) {
         wmv[3 * (voc + x + y * w) + 1] = 0;
@@ -1106,7 +1162,7 @@ void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
       }
     for (int y = 0; y < h; ++y) {
       wmv[3 * y + 1] = 0;
-      wmv[3 * y + 1] = 1024.0;
+      wmv[3 * y + 2] = 1024.0;
     }
   }
 }
@@ -1126,7 +1182,7 @@ void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
 
     assert(basei + len * sizeof(double) <= basen);
     if (basei + len * sizeof(double) == basen) {
-      int tlen = len / (stripped ? 1 : 3);
+      int tlen = len / 3;
       *hp = voc;
       assert(tlen > voc);
       tlen -= voc;
@@ -1137,10 +1193,10 @@ void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
       *matp = new double[*wp * *hp];
       for (int y = 0; y < *hp; ++y)
         for (int x = 0; x < *wp; ++x)
-          (*matp)[x + y * *wp] = wmv[(stripped ? 1 : 3) * (voc + x + y * *wp)];
+          (*matp)[x + y * *wp] = wmv[3 * (voc + x + y * *wp)];
       *vecp = new double[*hp];
       for (int y = 0; y < *hp; ++y)
-        (*vecp)[y] = wmv[(stripped ? 1 : 3) * y];
+        (*vecp)[y] = wmv[3 * y];
       return;
     }
 
@@ -1164,7 +1220,7 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
 
     assert(basei + len * sizeof(double) <= basen);
     if (basei + len * sizeof(double) == basen) {
-      int tlen = len / (stripped ? 1 : 3);
+      int tlen = len / 3;
       assert(h == voc);
       assert(tlen > voc);
       tlen -= voc;
@@ -1174,11 +1230,11 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
       double *wmv = (double *)(base + basei);
       for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
-          wmv[(stripped ? 1 : 3) * (voc + x + y * w)] = mat[x + y * w];
+          wmv[3 * (voc + x + y * w)] = mat[x + y * w];
       for (int y = 0; y < h; ++y)
-        wmv[(stripped ? 1 : 3) * y] = vec[y];
+        wmv[3 * y] = vec[y];
 
-      if (!stripped) {
+      {
         for (int y = 0; y < h; ++y)
           for (int x = 0; x < w; ++x) {
             wmv[3 * (voc + x + y * w) + 1] = 0;
@@ -1186,7 +1242,7 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
           }
         for (int y = 0; y < h; ++y) {
           wmv[3 * y + 1] = 0;
-          wmv[3 * y + 1] = 1024.0;
+          wmv[3 * y + 2] = 1024.0;
         }
       }
 
@@ -1246,9 +1302,9 @@ void Cortex::create(const std::string &fn, bool clobber) {
 
   Head head;
   assert(sizeof(Head) == 4096);
+  memset(&head, 0, sizeof(head));
   memcpy(head.magic, "MakeMore", 8);
   head.version = htonl(2);
-  head.stripped = 0;
   head.rounds = 0;
   head.decay = 0.01;
   head.rdev = 0.1;
@@ -1279,14 +1335,20 @@ void Cortex::dump(FILE *outfp) {
 
     uint32_t type;
     int len, ic, oc;
-    _parse_header(hdr, &type, &len, &ic, &oc);
+    int viw, vih, vow, voh;
+    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh);
 
     uint32_t ntype = htonl(type);
     char stype[5];
     memcpy(stype, &ntype, 4);
     stype[4] = 0;
 
-    fprintf(outfp, "type=%s in=%d out=%d\n", stype, ic, oc);
+    fprintf(outfp, "type=%s ic=%d oc=%d", stype, ic, oc);
+    if (viw) fprintf(outfp, " iw=%d", viw);
+    if (vih) fprintf(outfp, " ih=%d", vih);
+    if (vow) fprintf(outfp, " ow=%d", vow);
+    if (voh) fprintf(outfp, " oh=%d", voh);
+    fprintf(outfp, "\n");
 
     assert(basei + len * sizeof(double) <= basen);
     basei += len * sizeof(double);
@@ -1312,8 +1374,8 @@ void Cortex::bindump(FILE *outfp, unsigned int a, unsigned int b) {
     basei += sizeof(hdr);
 
     uint32_t type;
-    int len, ic, oc;
-    _parse_header(hdr, &type, &len, &ic, &oc);
+    int len;
+    _parse_header(hdr, &type, &len);
 
     uint32_t ntype = htonl(type);
     char stype[5];
@@ -1379,7 +1441,7 @@ bool Cortex::prepare(int _iw, int _ih) {
   assert(ic > 0);
   assert(oc > 0);
 
-  size_t kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc, stripped);
+  size_t kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc);
   if (kbufn == 0)
     return false;
   assert(kbufn > 0);
@@ -1412,7 +1474,7 @@ bool Cortex::prepare(int _iw, int _ih) {
 double *Cortex::synth() {
   assert(is_open);
   assert(is_prep);
-  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, stripped);
+  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf);
   return kout;
 }
 
@@ -1453,7 +1515,6 @@ void Cortex::target(const double *ktgt) {
 double *Cortex::propback() {
   assert(is_open);
   assert(is_prep);
-  assert(!stripped);
   pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, rounds);
   return kinp;
 }
@@ -1461,7 +1522,6 @@ double *Cortex::propback() {
 double *Cortex::learn(double mul) {
   assert(is_open);
   assert(is_prep);
-  assert(!stripped);
   stats();
   pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
   return kinp;
@@ -1561,8 +1621,6 @@ void Cortex::load() {
 void Cortex::save() {
   assert(is_open);
   assert(is_prep);
-  assert(!stripped);
-  assert(!head->stripped);
 
   rounds = ntohll(head->rounds) + new_rounds;
   new_rounds = 0;
@@ -1616,8 +1674,8 @@ void Cortex::scram(double dev) {
     basei += sizeof(hdr);
 
     uint32_t type;
-    int len, ic, oc;
-    _parse_header(hdr, &type, &len, &ic, &oc);
+    int len;
+    _parse_header(hdr, &type, &len);
 
     if (len == 0)
       continue;
@@ -1640,9 +1698,7 @@ void Cortex::scram(double dev) {
   assert(basei == basen);
 }
 
-void Cortex::push(const std::string &stype, int nic, int noc) {
-  assert(!stripped);
-
+void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh) {
   if (noc <= 0) {
     int ric = nic;
 
@@ -1681,13 +1737,13 @@ void Cortex::push(const std::string &stype, int nic, int noc) {
   int len;
   switch (type) {
   case TYPE_CON0:
-    len = size_conv(0, nic, oc, false);
+    len = size_conv(0, nic, oc);
     break;
   case TYPE_CON1:
-    len = size_conv(1, nic, oc, false);
+    len = size_conv(1, nic, oc);
     break;
   case TYPE_CON2:
-    len = size_conv(2, nic, oc, false);
+    len = size_conv(2, nic, oc);
     break;
   case TYPE_SCAL:
   case TYPE_UPS1:
@@ -1738,6 +1794,10 @@ void Cortex::push(const std::string &stype, int nic, int noc) {
   hdr[4] = htonl(len);
   hdr[5] = htonl(nic);
   hdr[6] = htonl(noc);
+  hdr[7] = htonl(niw);
+  hdr[8] = htonl(nih);
+  hdr[9] = htonl(now);
+  hdr[10] = htonl(noh);
 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;

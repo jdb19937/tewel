@@ -156,23 +156,23 @@ void ksplice(
 }
 
 int size_bias(
-  int ic, int ow, int oh, int oc, bool stripped
+  int ic, int ow, int oh, int oc
 ) {
-  return ((stripped ? 1 : 3) * (ow * oh * oc));
+  return (3 * (ow * oh * oc));
 }
 
 void synth_bias(
   const double *in, int iw, int ih,
   double *out,
   int ic, int oc,
-  const double *wmv, bool stripped
+  const double *wmv
 ) {
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
 
   CALL_KERNEL(synth_bias, outn,
-    in, iw, ih, out, ic, oc, wmv, stripped
+    in, iw, ih, out, ic, oc, wmv
   );
 }
 
@@ -196,24 +196,24 @@ void learn_bias(
 }
 
 int size_local(
-  int d, int ic, int ow, int oh, int oc, bool stripped
+  int d, int ic, int ow, int oh, int oc
 ) {
   int f = d * 2 + 1;
-  return ((stripped ? 1 : 3) * (ow * oh * oc * (1 + ic * f * f)));
+  return (3 * (ow * oh * oc * (1 + ic * f * f)));
 }
 
 void synth_local(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv, bool stripped
+  const double *wmv
 ) {
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
 
   CALL_KERNEL(synth_local, outn,
-    in, iw, ih, out, d, ic, oc, wmv, stripped
+    in, iw, ih, out, d, ic, oc, wmv
   );
 }
 
@@ -239,10 +239,10 @@ void learn_local(
 
 
 int size_conv(
-  int d, int ic, int oc, bool stripped
+  int d, int ic, int oc
 ) {
   int f = d * 2 + 1;
-  return ((stripped ? 1 : 3) * (oc + ic * f * f * oc));
+  return (3 * (oc + ic * f * f * oc));
 }
 
 
@@ -251,14 +251,14 @@ void synth_conv(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv, bool stripped
+  const double *wmv
 ) {
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
 
   CALL_KERNEL(synth_conv, outn,
-    in, iw, ih, out, d, ic, oc, wmv, stripped
+    in, iw, ih, out, d, ic, oc, wmv
   );
 }
 

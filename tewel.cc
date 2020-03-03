@@ -730,8 +730,12 @@ int main(int argc, char **argv) {
 
       Cmdline specargs(specargc, specargv, "");
       std::string type = specargs.get("type");
-      int ic = specargs.get("in", "0");
-      int oc = specargs.get("out", "0");
+      int ic = specargs.get("ic", "0");
+      int oc = specargs.get("oc", "0");
+      int iw = specargs.get("iw", "0");
+      int ih = specargs.get("ih", "0");
+      int ow = specargs.get("ow", "0");
+      int oh = specargs.get("oh", "0");
 
       freeargstrad(specargc, specargv);
       if (!specargs.unused.empty())
@@ -744,7 +748,7 @@ int main(int argc, char **argv) {
       if (poc && ic != poc)
         error("input channels don't match output channels of previous layer");
 
-      out->push(type, ic, oc);
+      out->push(type, ic, oc, iw, ih, ow, oh);
 
       poc = out->oc;
     }
@@ -782,9 +786,9 @@ int main(int argc, char **argv) {
     gen = new Cortex(ctx);
 
     printf(
-      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g stripped=%d\n",
+      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g\n",
       gen->rounds, gen->rms, gen->max, gen->decay,
-      gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev, gen->stripped
+      gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev
     );
 
     return 0;

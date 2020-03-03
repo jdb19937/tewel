@@ -17,7 +17,7 @@ struct Cortex {
   struct Head {
     char magic[8];
     uint32_t version;
-    uint32_t stripped;
+    uint32_t ___stripped;
     uint64_t rounds;
     double nu, b1, b2, eps;
     double rms, max, decay;
@@ -48,7 +48,6 @@ struct Cortex {
   double max;
   double decay;
   uint64_t rounds;
-  bool stripped;
 
   uint64_t new_rounds;
 
@@ -69,7 +68,7 @@ struct Cortex {
   void load();
   void save();
 
-  void push(const std::string &type, int ic, int oc);
+  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0);
   void scram(double dev = 1.0);
 
   void target(const double *ktgt);

@@ -51,14 +51,14 @@ extern void ksplice(
 );
 
 extern int size_local(
-  int d, int ic, int ow, int oh, int oc, bool stripped
+  int d, int ic, int ow, int oh, int oc
 );
 
 extern void synth_local(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv, bool stripped
+  const double *wmv
 );
 
 extern void learn_local(
@@ -72,14 +72,13 @@ extern void learn_local(
 );
 
 
-extern int size_conv(int d, int ic, int oc, bool stripped);
+extern int size_conv(int d, int ic, int oc);
 
 extern void synth_conv(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv,
-  bool stripped
+  const double *wmv
 );
 
 extern void learn_conv(

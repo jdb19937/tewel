@@ -72,8 +72,7 @@ DEFN_KERNEL(synth_bias,
   const double *in, int iw, int ih,
   double *out,
   int ic, int oc,
-  const double *wmv,
-  bool stripped
+  const double *wmv
 ) {
   PREF_KERNEL;
 
@@ -90,7 +89,7 @@ DEFN_KERNEL(synth_bias,
 
   double outv = 0;
   outv += in[ini];
-  outv += stripped ? wmv[outi] : wmv[outi * 3];
+  outv += wmv[outi * 3];
 
   out[outi] = outv;
 }
@@ -192,8 +191,7 @@ DEFN_KERNEL(synth_local,
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv,
-  bool stripped
+  const double *wmv
 ) {
   PREF_KERNEL;
 
@@ -233,14 +231,14 @@ DEFN_KERNEL(synth_local,
         int wi = outn + (iz + ic * (dx + f * (dy + f * outi)));
 
         double v = in[ini];
-        double w = stripped ? wmv[wi] : wmv[wi * 3];
+        double w = wmv[wi * 3];
 
         outv += v * w;
       }
     }
   }
 
-  outv += stripped ? wmv[outi] : wmv[outi * 3];
+  outv += wmv[outi * 3];
 
   out[outi] = outv;
 }
@@ -399,8 +397,7 @@ DEFN_KERNEL(synth_conv,
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
-  const double *wmv,
-  bool stripped
+  const double *wmv
 ) {
   PREF_KERNEL;
 
@@ -440,14 +437,14 @@ DEFN_KERNEL(synth_conv,
         int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
 
         double v = in[ini];
-        double w = stripped ? wmv[wi] : wmv[wi * 3];
+        double w = wmv[wi * 3];
 
         outv += v * w;
       }
     }
   }
 
-  outv += stripped ? wmv[oz] : wmv[oz * 3];
+  outv += wmv[oz * 3];
 
   out[outi] = outv;
 }
