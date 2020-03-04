@@ -26,6 +26,7 @@ my $chart = Chart::Gnuplot->new(
   ylabel => $k,
   xrange => [$x0, $x1],
   yrange => [$y0, $y1],
+  $log ? (logscale => 'x') : ( ),
   terminal => "png",
 );
 

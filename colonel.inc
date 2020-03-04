@@ -111,7 +111,7 @@ DEFN_KERNEL(learn_norm1,
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
-  int wn = outn;
+  int wn = outn * 2;
 
   int wi = i;
   if (wi >= wn)
@@ -169,7 +169,7 @@ DEFN_KERNEL(learn_norm3,
     return;
 
   int outn = iw * ih * oc;
-  int wn = outn;
+  int wn = outn * 2;
 
   int wi = i;
   if (wi >= wn)
