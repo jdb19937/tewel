@@ -114,6 +114,9 @@ Kleption::Kleption(
       kind = KIND_DIR;
       return;
     }
+    if (_kind == KIND_RND) {
+      error("can't output to rnd kind");
+    }
     if (_kind == KIND_RVG) {
       kind = KIND_RVG;
       return;
@@ -202,6 +205,10 @@ Kleption::Kleption(
       kind = KIND_RVG;
       return;
     }
+    if (_kind == KIND_RND) {
+      kind = KIND_RND;
+      return;
+    }
 
     if (endswith(fn, ".dat")) {
       kind = KIND_DAT;
@@ -260,6 +267,8 @@ void Kleption::unload() {
     return;
 
   switch (kind) {
+  case KIND_RND:
+    break;
   case KIND_RVG:
     assert(rvg);
     delete rvg;
@@ -353,6 +362,29 @@ void Kleption::load() {
       assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
 
       b = 1;
+    }
+    break;
+  case KIND_RND:
+    {
+      if (pw == 0)
+        pw = sw;
+      if (ph == 0)
+        ph = sh;
+      if (pc == 0)
+        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+      if (sw == 0)
+        sw = pw;
+      if (sh == 0)
+        sh = ph;
+      if (sc == 0)
+        sc = pc - ((flags & FLAG_ADDGEO) ? 4 : 0);
+
+      assert(pw <= sw);
+      assert(ph <= sh);
+      assert(pw > 0);
+      assert(ph > 0);
+      assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
     }
     break;
   case KIND_RVG:
@@ -721,6 +753,27 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       ++frames;
       return true;
     }
+  case KIND_RND:
+    {
+      unsigned int swh = sw * sh;
+      unsigned int swhc = swh * sc;
+      double *rnd = new double[swhc];
+      for (int j = 0; j < swhc; ++j)
+        rnd[j] = randgauss();
+
+      unsigned int x0, y0;
+      _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+
+      delete[] rnd;
+
+      if (idp) {
+        char buf[256];
+        sprintf(buf, "%ux%ux%u+%u+%u+%u.ppm", pw, ph, sc, x0, y0, frames);
+        *idp = buf;
+      }
+      ++frames;
+      return true;
+    }
   case KIND_RVG:
     {
       assert(rvg);
@@ -931,6 +984,7 @@ void Kleption::find(const std::string &id, double *kdat) {
   load();
 
   switch (kind) {
+  case KIND_RND:
   case KIND_RVG:
   case KIND_CAM:
   case KIND_VID:
@@ -1064,6 +1118,9 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   }
 
   switch (kind) {
+  case KIND_RND:
+    error("can't place to kind rnd");
+    break;
   case KIND_RVG:
     {
       assert(!(flags & FLAG_ADDGEO));

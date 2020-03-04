@@ -44,6 +44,7 @@ struct Kleption {
     KIND_SDL,
     KIND_REF,
     KIND_RVG,
+    KIND_RND,
     KIND_RGB,
 
     KIND_UNK = -1,
@@ -59,6 +60,7 @@ struct Kleption {
     if (kindstr == "sdl") return KIND_SDL;
     if (kindstr == "ref") return KIND_REF;
     if (kindstr == "rvg") return KIND_RVG;
+    if (kindstr == "rnd") return KIND_RND;
     if (kindstr == "rgb") return KIND_RGB;
     return KIND_UNK;
   }
