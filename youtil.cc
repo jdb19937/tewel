@@ -370,34 +370,39 @@ std::string fmt(const std::string &x, ...) {
   return y;
 }
 
-bool parsekv(const std::string &kvstr, strmap *kvp) {
+int parsekv(const std::string &kvstr, strmap *kvp) {
+  int keys = 0;
   const char *p, *q;
 
   p = kvstr.c_str();
   while (1) {
     while (isspace(*p))
       ++p;
-    if (!*p)
-      return true;
+    if (!*p || *p == '#')
+      return keys;
     const char *q = p;
-    while (*q && *q != '=')
+    while (*q && *q != '=' && *q != '#')
       ++q;
+    if (p == q)
+      return -1;
     if (*q != '=')
-      return false;
+      return -1;
     std::string k(p, q - p);
 
-    p = q + 1;
-    while (isspace(*p))
-      ++p;
-    q = p;
-    while (*q && !isspace(*q))
+    p = ++q;
+    while (*q && !isspace(*q) && *q != '#')
       ++q;
+    if (p == q)
+      return -1;
     std::string v(p, q - p);
 
     (*kvp)[k] = v;
+    ++keys;
 
     p = q;
   }
+
+  assert(0);
 }
 
 std::string kvstr(const strmap &kv) {

@@ -696,7 +696,8 @@ int main(int argc, char **argv) {
       error(str("can't open ") + spec + ": " + strerror(errno));
 
     std::string specline;
-    if (read_line(specfp, &specline)) {
+    bool got_header = false;
+    while (read_line(specfp, &specline)) {
       strmap specopt;
 
       specopt["decay"] = "1e-2";
@@ -706,8 +707,11 @@ int main(int argc, char **argv) {
       specopt["eps"] = "1e-8";
       specopt["rdev"] = "0.1";
 
-      if (!parsekv(specline, &specopt))
+      int keys = parsekv(specline, &specopt);
+      if (keys < 0)
         error(str("can't parse kv in header of ") + spec);
+      if (keys == 0)
+        continue;
 
       if (specopt["v"] != "2")
         error(str("missing magic v=2 in ") + spec);
@@ -718,28 +722,38 @@ int main(int argc, char **argv) {
       out->head->b2 = strtod(specopt["b2"]);
       out->head->eps = strtod(specopt["eps"]);
       out->head->rdev = strtod(specopt["rdev"]);
-    } else {
-      error("no header line in spec");
+
+      got_header = true;
+      break;
     }
+    if (!got_header)
+      error("no header line in spec");
 
     int poc = 0;
     while (read_line(specfp, &specline)) {
-      int specargc;
-      char **specargv;
-      parseargstrad(specline, &specargc, &specargv);
+      strmap specopt;
 
-      Cmdline specargs(specargc, specargv, "");
-      std::string type = specargs.get("type");
-      int ic = specargs.get("ic", "0");
-      int oc = specargs.get("oc", "0");
-      int iw = specargs.get("iw", "0");
-      int ih = specargs.get("ih", "0");
-      int ow = specargs.get("ow", "0");
-      int oh = specargs.get("oh", "0");
+      specopt["iw"] = "0";
+      specopt["ih"] = "0";
+      specopt["ic"] = "0";
+      specopt["ow"] = "0";
+      specopt["oh"] = "0";
+      specopt["oc"] = "0";
 
-      freeargstrad(specargc, specargv);
-      if (!specargs.unused.empty())
-        error("bad options in spec layer");
+      int keys = parsekv(specline, &specopt);
+      if (keys < 0)
+        error(str("can't parse kv in line of ") + spec);
+      if (keys == 0)
+        continue;
+
+      std::string type = specopt["type"];
+      int iw = strtoi(specopt["iw"]);
+      int ih = strtoi(specopt["ih"]);
+      int ic = strtoi(specopt["ic"]);
+      int ow = strtoi(specopt["ow"]);
+      int oh = strtoi(specopt["oh"]);
+      int oc = strtoi(specopt["oc"]);
+
 
       if (ic == 0)
         ic = poc;
@@ -1118,33 +1132,6 @@ int main(int argc, char **argv) {
       diropt["enc"] = ctx + "/enc.ctx";
     if (fexists(ctx + "/dis.ctx"))
       diropt["dis"] = ctx + "/dis.ctx";
-
-    std::string diroptfn = ctx + "/opt.txt";
-    if (fexists(diroptfn)) {
-      info(fmt("reading default options from %s", diroptfn.c_str()));
-
-      std::string line;
-
-      FILE *optfp = fopen(diroptfn.c_str(), "r");
-      if (!optfp)
-        error(fmt("can't open %s", diroptfn.c_str()));
-      if (!read_line(optfp, &line))
-        error(fmt("can't read line from %s", diroptfn.c_str()));
-      if (getc(optfp) != EOF)
-        warning(fmt("extra data in %s following first line", diroptfn.c_str()));
-      fclose(optfp);
-
-      if (!parsekv(line, &diropt))
-        error(fmt("can't parse options in %s", diroptfn.c_str()));
-      info(kvstr(diropt));
-
-      if (diropt.count("src") && !startswith(diropt["src"], "/"))
-        diropt["src"] = ctx + "/" + diropt["src"];
-      if (diropt.count("tgt") && !startswith(diropt["tgt"], "/"))
-        diropt["tgt"] = ctx + "/" + diropt["tgt"];
-      if (diropt.count("sty") && !startswith(diropt["sty"], "/"))
-        diropt["sty"] = ctx + "/" + diropt["sty"];
-    }
   }
 
 
