@@ -4,6 +4,7 @@ use Chart::Gnuplot;
 use File::Temp qw(tempfile);
 
 my $k = $ARGV[0] || 'genrms';
+my @t;
 my @v;
 
 while (<STDIN>) {
@@ -11,7 +12,10 @@ while (<STDIN>) {
   my %kv = map { split /=/, $_, 2 } split /\s+/;
   my $v = $kv{$k};
   defined($v) or next;
+  my $t = $kv{genrounds};
+  defined($t) or next;
   push @v, $v;
+  push @t, $t;
 }
 
 my ($fh, $fn) = tempfile();
@@ -26,7 +30,7 @@ my $chart = Chart::Gnuplot->new(
 );
 
 my $dataset = Chart::Gnuplot::DataSet->new(
-  xdata => [0 .. $#v],
+  xdata => \@t,
   ydata => \@v,
   style => 'lines',
 );
