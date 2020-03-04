@@ -1566,8 +1566,8 @@ void Cortex::bindump(FILE *outfp, unsigned int a, unsigned int b) {
     if (i >= a && i <= b) {
       int ret = fwrite(hdr, 1, sizeof(hdr), outfp);
       assert(ret == sizeof(hdr));
-      ret = fwrite(base + basei, 1, len, outfp);
-      assert(ret == len);
+      ret = fwrite(base + basei, 1, len * sizeof(double), outfp);
+      assert(ret == len * sizeof(double));
     }
 
     basei += len * sizeof(double);
