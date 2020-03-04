@@ -1097,7 +1097,7 @@ int main(int argc, char **argv) {
 
   std::map<std::string, std::string> diropt;
 
-  diropt["repint"] = "64";
+  diropt["repint"] = "100";
   diropt["reps"] = "-1";
   diropt["mul"] = "1.0";
   diropt["lossreg"] = "1";
