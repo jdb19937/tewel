@@ -96,6 +96,12 @@ Kleption::Kleption(
     if (flags & FLAG_WRITER)
       error("can't output to camera");
   }
+  if (_kind == KIND_RND) {
+    if (flags & FLAG_WRITER)
+      error("can't output to rnd kind");
+    kind = KIND_RND;
+    return;
+  }
 
   struct stat buf;
   int ret = ::stat(fn.c_str(), &buf);
@@ -113,9 +119,6 @@ Kleption::Kleption(
 
       kind = KIND_DIR;
       return;
-    }
-    if (_kind == KIND_RND) {
-      error("can't output to rnd kind");
     }
     if (_kind == KIND_RVG) {
       kind = KIND_RVG;
@@ -203,10 +206,6 @@ Kleption::Kleption(
     }
     if (_kind == KIND_RVG) {
       kind = KIND_RVG;
-      return;
-    }
-    if (_kind == KIND_RND) {
-      kind = KIND_RND;
       return;
     }
 

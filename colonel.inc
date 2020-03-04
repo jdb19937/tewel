@@ -87,7 +87,7 @@ DEFN_KERNEL(synth_norm,
   int ini = outi;
 
   double outv = 0;
-  outv += in[ini] * wmv[(outi + outn) * 3];
+  outv += in[ini] * (1.0 + wmv[(outi + outn) * 3]);
   outv += wmv[outi * 3];
 
   out[outi] = outv;
@@ -124,7 +124,7 @@ DEFN_KERNEL(learn_norm1,
     dw += fout[outi];
   } else {
     int outi = wi - outn;
-    dw += fout[outi] * wmv[wi * 3];
+    dw += fout[outi] * (1.0 + wmv[wi * 3]);
   }
 
   double m = wmv[wi * 3 + 1];
