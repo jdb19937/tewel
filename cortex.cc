@@ -28,6 +28,7 @@ const uint32_t TYPE_LOC0 = CC4('l','o','c','0');
 const uint32_t TYPE_LOC1 = CC4('l','o','c','1');
 const uint32_t TYPE_LOC2 = CC4('l','o','c','2');
 const uint32_t TYPE_BIAS = CC4('b','i','a','s');
+const uint32_t TYPE_NORM = CC4('n','o','r','m');
 const uint32_t TYPE_CON0 = CC4('c','o','n','0');
 const uint32_t TYPE_CON1 = CC4('c','o','n','1');
 const uint32_t TYPE_CON2 = CC4('c','o','n','2');
@@ -152,6 +153,15 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 
 
     switch (type) {
+    case TYPE_NORM:
+      {
+        int wmvn = size_norm(ic, iw, ih, oc);
+        assert(wmvn == len);
+        ow = iw;
+        oh = ih;
+        assert(oc == ic);
+        break;
+      }
     case TYPE_BIAS:
       {
         int wmvn = size_bias(ic, iw, ih, oc);
@@ -455,6 +465,18 @@ static double *pipe_synth(
   double *out = (double *)kbuf;
 
   switch (type) {
+  case TYPE_NORM:
+    {
+      int wmvn = size_norm(ic, iw, ih, oc);
+      assert(wmvn == len);
+      double *wmv = (double *)kbase;
+
+      ow = iw;
+      oh = ih;
+
+      synth_norm(in, iw, ih, out, ic, oc, wmv);
+      break;
+    }
   case TYPE_BIAS:
     {
       int wmvn = size_bias(ic, iw, ih, oc);
@@ -807,6 +829,16 @@ void pipe_learn(
   int ow, oh;
 
   switch (type) {
+  case TYPE_NORM:
+    {
+      int wmvn = size_norm(ic, iw, ih, oc);
+      assert(wmvn == len);
+
+      ow = iw;
+      oh = ih;
+
+      break;
+    }
   case TYPE_BIAS:
     {
       int wmvn = size_bias(ic, iw, ih, oc);
@@ -1030,6 +1062,9 @@ void pipe_learn(
   );
 
   switch (type) {
+  case TYPE_NORM:
+    learn_norm(in, iw, ih, fout, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    break;
   case TYPE_BIAS:
     learn_bias(in, iw, ih, fout, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
     break;
@@ -1879,6 +1914,11 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
 
   int len;
   switch (type) {
+  case TYPE_NORM:
+    assert(now > 0);
+    assert(noh > 0);
+    len = size_norm(nic, now, noh, oc);
+    break;
   case TYPE_BIAS:
     assert(now > 0);
     assert(noh > 0);

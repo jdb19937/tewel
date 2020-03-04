@@ -214,6 +214,46 @@ void ksplice(
   CALL_KERNEL(ksplice, n * xk, x, n, xm, xa, xk, y, ym, ya);
 }
 
+int size_norm(
+  int ic, int ow, int oh, int oc
+) {
+  return (2 * 3 * (ow * oh * oc));
+}
+
+void synth_norm(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc,
+  const double *wmv
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_norm, outn,
+    in, iw, ih, out, ic, oc, wmv
+  );
+}
+
+
+void learn_norm(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc,
+
+  double *wmv,
+  double nu, double b1, double b2, double eps, double rounds
+) {
+  int outn = iw * ih * oc;
+  int wn = outn * 2;
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_norm1, wn, fin, iw, ih, fout, ic, oc, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_norm2, inn, fin, iw, ih, fout, ic, oc, wmv);
+  CALL_KERNEL(learn_norm3, wn, iw, ih, ic, oc, wmv, nu, b1, b2, eps, rounds);
+}
+
 int size_bias(
   int ic, int ow, int oh, int oc
 ) {
