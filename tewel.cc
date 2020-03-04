@@ -872,9 +872,9 @@ int main(int argc, char **argv) {
 
     Cortex *enc = NULL;
     if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
+      enc = new Cortex(arg.get("enc"), O_RDONLY);
     } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
+      enc = new Cortex(ctx + "/enc.ctx", O_RDONLY);
     }
 
     int limit = arg.get("limit", "-1");
