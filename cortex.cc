@@ -86,8 +86,8 @@ static void _parse_header(
 
   assert(v != 0);
   assert(v < 256);
-  if (v != 2)
-    warning("v != 2");
+  // if (v != 2)
+  //   warning("v != 2");
 
   *typep = ntohl(hdr[3]);
   *lenp = ntohl(hdr[4]);

@@ -228,12 +228,13 @@ void learn_local(
   double nu, double b1, double b2, double eps, double rounds
 ) {
   int f = d * 2 + 1;
-  int wn = (oc + ic * f * f * oc);
+  int outn = iw * ih * oc;
+  int wn = (outn + ic * f * f * outn);
   int inn = iw * ih * ic;
 
   CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);
   CALL_KERNEL(learn_local2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
-  CALL_KERNEL(learn_local3, iw, ih, wn, d, ic, oc, wmv, nu, b1, b2, eps, rounds);
+  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, nu, b1, b2, eps, rounds);
 }
 
 

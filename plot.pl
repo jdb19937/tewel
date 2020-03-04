@@ -20,6 +20,7 @@ my $chart = Chart::Gnuplot->new(
   output => $fn,
   xlabel => "t",
   ylabel => $k,
+  xrange => [$x0, $x1],
   yrange => [$y0, $y1],
   terminal => "png",
 );
