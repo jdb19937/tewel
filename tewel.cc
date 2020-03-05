@@ -419,6 +419,17 @@ void learnhans(
   kfree(kinp);
 }
 
+static void cpumatxpose(double *a, int dim) {
+  double *b = new double[dim * dim];
+
+  for (int y = 0; y < dim; ++y)
+    for (int x = 0; x < dim; ++x)
+      b[y + x * dim] = a[x + y * dim];
+
+  memcpy(a, b, dim * dim * sizeof(double));
+  delete[] b;
+}
+
 static void cpumatmat(const double *a, int aw, int ah, const double *b, int bw, int bh, double *c) {
   int ch = ah;
   int cw = bw;
@@ -556,6 +567,8 @@ void normalize(
   memcpy(chol, cov, oc * oc * sizeof(double));
   cpuchol(chol, oc);
   matinv(chol, unchol, oc);
+  cpumatxpose(chol, oc);
+  cpumatxpose(unchol, oc);
 
   double *em, *eb;
   int ew, eh;
