@@ -582,7 +582,7 @@ void normalize(
   int gw, gh;
   gen->_get_head_op(&gb, &gm, &gw, &gh);
   assert(gw == oc);
-  assert(gh > 0);
+  assert(gh == oc);
 
   if (eh != gw)
     error("matrices don't match, gen needs to start with con0 to normalize");
@@ -596,7 +596,6 @@ void normalize(
     gb[y] += q;
   }
 
-
   double *tem = new double[ew * eh];
   cpumatmat(em, unchol, ew, oc, oc, tem);
   memcpy(em, tem, sizeof(double) * ew * eh);
@@ -604,6 +603,10 @@ void normalize(
   double *tgm = new double[gw * gh];
   cpumatmat(chol, gm, oc, oc, gh, tgm);
   memcpy(gm, tgm, sizeof(double) * gw * gh);
+
+  double *tgb = new double[gh];
+  cpumatvec(chol, gb, oc, oc, tgb);
+  memcpy(gb, tgb, sizeof(double) * gh);
 
   gen->_put_head_op(gb, gm, gw, gh);
   enc->_put_tail_op(eb, em, ew, eh);
@@ -617,6 +620,7 @@ void normalize(
   delete[] unchol;
 
   delete[] tem;
+  delete[] tgb;
   delete[] tgm;
   delete[] em;
   delete[] gm;
