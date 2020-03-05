@@ -419,36 +419,31 @@ void learnhans(
   kfree(kinp);
 }
 
-static void cpumatmat(const double *a, const double *b, int aw, int ahbw, int bh, double *c) {
-  int ah = ahbw;
-  int bw = ahbw;
-  int ch = bh;
-  int cw = aw;
+static void cpumatmat(const double *a, int aw, int ah, const double *b, int bw, int bh, double *c) {
+  int ch = ah;
+  int cw = bw;
+
+  assert(bh == aw);
 
   for (int cy = 0; cy < ch; ++cy) {
     if (cy % 16 == 0)
       info(fmt("multiplying matrix progress=%g", (double)cy / (double)ch));
     for (int cx = 0; cx < cw; ++cx) {
       c[cx + cw * cy] = 0;
-      for (int i = 0; i < ahbw; ++i) {
-        c[cx + cw * cy] += a[cx + aw * i] * b[i + bw * cy];
+      for (int i = 0; i < aw; ++i) {
+        const int ax = i;
+        const int ay = cy;
+        const int bx = cx;
+        const int by = i;
+        c[cx + cw * cy] += a[ax + aw * ay] * b[bx + bw * by];
       }
     }
   }
   info(fmt("multiplying matrix progress=%g", 1));
 }
 
-static void cpumatvec(const double *a, const double *b, int aw, int ahbw, double *c) {
-  int ah = ahbw;
-  int bw = ahbw;
-  int cw = aw;
-
-  for (int cx = 0; cx < cw; ++cx) {
-    c[cx] = 0;
-    for (int i = 0; i < ahbw; ++i) {
-      c[cx] += a[cx + aw * i] * b[i];
-    }
-  }
+static void cpumatvec(const double *a, int aw, int ah, const double *b, double *c) {
+  cpumatmat(a, aw, ah, b, 1, aw, c);
 }
 
 static void cpuchol(double *m, unsigned int dim) {
@@ -587,15 +582,16 @@ void normalize(
   }
 
   double *tem = new double[ew * eh];
-  cpumatmat(em, unchol, ew, oc, oc, tem);
+  double *teb = new double[eh];
+  double *tgm = new double[gw * gh];
+
+  cpumatmat(unchol, oc, oc, em, ew, eh, tem);
   memcpy(em, tem, sizeof(double) * ew * eh);
 
-  double *teb = new double[eh];
-  cpumatvec(unchol, teb, oc, eh, teb);
+  cpumatvec(unchol, oc, oc, eb, teb);
   memcpy(eb, teb, sizeof(double) * eh);
 
-  double *tgm = new double[gw * gh];
-  cpumatmat(chol, gm, oc, oc, gh, tgm);
+  cpumatmat(gm, gw, gh, chol, oc, oc, tgm);
   memcpy(gm, tgm, sizeof(double) * gw * gh);
 
   gen->_put_head_op(gb, gm, gw, gh);
