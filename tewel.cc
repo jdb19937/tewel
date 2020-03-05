@@ -455,29 +455,19 @@ static void cpuchol(double *m, unsigned int dim) {
   unsigned int i, j, k; 
 
   for (k = 0; k < dim; k++) {
-#if 0
-    assert(m[k * dim + k] > 0);
-#endif
-#if 1
     if (m[k * dim + k] < 0)
       m[k * dim + k] = 0;
-#endif
-
 
     m[k * dim + k] = sqrt(m[k * dim + k]);
     
-#if 1
     if (m[k * dim + k] > 0) {
-#endif
       for (j = k + 1; j < dim; j++)
         m[k * dim + j] /= m[k * dim + k];
-#if 1
     } else {
       m[k * dim + k] = 1.0;
       for (j = k + 1; j < dim; j++)
         m[k * dim + j] = 0;
     }
-#endif
              
     for (i = k + 1; i < dim; i++)
       for (j = i; j < dim; j++)
@@ -582,7 +572,7 @@ void normalize(
   int gw, gh;
   gen->_get_head_op(&gb, &gm, &gw, &gh);
   assert(gw == oc);
-  assert(gh == oc);
+  assert(gh > 0);
 
   if (eh != gw)
     error("matrices don't match, gen needs to start with con0 to normalize");
@@ -600,13 +590,13 @@ void normalize(
   cpumatmat(em, unchol, ew, oc, oc, tem);
   memcpy(em, tem, sizeof(double) * ew * eh);
 
+  double *teb = new double[eh];
+  cpumatvec(unchol, teb, oc, eh, teb);
+  memcpy(eb, teb, sizeof(double) * eh);
+
   double *tgm = new double[gw * gh];
   cpumatmat(chol, gm, oc, oc, gh, tgm);
   memcpy(gm, tgm, sizeof(double) * gw * gh);
-
-  double *tgb = new double[gh];
-  cpumatvec(chol, gb, oc, oc, tgb);
-  memcpy(gb, tgb, sizeof(double) * gh);
 
   gen->_put_head_op(gb, gm, gw, gh);
   enc->_put_tail_op(eb, em, ew, eh);
@@ -619,8 +609,8 @@ void normalize(
   delete[] chol;
   delete[] unchol;
 
+  delete[] teb;
   delete[] tem;
-  delete[] tgb;
   delete[] tgm;
   delete[] em;
   delete[] gm;
