@@ -11,9 +11,9 @@ TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
   tewel.pdf
 
-OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o
+OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o chain.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
-HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh
+HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh chain.hh
 
 SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc rando.cc \
