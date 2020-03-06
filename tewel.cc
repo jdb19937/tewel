@@ -777,6 +777,53 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  if (cmd == "identity") {
+    if (ctx_is_dir)
+      error("dir exists with name of file");
+
+    int clobber = arg.get("clobber", "0");
+
+    if (!arg.present("dim"))
+      error("option dim required");
+    int dim = arg.get("dim");
+
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    Cortex::create(ctx, (bool)clobber);
+
+    Cortex *out = new Cortex(ctx);
+
+    out->head->decay = 0;
+    out->head->nu = 0;
+    out->head->b1 = 0;
+    out->head->b2 = 0;
+    out->head->eps = 0;
+    out->head->rdev = 0;
+
+    out->push("con0", dim, dim);
+
+    double *m, *b;
+    int w, h;
+    out->_get_head_op(&b, &m, &w, &h);
+    assert(w == dim);
+    assert(h == dim);
+
+    memset(b, 0, sizeof(double) * dim);
+
+    for (int y = 0; y < dim; ++y)
+      for (int x = 0; x < dim; ++x)
+        m[x + dim * y] = (x == y) ? 1.0 : 0.0;
+
+    out->_put_head_op(b, m, w, h);
+
+    delete[] m;
+    delete[] b;
+    delete out;
+
+    return 0;
+  }
+
   if (cmd == "edit") {
     if (ctx_is_dir)
       error("dir exists with name of file");
