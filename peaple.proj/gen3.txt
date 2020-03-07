@@ -1,0 +1,28 @@
+v=2 rdev=0.05
+type=lrnd ic=3 oc=32
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1
+type=relu 
+type=con1 
+type=relu 
+type=con1 
+type=relu 
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1 
+type=relu
+type=con1 oc=12
+type=ups1

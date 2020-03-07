@@ -1,0 +1,22 @@
+v=2 rdev=0.05
+
+type=dns1 ic=3 oc=12
+
+type=loc1 oc=4 iw=64 ih=64 ow=64 oh=64
+type=relu
+type=dns1 oc=16
+
+type=loc1 oc=8 iw=32 ih=32 ow=32 oh=32
+type=relu
+type=dns1 oc=32
+
+type=loc1 oc=16 iw=16 ih=16 ow=16 oh=16
+type=relu
+type=dns1 oc=64
+
+type=loc1 oc=32 iw=8 ih=8 ow=8 oh=8
+type=relu
+type=dns1 oc=128
+
+type=loc1 oc=64 iw=4 ih=4 ow=4 oh=4
+type=dns2 oc=1024
