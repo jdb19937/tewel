@@ -1146,7 +1146,7 @@ void Kleption::find(const std::string &id, double *kdat) {
  
       assert(vpw == pw);
       assert(vph == ph);
-      assert(vpc == pc);
+      // assert(vpc == pc);
 
       assert(sw == pw);
       assert(sh == ph);
