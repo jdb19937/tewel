@@ -238,9 +238,9 @@ void learnhans(
   Cortex *gen = chn->tail;
 
   int iw, ih, ic, iwhc;
-  iw = gen->iw;
-  ih = gen->ih;
-  ic = gen->ic;
+  iw = chn->head->iw;
+  ih = chn->head->ih;
+  ic = chn->head->ic;
   iwhc = iw * ih * ic;
 
   assert(iw == gen->ow);
@@ -288,7 +288,7 @@ void learnhans(
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     kcopy(kinp, iwhc, kinpn);
     kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, gen->oc);
+    ksplice(kinpn, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
@@ -301,7 +301,7 @@ void learnhans(
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     kcopy(kinp, iwhc, kinpn);
     kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, gen->oc);
+    ksplice(kinpn, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kfake);
@@ -313,7 +313,7 @@ void learnhans(
     ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     kcopy(kinp, iwhc, kinpn);
     kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, gen->oc);
+    ksplice(kinpn, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
