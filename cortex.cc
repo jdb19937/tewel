@@ -50,6 +50,7 @@ const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
+const uint32_t TYPE_MEAN = CC4('m','e','a','n');
 
 static int _scale_factor(int ic, int oc) {
   assert(ic > 0);
@@ -356,6 +357,13 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       ow = iw;
       oh = ih;
       assert(oc == ic);
+      assert(len == 0);
+      break;
+    case TYPE_MEAN:
+      ow = iw;
+      oh = ih;
+      assert(oc > 0);
+      assert(ic % oc == 0);
       assert(len == 0);
       break;
     default:
@@ -778,6 +786,15 @@ static double *pipe_synth(
       synth_pad(in, iw, ih, out, ic, oc, NULL);
       break;
     }
+  case TYPE_MEAN:
+    {
+      assert(len == 0);
+      assert(ic % oc == 0);
+      ow = iw;
+      oh = ih;
+      synth_mean(in, iw, ih, out, ic, oc, NULL);
+      break;
+    }
   default:
     assert(0);
   }
@@ -1034,6 +1051,13 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_MEAN:
+    assert(oc > 0);
+    assert(ic % oc == 0);
+    assert(len == 0);
+    ow = iw;
+    oh = ih;
+    break;
   default:
     assert(0);
   }
@@ -1052,8 +1076,6 @@ void pipe_learn(
   base += len * sizeof(double);
   kbase += len * sizeof(double);
   basen -= len * sizeof(double);
-
-  //fprintf(stderr, "rrr=%lf\n", ksumsq(in, iw * ih * ic));
 
   pipe_learn(
     base, basen, kbase,
@@ -1141,6 +1163,9 @@ void pipe_learn(
   case TYPE_PAD1:
   case TYPE_IDEN:
     learn_pad(in, iw, ih, fout, ic, oc);
+    break;
+  case TYPE_MEAN:
+    learn_mean(in, iw, ih, fout, ic, oc);
     break;
   default:
     assert(0);
@@ -1942,6 +1967,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_LRND:
   case TYPE_PAD1:
   case TYPE_IDEN:
+  case TYPE_MEAN:
     len = 0;
     break;
   default:

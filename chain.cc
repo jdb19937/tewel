@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "cortex.hh"
+#include "youtil.hh"
 #include "chain.hh"
 
 namespace makemore {
@@ -14,13 +15,19 @@ namespace makemore {
 Chain::Chain() {
   head = NULL;
   tail = NULL;
+  prepared = false;
 }
 
 Chain::~Chain() {
-
+  for (auto ctx : ctxv)
+    delete ctx;
 }
 
-void Chain::push(Cortex *ctx) {
+void Chain::push(const std::string &fn, int mode) {
+  Cortex *ctx = new Cortex(fn, mode);
+
+  info("adding " + fn + " to chain");
+
   if (!ctxv.size()) {
     assert(!head);
     head = ctx;
@@ -41,7 +48,24 @@ double *Chain::kout() {
   return tail->kout;
 }
 
+void Chain::prepare(int iw, int ih) {
+  assert(!prepared);
+
+  int n = ctxv.size();
+  assert(n > 0);
+
+  ctxv[0]->prepare(iw, ih);
+  for (int i = 1; i < n; ++i) {
+    ctxv[i]->prepare(ctxv[i - 1]->ow, ctxv[i - 1]->oh);
+    assert(ctxv[i]->ic == ctxv[i - 1]->oc);
+  }
+
+  prepared = true;
+}
+
 void Chain::synth() {
+  assert(prepared);
+
   int n = ctxv.size();
   assert(n > 0);
 
@@ -56,12 +80,25 @@ void Chain::target(const double *ktgt) {
 }
 
 void Chain::learn(double mul) {
+  assert(prepared);
+
   int n = ctxv.size();
   assert(n > 0);
 
   ctxv[n - 1]->learn(mul);
-  for (int i = n - 2; i > 0; --i)
+  for (int i = n - 2; i >= 0; --i)
     ctxv[i]->learn(ctxv[i + 1]->kinp, mul);
 }
+
+void Chain::load() {
+  for (auto ctx : ctxv)
+    ctx->load();
+}
+
+void Chain::save() {
+  for (auto ctx : ctxv)
+    ctx->save();
+}
+
 
 }

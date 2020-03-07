@@ -12,11 +12,13 @@
 #include "cortex.hh"
 #include "youtil.hh"
 #include "random.hh"
+#include "rando.hh"
 #include "kleption.hh"
 #include "cmdline.hh"
 #include "display.hh"
 #include "camera.hh"
 #include "picpipes.hh"
+#include "chain.hh"
 
 using namespace makemore;
 
@@ -61,56 +63,36 @@ static void uerror(const std::string &str) {
 
 void learnauto(
   Kleption *src,
-  Cortex *gen,
-  Cortex *enc,
+  Chain *chn,
   int repint,
   double mul,
   long reps
 ) {
-  if (enc) {
-    assert(enc->ow == gen->iw);
-    assert(enc->oh == gen->ih);
-    assert(enc->oc == gen->ic);
-    assert(enc->iw == gen->ow);
-    assert(enc->ih == gen->oh);
-    assert(enc->ic == gen->oc);
-  } else {
-    assert(gen->iw == gen->ow);
-    assert(gen->ih == gen->oh);
-    assert(gen->ic == gen->oc);
-  }
+  assert(chn->head->iw == chn->tail->ow);
+  assert(chn->head->ih == chn->tail->oh);
+  assert(chn->head->ic == chn->tail->oc);
+
+  Cortex *gen = chn->tail;
 
   double t0 = now();
   int rep = 0;
   while (reps < 0 || rep < reps) {
-    if (enc) {
-      assert(src->pick(enc->kinp));
-      enc->synth();
-      gen->synth(enc->kout);
-      gen->target(enc->kinp);
-      gen->learn(mul);
-      enc->learn(gen->kinp, mul);
-    } else {
-      assert(src->pick(gen->kinp));
-      gen->synth();
-      gen->target(gen->kinp);
-      gen->learn(mul);
-    }
+    assert(src->pick(chn->kinp()));
+    chn->synth();
+    chn->target(chn->kinp());
+    chn->learn(mul);
 
-    if (gen->rounds % repint == 0) {
+    if (chn->tail->rounds % repint == 0) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
 
-      if (enc)
-        enc->save();
-      gen->save();
+      chn->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, reps < 0 ? 0 : (reps - rep) * dt,
-        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
       );
 
@@ -122,17 +104,12 @@ void learnauto(
 void learnfunc(
   Kleption *src,
   Kleption *tgt,
-  Cortex *gen,
-  Cortex *enc,
+  Chain *chn,
   int repint,
   double mul,
   long reps
 ) {
-  if (enc) {
-    assert(enc->ow == gen->iw);
-    assert(enc->oh == gen->ih);
-    assert(enc->oc == gen->ic);
-  }
+  Cortex *gen = chn->tail;
 
   double *ktgt;
   kmake(&ktgt, gen->owhc);
@@ -141,36 +118,22 @@ void learnfunc(
   int rep = 0;
 
   while (reps < 0 || rep < reps) {
-    if (enc) {
-      Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
-      enc->synth();
-      gen->synth(enc->kout);
-    } else {
-      Kleption::pick_pair(src, gen->kinp, tgt, ktgt);
-      gen->synth();
-    }
-
-    gen->target(ktgt);
-    gen->learn(mul);
-
-    if (enc) {
-      enc->learn(gen->kinp, mul);
-    } 
+    Kleption::pick_pair(src, chn->kinp(), tgt, ktgt);
+    chn->synth();
+    chn->target(ktgt);
+    chn->learn(mul);
 
     if (gen->rounds % repint == 0) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
 
-      if (enc)
-        enc->save();
-      gen->save();
+      chn->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, reps < 0 ? 0 : (reps - rep) * dt,
-        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms
       );
 
@@ -184,19 +147,14 @@ void learnfunc(
 void learnstyl(
   Kleption *src,
   Kleption *sty,
-  Cortex *gen,
+  Chain *chn,
   Cortex *dis,
-  Cortex *enc,
   int repint,
   double mul,
   bool lossreg,
   long reps
 ) {
-  if (enc) {
-    assert(enc->ow == gen->iw);
-    assert(enc->oh == gen->ih);
-    assert(enc->oc == gen->ic);
-  }
+  Cortex *gen = chn->tail;
 
   assert(gen->ow == dis->iw);
   assert(gen->oh == dis->ih);
@@ -224,24 +182,16 @@ void learnstyl(
       dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
     }
  
-    if (enc) {
-      assert(src->pick(enc->kinp));
-      enc->synth();
-      gen->synth(enc->kout);
-    } else {
-      assert(src->pick(gen->kinp));
-      gen->synth();
-    }
+    assert(src->pick(chn->kinp()));
+    chn->synth();
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
     dis->synth(ktmp);
     dis->target(kreal);
-    gen->learn(dis->propback(), genmul);
 
-    if (enc) {
-      enc->learn(gen->kinp, genmul);
-    } 
+    kcopy(dis->propback(), gen->owhc, gen->kout); 
+    chn->learn(genmul);
 
     dis->synth(ktmp);
     dis->target(kfake);
@@ -257,16 +207,13 @@ void learnstyl(
       double dt = t1 - t0;
       t0 = t1;
 
-      if (enc)
-        enc->save();
-      gen->save();
+      chn->save();
       dis->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, reps < 0 ? 0 : (reps - rep) * dt,
-        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms, dis->rms
       );
 
@@ -280,29 +227,20 @@ void learnstyl(
 void learnhans(
   Kleption *src,
   Kleption *tgt,
-  Cortex *gen,
+  Chain *chn,
   Cortex *dis,
-  Cortex *enc,
   int repint,
   double mul,
   bool lossreg,
   double noise,
   long reps
 ) {
+  Cortex *gen = chn->tail;
 
   int iw, ih, ic, iwhc;
-  if (enc) {
-    assert(enc->ow == gen->iw);
-    assert(enc->oh == gen->ih);
-    assert(enc->oc == gen->ic);
-    iw = enc->iw;
-    ih = enc->ih;
-    ic = enc->ic;
-  } else {
-    iw = gen->iw;
-    ih = gen->ih;
-    ic = gen->ic;
-  }
+  iw = gen->iw;
+  ih = gen->ih;
+  ic = gen->ic;
   iwhc = iw * ih * ic;
 
   assert(iw == gen->ow);
@@ -342,19 +280,15 @@ void learnhans(
     }
  
     Kleption::pick_pair(src, kinp, tgt, ktgt);
-    if (enc) {
-      enc->synth(kinp);
-      gen->synth(enc->kout);
-    } else {
-      gen->synth(kinp);
-    }
+    kcopy(kinp, iwhc, chn->kinp());
+    chn->synth();
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     kcopy(kinp, iwhc, kinpn);
     kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(kinpn, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
@@ -362,16 +296,12 @@ void learnhans(
 
     ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
 
-    gen->learn(genmul);
-    if (enc) {
-      enc->learn(gen->kinp, genmul);
-    } 
-
+    chn->learn(genmul);
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     kcopy(kinp, iwhc, kinpn);
     kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(kinpn, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kfake);
@@ -383,7 +313,7 @@ void learnhans(
     ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     kcopy(kinp, iwhc, kinpn);
     kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, iw * ih, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(kinpn, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
@@ -397,16 +327,13 @@ void learnhans(
       double dt = t1 - t0;
       t0 = t1;
 
-      if (enc)
-        enc->save();
-      gen->save();
+      chn->save();
       dis->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g %sgenrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, reps < 0 ? 0 : (reps - rep) * dt,
-        enc ? fmt("encrms=%g ", enc->rms).c_str() : "",
         gen->rms, dis->rms
       );
 
@@ -506,66 +433,23 @@ void matinv(const double *m, double *x, unsigned int n) {
 }
 
 void normalize(
-  Kleption *src,
-  Cortex *gen,
+  Rando *rvg,
   Cortex *enc,
+  Cortex *gen,
   int limit
 ) {
-  int i = 0;
   int owh = enc->ow * enc->oh;
   int oc = enc->oc;
   int owhc = owh * oc;
 
-  double *tmp = new double[owhc];
-  double *sum = new double[oc];
+  assert(rvg->dim == oc);
+
   double *mean = new double[oc];
-  double *summ = new double[oc * oc];
-  double *cov = new double[oc * oc];
   double *chol = new double[oc * oc];
   double *unchol = new double[oc * oc];
 
-  memset(sum, 0, oc * sizeof(double));
-  memset(summ, 0, oc * oc * sizeof(double));
-
-  while (1) {
-    if (limit >= 0 && i >= limit)
-      break;
-
-    std::string id;
-    if (!src->pick(enc->kinp, &id))
-      break;
-    enc->synth();
-    dek(enc->kout, enc->owhc, tmp);
-
-    info("encoding " + id);
-
-    for (unsigned int xy = 0; xy < owh; ++xy) {
-      for (unsigned int z = 0; z < oc; ++z) {
-        sum[z] += tmp[z + oc * xy];
-      }
-      for (unsigned int z0 = 0; z0 < oc; ++z0) {
-        for (unsigned int z1 = 0; z1 < oc; ++z1) {
-          summ[z0 + z1 * oc] += tmp[z0 + oc * xy] * tmp[z1 + oc * xy];
-        }
-      }
-    }
-    ++i;
-  }
-  if (i < 2)
-    error("need more samples for normalize");
-  long n = owh * i;
-
-  for (int z = 0; z < oc; ++z) {
-    mean[z] = sum[z] / (double)n;
-  }
-  for (unsigned int z0 = 0; z0 < oc; ++z0) {
-    for (unsigned int z1 = 0; z1 < oc; ++z1) {
-      cov[z0 + z1 * oc] = summ[z0 + z1 * oc] / (double)n - mean[z0] * mean[z1];
-    }
-  }
-
-  memcpy(chol, cov, oc * oc * sizeof(double));
-  cpuchol(chol, oc);
+  memcpy(mean, rvg->mean, oc * sizeof(double));
+  memcpy(chol, rvg->chol, oc * oc * sizeof(double));
   matinv(chol, unchol, oc);
   cpumatxpose(chol, oc);
   cpumatxpose(unchol, oc);
@@ -610,11 +494,7 @@ void normalize(
   gen->_put_head_op(gb, gm, gw, gh);
   enc->_put_tail_op(eb, em, ew, eh);
 
-  delete[] tmp;
-  delete[] sum;
   delete[] mean;
-  delete[] summ;
-  delete[] cov;
   delete[] chol;
   delete[] unchol;
 
@@ -646,20 +526,22 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  std::string ctx = argv[0];
-  ++argv;
-  --argc;
+  std::vector<std::string> ctx;
+  while (argc > 0 && **argv != '-' && !strchr(*argv, '=')) {
+    ctx.push_back(*argv);
+    ++argv;
+    --argc;
+  }
+
+  if (ctx.empty()) {
+    usage();
+    return 1;
+  }
 
   Cmdline arg(argc, argv, "0");
   verbose = arg.get("verbose", "0");
   info(fmt("verbose=%d", verbose));
 
-  if (startswith(ctx, "//"))
-    ctx = "/opt/makemore/share/tewel/" + std::string(ctx.c_str() + 2);
-
-  bool ctx_is_dir = is_dir(ctx);
-
-   
   setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
 
@@ -678,8 +560,8 @@ int main(int argc, char **argv) {
   int lowmem = arg.get("lowmem", "0");
 
   if (cmd == "make") {
-    if (ctx_is_dir)
-      error("dir exists with name of file");
+    if (ctx.size() != 1)
+      error("make requires exactly one ctx file arg");
 
     std::string spec = arg.get("spec");
     if (startswith(spec, "//"))
@@ -690,9 +572,9 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    Cortex::create(ctx, (bool)clobber);
+    Cortex::create(ctx[0], (bool)clobber);
 
-    Cortex *out = new Cortex(ctx);
+    Cortex *out = new Cortex(ctx[0]);
 
     FILE *specfp = fopen(spec.c_str(), "r");
     if (!specfp)
@@ -778,8 +660,8 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "identity") {
-    if (ctx_is_dir)
-      error("dir exists with name of file");
+    if (ctx.size() != 1)
+      error("identity requires exactly one ctx file arg");
 
     int clobber = arg.get("clobber", "0");
 
@@ -790,9 +672,9 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    Cortex::create(ctx, (bool)clobber);
+    Cortex::create(ctx[0], (bool)clobber);
 
-    Cortex *out = new Cortex(ctx);
+    Cortex *out = new Cortex(ctx[0]);
 
     out->head->decay = 0;
     out->head->nu = 0;
@@ -825,10 +707,10 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "edit") {
-    if (ctx_is_dir)
-      error("dir exists with name of file");
+    if (ctx.size() != 1)
+      error("edit requires exactly one ctx file arg");
 
-    Cortex *gen = new Cortex(ctx);
+    Cortex *gen = new Cortex(ctx[0]);
 
     if (arg.present("decay"))
       gen->head->decay = arg.get("decay");
@@ -847,7 +729,7 @@ int main(int argc, char **argv) {
       warning("unrecognized options");
 
     delete gen;
-    gen = new Cortex(ctx);
+    gen = new Cortex(ctx[0]);
 
     printf(
       "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g\n",
@@ -859,11 +741,11 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "spec") {
-    if (ctx_is_dir)
-      error("dir exists with name of file");
+    if (ctx.size() != 1)
+      error("spec requires exactly one ctx file arg");
     if (!arg.unused.empty())
       warning("unrecognized options");
-    Cortex *gen = new Cortex(ctx, O_RDONLY);
+    Cortex *gen = new Cortex(ctx[0], O_RDONLY);
 
     printf(
       "v=2 decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g\n",
@@ -877,8 +759,8 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "bindump") {
-    if (ctx_is_dir)
-      error("dir exists with name of file");
+    if (ctx.size() != 1)
+      error("bindump requires exactly one ctx file arg");
     unsigned int a = 0, b = (1 << 31);
     if (arg.present("cut"))
       if (!parserange(arg.get("cut"), &a, &b))
@@ -887,16 +769,16 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       warning("unrecognized options");
 
-    Cortex *gen = new Cortex(ctx, O_RDONLY);
+    Cortex *gen = new Cortex(ctx[0], O_RDONLY);
     gen->bindump(stdout, a, b);
     delete gen;
     return 0;
   }
 
   if (cmd == "reset") {
-    if (ctx_is_dir)
-      error("dir exists with name of file");
-    Cortex *gen = new Cortex(ctx);
+    if (ctx.size() != 1)
+      error("reset requires exactly one ctx file arg");
+    Cortex *gen = new Cortex(ctx[0]);
 
     gen->head->rounds = 0;
     gen->head->rms = 0;
@@ -916,16 +798,9 @@ int main(int argc, char **argv) {
   }
 
   if (cmd == "synth") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
-
-    Cortex *gen = new Cortex(genfn, O_RDONLY);
-
-    Cortex *enc = NULL;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"), O_RDONLY);
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx", O_RDONLY);
-    }
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDONLY);
 
     int limit = arg.get("limit", "-1");
     int reload = arg.get("reload", "0");
@@ -957,7 +832,7 @@ int main(int argc, char **argv) {
       if (!parsedim2(arg.get("dim"), &pw, &ph))
         error("dim must be like 256 or like 256x256");
     }
-    int pc = enc ? enc->ic : gen->ic;
+    int pc = chn->head->ic;
 
     std::string srcdim = arg.get("srcdim", "0x0x0");
     int sw = 0, sh = 0, sc = 0;
@@ -993,20 +868,10 @@ int main(int argc, char **argv) {
     assert(src->pw > 0);
     assert(src->ph > 0);
 
-    int ic;
-    if (enc) {
-      assert(enc->ic == src->pc);
-      enc->prepare(src->pw, src->ph);
-      gen->prepare(enc->ow, enc->oh);
-      if (enc->oc != gen->ic)
-        error("encoder oc doesn't match generator ic");
-      ic = enc->ic;
-    } else {
-      assert(gen->ic == src->pc);
-      gen->prepare(src->pw, src->ph);
-      ic = gen->ic;
-    }
-
+    int ic = chn->head->ic;
+    assert(ic == src->pc);
+    chn->prepare(src->pw, src->ph);
+    
     Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
     if (outkind == Kleption::KIND_UNK)
       error("unknown outkind");
@@ -1019,7 +884,7 @@ int main(int argc, char **argv) {
 
     Kleption *out = new Kleption(
       arg.get("out", ""),
-      gen->ow, gen->oh, gen->oc,
+      chn->tail->ow, chn->tail->oh, chn->tail->oc,
       outflags, Kleption::TRAV_SCAN, outkind
     );
 
@@ -1032,129 +897,53 @@ int main(int argc, char **argv) {
         break;
 
       std::string id;
-      if (enc) {
-        if (!src->pick(enc->kinp, &id))
-          break;
-        enc->synth();
-        kcopy(enc->kout, enc->owhc, gen->kinp);
-      } else {
-        if (!src->pick(gen->kinp, &id))
-          break;
-      }
-      gen->synth();
+      if (!src->pick(chn->kinp(), &id))
+        break;
+      chn->synth();
 
-      if (!out->place(id, gen->kout))
+      if (!out->place(id, chn->kout()))
         break;
 
       if (delay > 0)
         usleep(delay * 1000000.0);
-      if (reload) {
-        gen->load();
-        if (enc)
-          enc->load();
-      }
+      if (reload)
+        chn->load();
       ++i;
     }
 
 
-    delete gen;
-    if (enc)
-      delete enc;
+    delete chn;
     delete src;
     delete out;
     return 0;
   }
 
   if (cmd == "normalize") {
-    std::string genfn = ctx_is_dir ? ctx + "/gen.ctx" : ctx;
+    if (ctx.size() != 2)
+      error("normalize requires exactly two ctx file args");
+    std::string encfn = ctx[0];
+    std::string genfn = ctx[1];
 
+    Cortex *enc = new Cortex(encfn);
     Cortex *gen = new Cortex(genfn);
-
-    Cortex *enc;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
-    } else if (ctx_is_dir && fexists(ctx + "/enc.ctx")) {
-      enc = new Cortex(ctx + "/enc.ctx");
-    } else {
-      error("normalize requires encoder");
-    }
-
-    int limit = arg.get("limit", "-1");
-
-    Kleption::Trav srctrav = Kleption::get_trav(arg.get("srctrav", "scan"));
-    if (srctrav == Kleption::TRAV_NONE)
-      error("srctrav must be scan or rand or refs");
-
-    Kleption::Flags srcflags = 0;
-    if (lowmem)
-      srcflags |= Kleption::FLAG_LOWMEM;
-    int addgeo = arg.get("addgeo", "0");
-    if (addgeo)
-      srcflags |= Kleption::FLAG_ADDGEO;
-
-    int repeat = arg.get("repeat", "0");
-    if (repeat)
-      srcflags |= Kleption::FLAG_REPEAT;
-
-    std::string crop = arg.get("crop", "center");
-    if (crop == "center")
-      srcflags |= Kleption::FLAG_CENTER;
-    else if (crop != "random")
-      error("crop must be random or center");
-
-    int pw = 0, ph = 0;
-    if (arg.present("dim")) {
-      if (!parsedim2(arg.get("dim"), &pw, &ph))
-        error("dim must be like 256 or like 256x256");
-    }
-    int pc = enc->ic;
-
-    std::string srcdim = arg.get("srcdim", "0x0x0");
-    int sw = 0, sh = 0, sc = 0;
-    if (!parsedim(srcdim, &sw, &sh, &sc))
-      error("bad srcdim format");
-
-    std::string srcrefs = arg.get("srcrefs", "");
-    const char *refsfn = NULL;
-    if (srcrefs != "") {
-      if (srctrav != Kleption::TRAV_REFS)
-        error("srcrefs given without srctrav=refs");
-      refsfn = srcrefs.c_str();
-    }
-
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", ""));
-    if (srckind == Kleption::KIND_UNK)
-      error("unknown srckind");
-
-    std::string srcfn = arg.get("src");
-
-    Kleption *src = new Kleption(
-      srcfn,
-      pw, ph, pc,
-      srcflags, srctrav, srckind,
-      sw, sh, sc,
-      refsfn
-    );
-
-    src->load();
-    assert(src->pw > 0);
-    assert(src->ph > 0);
-
-    int ic = enc->ic;
-    assert(enc->ic == src->pc);
-    enc->prepare(src->pw, src->ph);
-    gen->prepare(enc->ow, enc->oh);
     if (enc->oc != gen->ic)
       error("encoder oc doesn't match generator ic");
+
+    if (!arg.present("rvg"))
+      error("normalize requires rvg arg");
+    Rando *rvg = new Rando;
+    rvg->load(arg.get("rvg"));
+
+    int limit = arg.get("limit", "-1");
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    normalize(src, gen, enc, limit);
+    normalize(rvg, enc, gen, limit);
 
     delete gen;
     delete enc;
-    delete src;
+    delete rvg;
     return 0;
   }
 
@@ -1173,20 +962,10 @@ int main(int argc, char **argv) {
   diropt["tgtkind"] = "";
   diropt["stykind"] = "";
   
-  if (ctx_is_dir) {
-    if (!fexists(ctx + "/gen.ctx"))
-      error(fmt("%s/gen.ctx: %s", ctx.c_str(), strerror(errno)));
-    diropt["gen"] = ctx + "/gen.ctx";
-
-    if (fexists(ctx + "/enc.ctx"))
-      diropt["enc"] = ctx + "/enc.ctx";
-    if (fexists(ctx + "/dis.ctx"))
-      diropt["dis"] = ctx + "/dis.ctx";
-  }
-
-
   if (cmd == "learnauto") {
-    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDWR);
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -1200,32 +979,15 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
 
-    Cortex *gen = new Cortex(genfn);
-
-    Cortex *enc = NULL;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
-    } else if (diropt.count("enc")) {
-      enc = new Cortex(diropt["enc"]);
-    }
-
     int ic;
-    if (enc) {
-      if (enc->oc != gen->ic)
-        error("enc oc doesn't match gen ic");
-      enc->prepare(iw, ih);
-      gen->prepare(enc->ow, enc->oh);
-      ic = enc->ic;
-    } else {
-      gen->prepare(iw, ih);
-      ic = gen->ic;
-    }
+    chn->prepare(iw, ih);
+    ic = chn->head->ic;
 
-    if (iw != gen->ow)
+    if (iw != chn->tail->ow)
       error("input and output width don't match");
-    if (ih != gen->oh)
+    if (ih != chn->tail->oh)
       error("input and output height don't match");
-    if (ic != gen->oc)
+    if (ic != chn->tail->oc)
       error("input and output channels don't match");
 
     std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
@@ -1265,18 +1027,18 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnauto(src, gen, enc, repint, mul, reps);
+    learnauto(src, chn, repint, mul, reps);
 
     delete src;
-    delete gen;
-    if (enc)
-      delete enc;
+    delete chn;
     return 0;
   }
 
 
   if (cmd == "learnfunc") {
-    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDWR);
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -1291,26 +1053,9 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
 
-    Cortex *gen = new Cortex(genfn);
-
-    Cortex *enc = NULL;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
-    } else if (diropt.count("enc")) {
-      enc = new Cortex(diropt["enc"]);
-    }
-
     int ic;
-    if (enc) {
-      if (enc->oc != gen->ic)
-        error("enc oc doesn't match gen ic");
-      enc->prepare(iw, ih);
-      gen->prepare(enc->ow, enc->oh);
-      ic = enc->ic;
-    } else {
-      gen->prepare(iw, ih);
-      ic = gen->ic;
-    }
+    chn->prepare(iw, ih);
+    ic = chn->head->ic;
 
     std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
@@ -1366,7 +1111,7 @@ int main(int argc, char **argv) {
       tgtflags |= Kleption::FLAG_LOWMEM;
 
     Kleption *tgt = new Kleption(
-      tgtfn, gen->ow, gen->oh, gen->oc,
+      tgtfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
       tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
@@ -1376,18 +1121,18 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnfunc(src, tgt, gen, enc, repint, mul, reps);
+    learnfunc(src, tgt, chn, repint, mul, reps);
 
     delete src;
     delete tgt;
-    delete gen;
-    if (enc)
-      delete enc;
+    delete chn;
     return 0;
   }
 
   if (cmd == "learnstyl") {
-    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDWR);
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -1407,38 +1152,19 @@ int main(int argc, char **argv) {
     double mul = arg.get("mul", diropt["mul"]);
     int lossreg = arg.get("lossreg", diropt["lossreg"]);
 
-    Cortex *gen = new Cortex(genfn);
-
-    Cortex *enc = NULL;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
-    } else if (diropt.count("enc")) {
-      enc = new Cortex(diropt["enc"]);
-    }
-
     int ic;
-    if (enc) {
-      if (enc->oc != gen->ic)
-        error("enc oc doesn't match gen ic");
-      enc->prepare(iw, ih);
-      gen->prepare(enc->ow, enc->oh);
-      ic = enc->ic;
-    } else {
-      gen->prepare(iw, ih);
-      ic = gen->ic;
-    }
+    chn->prepare(iw, ih);
+    ic = chn->head->ic;
 
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
-    } else if (diropt.count("dis")) {
-      dis = new Cortex(diropt["dis"]);
     } else {
       error("dis argument required");
     }
 
-    dis->prepare(gen->ow, gen->oh);
-    if (dis->ic != gen->oc)
+    dis->prepare(chn->tail->ow, chn->tail->oh);
+    if (dis->ic != chn->tail->oc)
       error("gen oc doesn't match dis ic");
 
     std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
@@ -1495,7 +1221,7 @@ int main(int argc, char **argv) {
       styflags |= Kleption::FLAG_LOWMEM;
 
     Kleption *sty = new Kleption(
-      styfn, gen->ow, gen->oh, gen->oc,
+      styfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
       styflags, Kleption::TRAV_RAND, stykind,
       tw, th, tc
     );
@@ -1505,14 +1231,11 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, sty, gen, dis, enc, repint, mul, lossreg, reps);
+    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps);
 
     delete src;
     delete sty;
-
-    delete gen;
-    if (enc)
-      delete enc;
+    delete chn;
     delete dis;
     return 0;
   }
@@ -1520,7 +1243,9 @@ int main(int argc, char **argv) {
 
 
   if (cmd == "learnhans") {
-    std::string genfn = ctx_is_dir ? diropt["gen"] : ctx;
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDWR);
 
     int iw, ih;
     if (arg.present("dim")) {
@@ -1541,44 +1266,26 @@ int main(int argc, char **argv) {
     int lossreg = arg.get("lossreg", diropt["lossreg"]);
     double noise = arg.get("noise", diropt["noise"]);
 
-    Cortex *gen = new Cortex(genfn);
-
-    Cortex *enc = NULL;
-    if (arg.present("enc")) {
-      enc = new Cortex(arg.get("enc"));
-    } else if (diropt.count("enc")) {
-      enc = new Cortex(diropt["enc"]);
-    }
-
     int ic;
-    if (enc) {
-      if (enc->oc != gen->ic)
-        error("enc oc doesn't match gen ic");
-      enc->prepare(iw, ih);
-      gen->prepare(enc->ow, enc->oh);
-      ic = enc->ic;
-    } else {
-      gen->prepare(iw, ih);
-      ic = gen->ic;
-    }
+    chn->prepare(iw, ih);
+    ic = chn->head->ic;
 
-    if (iw != gen->ow)
+    if (iw != chn->tail->ow)
       error("iw differs from ow");
-    if (ih != gen->oh)
+    if (ih != chn->tail->oh)
       error("iw differs from oh");
 
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
-    } else if (diropt.count("dis")) {
-      dis = new Cortex(diropt["dis"]);
     } else {
       error("dis argument required");
     }
 
-    dis->prepare(gen->ow, gen->oh);
-    if (dis->ic != gen->oc + ic)
-      error("gen oc+ic doesn't match dis ic");
+    dis->prepare(chn->tail->ow, chn->tail->oh);
+
+    if (dis->ic != chn->tail->oc + ic)
+      error("gen oc + gen ic doesn't match dis ic");
 
     std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
@@ -1634,7 +1341,7 @@ int main(int argc, char **argv) {
       tgtflags |= Kleption::FLAG_LOWMEM;
 
     Kleption *tgt = new Kleption(
-      tgtfn, gen->ow, gen->oh, gen->oc,
+      tgtfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
       tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
@@ -1646,14 +1353,11 @@ int main(int argc, char **argv) {
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, tgt, gen, dis, enc, repint, mul, lossreg, noise, reps);
+    learnhans(src, tgt, chn, dis, repint, mul, lossreg, noise, reps);
 
     delete src;
     delete tgt;
-
-    delete gen;
-    if (enc)
-      delete enc;
+    delete chn;
     delete dis;
     return 0;
   }

@@ -13,9 +13,11 @@ struct Chain {
 
   Cortex *head;
   Cortex *tail;
+  bool prepared;
 
   std::vector<Cortex*> ctxv;
-  void push(Cortex *ctx);
+  void prepare(int iw, int ih);
+  void push(const std::string &fn, int mode);
 
   double *kinp();
   double *kout();
@@ -23,6 +25,9 @@ struct Chain {
   void synth();
   void learn(double mul);
   void target(const double *);
+
+  void load();
+  void save();
 };
 
 }
