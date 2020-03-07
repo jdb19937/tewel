@@ -19,8 +19,8 @@ den.ctx:
 %.ctx: %.txt
 	tewel make $@ spec=$< clobber=1
 
-tgt1.rgb:
-	tewel synth verbose=1 dim=128x128 out=$@ src=/spin/dan/lq.128
+tgt1.rgb: iden.ctx
+	tewel synth iden.ctx verbose=1 dim=128x128 out=$@ src=/spin/dan/lq.128
 
 src1.rgb: tgt1.rgb
 	cp -f $< $@
