@@ -1,12 +1,12 @@
 .PHONY: all learnfunc1 learnfunc2 learnhans2 learnfunc3 learnhans3 clean normalize clean1 clean2 clean3
 
 learnfunc1: learnfunc1.done
-learnfunc1.done: enc1.ctx gen1.ctx src1.rgb tgt1.rgb
-	tewel learnfunc enc1.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 reps=65536 verbose=1
+learnfunc1.done: enc.ctx gen1.ctx src1.rgb tgt1.rgb
+	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 reps=65536 verbose=1
 	touch $@
 
 clean1:
-	rm -f gen1.ctx enc1.ctx src1.rgb tgt1.rgb learnfunc1.done
+	rm -f gen1.ctx enc.ctx src1.rgb tgt1.rgb learnfunc1.done
 
 normalize: 
 
@@ -25,17 +25,17 @@ tgt1.rgb: iden.ctx
 src1.rgb: tgt1.rgb
 	cp -f $< $@
 
-src1.rvg: src1.rgb enc1.ctx
-	tewel synth enc1.ctx dim=128x128 src=$< out=$@ verbose=1
+src1.rvg: src1.rgb enc.ctx
+	tewel synth enc.ctx dim=128x128 src=$< out=$@ verbose=1
 
-shampane.rvg: dns1.ctx mean.ctx enc1.ctx
-	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/shampane.aligned out=$@ verbose=1
-nova2.rvg: dns1.ctx mean.ctx enc1.ctx
-	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/nova2.aligned out=$@ verbose=1
-minidne.rvg: dns1.ctx mean.ctx enc1.ctx
-	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/minidne_alpha.aligned out=$@ verbose=1
-cand.rvg: dns1.ctx mean.ctx enc1.ctx
-	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/cand.aligned out=$@ verbose=1
+shampane.rvg: dns1.ctx mean.ctx enc.ctx
+	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/shampane.aligned out=$@ verbose=1
+nova2.rvg: dns1.ctx mean.ctx enc.ctx
+	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/nova2.aligned out=$@ verbose=1
+minidne.rvg: dns1.ctx mean.ctx enc.ctx
+	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/minidne_alpha.aligned out=$@ verbose=1
+cand.rvg: dns1.ctx mean.ctx enc.ctx
+	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/cand.aligned out=$@ verbose=1
 
 
 
@@ -49,9 +49,9 @@ learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx pgen2.ctx
 	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=65536
 	touch $@
 
-src2.rgb: dns1.ctx mean.ctx enc1.ctx gen1.ctx iden.ctx
+src2.rgb: dns1.ctx mean.ctx enc.ctx gen1.ctx iden.ctx
 	rm -f src2.tmp.rgb
-	tewel synth dns1.ctx mean.ctx enc1.ctx gen1.ctx \
+	tewel synth dns1.ctx mean.ctx enc.ctx gen1.ctx \
 		dim=256x256x3 verbose=1 src=/spin/dan/hq.256 out=src2.tmp.rgb
 	tewel synth iden.ctx \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
