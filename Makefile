@@ -9,7 +9,10 @@ VERSION = 0.4
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
-  tewel.pdf
+  tewel.pdf iden.ctx ups1.ctx dns1.ctx mean.ctx
+
+%.ctx: %.txt tewel
+	./tewel make $@ spec=$< clobber=1
 
 OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o chain.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
@@ -45,6 +48,7 @@ install: all
 	install -m 0755 *.pl $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.sh $(DESTDIR)/opt/makemore/share/tewel
 	install -m 0755 *.pdf $(DESTDIR)/opt/makemore/share/tewel
+	install -m 0755 *.ctx $(DESTDIR)/opt/makemore/share/tewel
 
 .PHONY: uninstall
 uninstall:

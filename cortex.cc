@@ -1227,6 +1227,9 @@ void Cortex::open(const std::string &_fn, int flags) {
   assert(!is_open);
   fn = _fn;
 
+  if (startswith(fn, "//"))
+    fn = "/opt/makemore/share/tewel" + std::string(fn.c_str() + 2);
+
   assert(flags == O_RDWR || flags == O_RDONLY);
   fd = ::open(fn.c_str(), flags, 0644);
   if (fd < 0)
@@ -1467,7 +1470,12 @@ void Cortex::close() {
 }
 
 // static
-void Cortex::create(const std::string &fn, bool clobber) {
+void Cortex::create(const std::string &_fn, bool clobber) {
+  std::string fn = _fn;
+
+  if (startswith(fn, "//"))
+    fn = "/opt/makemore/share/tewel" + std::string(fn.c_str() + 2);
+
   int fd = ::open(
     fn.c_str(),
     O_RDWR | O_CREAT | (clobber ? O_TRUNC : O_EXCL),

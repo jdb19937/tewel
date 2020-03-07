@@ -1,0 +1,2 @@
+v=2
+type=mean ic=12 oc=3

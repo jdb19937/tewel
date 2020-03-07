@@ -1,0 +1,2 @@
+v=2
+type=ups1 ic=12 oc=3
