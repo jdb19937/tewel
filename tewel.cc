@@ -851,6 +851,10 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
+    double evolve = 0.0;
+    if (arg.present("evolve"))
+      evolve = arg.get("evolve");
+
     std::string srcfn = arg.get("src");
 
     Kleption *src = new Kleption(
@@ -858,7 +862,7 @@ int main(int argc, char **argv) {
       pw, ph, pc,
       srcflags, srctrav, srckind,
       sw, sh, sc,
-      refsfn
+      refsfn, evolve
     );
 
     

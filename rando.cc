@@ -16,6 +16,7 @@ Rando::Rando(int _dim) {
   sum = NULL;
   summ = NULL;
   sumn = 0;
+  buf = NULL;
 }
 
 Rando::~Rando() {
@@ -27,6 +28,8 @@ Rando::~Rando() {
     delete[] sum;
   if (summ)
     delete[] summ;
+  if (buf)
+    delete[] buf;
 }
 
 void Rando::load(const std::string &fn) {
@@ -68,20 +71,24 @@ static void cpumatvec(const double *a, const double *b, int aw, int ahbw, double
   }
 }
 
-void Rando::generate(double *dat, double mul) {
+void Rando::generate(double *dat, double mul, double evolve) {
   assert(chol);
   assert(mean);
 
-  double *tmp = new double[dim];
-  for (int i = 0; i < dim; ++i)
-    tmp[i] = randgauss() * mul;
+  if (!buf)
+    buf = new double[dim]();
 
-  cpumatvec(chol, tmp, dim, dim, dat);
+  assert(evolve >= 0 && evolve <= 1);
+  double sw = sqrt(evolve);
+  double sw1 = sqrt(1.0 - evolve);
+
+  for (int i = 0; i < dim; ++i)
+    buf[i] = sw * buf[i] + sw1 * randgauss() * mul;
+
+  cpumatvec(chol, buf, dim, dim, dat);
 
   for (int i = 0; i < dim; ++i)
     dat[i] += mean[i];
-
-  delete[] tmp;
 }
 
 void Rando::observe(const double *dat) {

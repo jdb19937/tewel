@@ -122,13 +122,14 @@ struct Kleption {
 
   // rvg
   class Rando *rvg;
+  double evolve;
 
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
     Flags _flags = 0, Trav _trav = TRAV_RAND, Kind _kind = KIND_UNK,
     unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0,
-    const char *refsfn = NULL
+    const char *refsfn = NULL, double _evolve = 0
   );
   ~Kleption();
 
