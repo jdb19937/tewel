@@ -105,12 +105,16 @@ void Display::present() {
 bool Display::done() {
   assert(is_open);
   SDL_Event event;
-  while (SDL_PollEvent(&event))
+  while (SDL_PollEvent(&event)) {
+    if (event.type == SDL_QUIT)
+      return true;
+
     if (event.type == SDL_KEYDOWN) {
       int k = event.key.keysym.sym;
       if (k == SDLK_ESCAPE)
         return true;
     }
+  }
   return false;
 }
 
