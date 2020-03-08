@@ -1,4 +1,4 @@
-.PHONY: all learnfunc1 learnfunc2 learnhans2 learnfunc3 learnhans3 clean normalize clean1 clean2 clean3
+.PHONY: all learnfunc1 learnfunc2 learnhans2 learnfunc3 learnhans3 clean normalize clean1 clean2 clean3 show
 
 learnfunc1: learnfunc1.done
 learnfunc1.done: enc.ctx gen1.ctx src1.rgb tgt1.rgb
@@ -100,3 +100,15 @@ tgt3.rgb: dns1.ctx
 clean3:
 	rm -f gen3.ctx dis3.ctx src3.rgb tgt3.rgb pgen3.ctx learnhans3.done
 
+
+show1: enc.ctx gen1.ctx
+	tewel synth enc.ctx gen1.ctx src=/spin/dan/lq.128 dim=128x128 \
+		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
+
+show2: enc.ctx gen1.ctx gen2.ctx
+	tewel synth enc.ctx gen1.ctx gen2.ctx src=/spin/dan/lq.128 dim=128x128 \
+		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
+
+show3: enc.ctx gen1.ctx gen2.ctx gen3.ctx
+	tewel synth enc.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 dim=128x128 \
+		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
