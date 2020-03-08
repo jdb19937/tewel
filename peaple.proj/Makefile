@@ -34,7 +34,7 @@ shampane.rvg: dns1.ctx mean.ctx enc.ctx
 nova2.rvg: dns1.ctx mean.ctx enc.ctx
 	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/nova2.aligned out=$@ verbose=1
 minidne.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/minidne_alpha.aligned out=$@ verbose=1
+	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/minidne.aligned out=$@ verbose=1
 cand.rvg: dns1.ctx mean.ctx enc.ctx
 	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/cand.aligned out=$@ verbose=1
 
@@ -42,13 +42,13 @@ cand.rvg: dns1.ctx mean.ctx enc.ctx
 
 learnfunc2: learnfunc2.done
 learnfunc2.done: src2.rgb tgt2.rgb gen2.ctx pgen2.ctx
-	tewel learnfunc gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x12 reps=128
+	tewel learnfunc gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x12 reps=256
 	touch $@
 
 learnhans2: learnhans2.done
 learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx pgen2.ctx
-	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=1.0 reps=65536
-	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=1.0 reps=4096 mul=0.25
+	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=65536
+	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=4096 mul=0.25
 	touch $@
 
 src2.rgb: dns1.ctx mean.ctx enc.ctx gen1.ctx iden.ctx
@@ -80,7 +80,7 @@ clean2:
 
 learnfunc3: learnfunc3.done
 learnfunc3.done: gen3.ctx pgen3.ctx src3.rgb tgt3.rgb
-	tewel learnfunc gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x12 reps=128
+	tewel learnfunc gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x12 reps=256
 	touch $@
 
 learnhans3: learnhans3.done
