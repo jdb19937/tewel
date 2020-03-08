@@ -102,13 +102,13 @@ clean3:
 
 
 show1: enc.ctx gen1.ctx
-	tewel synth enc.ctx gen1.ctx src=/spin/dan/lq.128 dim=128x128 \
+	tewel synth enc.ctx gen1.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
 
 show2: enc.ctx gen1.ctx gen2.ctx
-	tewel synth enc.ctx gen1.ctx gen2.ctx src=/spin/dan/lq.128 dim=128x128 \
+	tewel synth enc.ctx gen1.ctx gen2.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
 
 show3: enc.ctx gen1.ctx gen2.ctx gen3.ctx
-	tewel synth enc.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 dim=128x128 \
+	tewel synth enc.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
