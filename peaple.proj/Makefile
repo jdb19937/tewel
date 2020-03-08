@@ -46,7 +46,7 @@ learnfunc2.done: src2.rgb tgt2.rgb gen2.ctx pgen2.ctx
 
 learnhans2: learnhans2.done
 learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx pgen2.ctx
-	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=65536
+	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=1.0 reps=65536
 	touch $@
 
 src2.rgb: dns1.ctx mean.ctx enc1.ctx gen1.ctx iden.ctx
