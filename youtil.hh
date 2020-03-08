@@ -109,6 +109,9 @@ inline std::string str(const char *x) {
   return std::string(x);
 }
 
+long double erfinv(long double x);
+long double erfinv(long double x, int nr_iter);
+
 }
 
 #endif

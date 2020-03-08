@@ -880,6 +880,85 @@ DEFN_KERNEL(learn_sigm,
   fin[ini] = fout[outi] * outv * (1.0 - outv);
 }
 
+DEFN_KERNEL(synth_inrf,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  int ini = outi;
+  out[outi] = sqrt(2.0) * erfinv(-1.0 + 2.0 * in[ini]);
+}
+
+DEFN_KERNEL(learn_inrf,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int outi = ini;
+
+  const double sq2pi = 2.506628275;
+  fin[ini] = fout[outi] * sq2pi * exp(fout[outi] * fout[outi] * 2.0);
+}
+
+DEFN_KERNEL(synth_nerf,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  const double isq2 = 0.7071067812;
+
+  int ini = outi;
+  out[outi] = (erf(in[ini] * isq2) + 1.0) / 2.0;
+}
+
+DEFN_KERNEL(learn_nerf,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int outi = ini;
+
+  const double isq2pi = 0.3989422804;
+  fin[ini] = fout[outi] * isq2pi * exp(-fin[ini] * fin[ini] / 2.0);
+}
+
+
 DEFN_KERNEL(synth_relu,
   const double *in, int iw, int ih,
   double *out,

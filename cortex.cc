@@ -51,6 +51,8 @@ const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 const uint32_t TYPE_MEAN = CC4('m','e','a','n');
+const uint32_t TYPE_NERF = CC4('n','e','r','f');
+const uint32_t TYPE_INRF = CC4('i','n','r','f');
 
 static int _scale_factor(int ic, int oc) {
   assert(ic > 0);
@@ -340,6 +342,8 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     case TYPE_ABSV:
     case TYPE_RELU:
     case TYPE_SIGM:
+    case TYPE_NERF:
+    case TYPE_INRF:
       ow = iw;
       oh = ih;
       assert(ic == oc);
@@ -732,6 +736,24 @@ static double *pipe_synth(
       synth_relu(in, iw, ih, out, ic);
       break;
     }
+  case TYPE_NERF:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      synth_nerf(in, iw, ih, out, ic);
+      break;
+    }
+  case TYPE_INRF:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      synth_inrf(in, iw, ih, out, ic);
+      break;
+    }
   case TYPE_ABSV:
     {
       assert(len == 0);
@@ -1032,6 +1054,8 @@ void pipe_learn(
   case TYPE_SIGM:
   case TYPE_RELU:
   case TYPE_ABSV:
+  case TYPE_NERF:
+  case TYPE_INRF:
     assert(ic == oc);
     assert(len == 0);
     ow = iw;
@@ -1154,6 +1178,12 @@ void pipe_learn(
     break;
   case TYPE_RELU:
     learn_relu(in, iw, ih, fout, ic);
+    break;
+  case TYPE_NERF:
+    learn_nerf(in, iw, ih, fout, ic);
+    break;
+  case TYPE_INRF:
+    learn_inrf(in, iw, ih, fout, ic);
     break;
   case TYPE_ABSV:
     learn_abs(in, iw, ih, fout, ic);
@@ -1970,6 +2000,8 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_DNS5:
   case TYPE_SIGM:
   case TYPE_RELU:
+  case TYPE_NERF:
+  case TYPE_INRF:
   case TYPE_ABSV:
   case TYPE_GRND:
   case TYPE_LRND:
