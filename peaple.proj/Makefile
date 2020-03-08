@@ -48,6 +48,7 @@ learnfunc2.done: src2.rgb tgt2.rgb gen2.ctx pgen2.ctx
 learnhans2: learnhans2.done
 learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx pgen2.ctx
 	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=1.0 reps=65536
+	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=1.0 reps=4096 mul=0.25
 	touch $@
 
 src2.rgb: dns1.ctx mean.ctx enc.ctx gen1.ctx iden.ctx
@@ -85,6 +86,7 @@ learnfunc3.done: gen3.ctx pgen3.ctx src3.rgb tgt3.rgb
 learnhans3: learnhans3.done
 learnhans3.done: learnfunc3.done gen3.ctx dis3.ctx pgen3.ctx src3.rgb tgt3.rgb
 	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=65536
+	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=4096 mul=0.25
 	touch $@
 
 src3.rgb: dns1.ctx mean.ctx
