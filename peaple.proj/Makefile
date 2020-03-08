@@ -59,7 +59,7 @@ src2.rgb: dns1.ctx mean.ctx enc.ctx gen1.ctx iden.ctx
 		srcdim=128x128x3 dim=32x32x3 limit=65536 src=src2.tmp.rgb out=$@
 	rm -f src2.tmp.rgb
 
-tgt2.rgb: dns1.ctx iden.ctx
+tgt2.rgb: dns1.ctx iden.ctx ups1.ctx
 	rm -f tgt2.tmp.rgb
 	tewel synth dns1.ctx \
 		dim=256x256x3 verbose=1 src=/spin/dan/hq.256 out=tgt2.tmp.rgb
