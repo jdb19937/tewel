@@ -229,10 +229,10 @@ void learnhans(
   Kleption *tgt,
   Chain *chn,
   Cortex *dis,
+  Cortex *cnd,
   int repint,
   double mul,
   bool lossreg,
-  double noise,
   long reps
 ) {
   Cortex *gen = chn->tail;
@@ -243,19 +243,24 @@ void learnhans(
   ic = chn->head->ic;
   iwhc = iw * ih * ic;
 
-  assert(iw == gen->ow);
-  assert(ih == gen->oh);
+  if (cnd) {
+    assert(cnd->iw == iw);
+    assert(cnd->ih == ih);
+    assert(cnd->ic == ic);
+  }
+
+  assert((cnd ? cnd->ow : iw) == gen->ow);
+  assert((cnd ? cnd->ow : ih) == gen->oh);
   assert(dis->iw == gen->ow);
   assert(dis->ih == gen->oh);
-  assert(dis->ic == ic + gen->oc);
+
+  assert(dis->ic == (cnd ? cnd->oc : ic) + gen->oc);
 
   double *ktmp;
   kmake(&ktmp, gen->owhc);
 
   double *kinp;
   kmake(&kinp, iwhc);
-  double *kinpn;
-  kmake(&kinpn, iwhc);
 
   double *ktgt;
   kmake(&ktgt, gen->owhc);
@@ -285,10 +290,8 @@ void learnhans(
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
-    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    kcopy(kinp, iwhc, kinpn);
-    kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, cnd->kinp, dis->ic, 0);
+    ksplice(cnd ? cnd->synth(kinp) : kinp, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
@@ -299,9 +302,7 @@ void learnhans(
     chn->learn(genmul);
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    kcopy(kinp, iwhc, kinpn);
-    kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(cnd ? cnd->synth(kinp) : kinp, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kfake);
@@ -309,11 +310,8 @@ void learnhans(
 
 
 
-
     ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    kcopy(kinp, iwhc, kinpn);
-    kaddnoise(kinpn, iwhc, noise);
-    ksplice(kinpn, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(cnd ? cnd->synth(kinp) : kinp, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
@@ -958,7 +956,6 @@ int main(int argc, char **argv) {
   diropt["reps"] = "-1";
   diropt["mul"] = "1.0";
   diropt["lossreg"] = "1";
-  diropt["noise"] = "0.5";
   diropt["srcdim"] = "0x0x0";
   diropt["tgtdim"] = "0x0x0";
   diropt["stydim"] = "0x0x0";
@@ -1268,7 +1265,6 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
     int lossreg = arg.get("lossreg", diropt["lossreg"]);
-    double noise = arg.get("noise", diropt["noise"]);
 
     int ic;
     chn->prepare(iw, ih);
@@ -1288,8 +1284,23 @@ int main(int argc, char **argv) {
 
     dis->prepare(chn->tail->ow, chn->tail->oh);
 
-    if (dis->ic != chn->tail->oc + ic)
-      error("gen oc + gen ic doesn't match dis ic");
+    Cortex *cnd = NULL;
+    if (arg.present("cnd")) {
+      cnd = new Cortex(arg.get("cnd"));
+
+      cnd->prepare(chn->head->iw, chn->head->ih);
+
+      if (cnd->ow != dis->iw)
+        error("cnd ow doesn't match dis iw");
+      if (cnd->oh != dis->ih)
+        error("cnd oh doesn't match dis ih");
+
+      if (dis->ic != chn->tail->oc + cnd->oc)
+        error("gen oc + cnd oc doesn't match dis ic");
+    } else {
+      if (dis->ic != chn->tail->oc + ic)
+        error("gen oc + gen ic doesn't match dis ic");
+    }
 
     std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
     int sw = 0, sh = 0, sc = 0;
@@ -1357,7 +1368,7 @@ int main(int argc, char **argv) {
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, tgt, chn, dis, repint, mul, lossreg, noise, reps);
+    learnhans(src, tgt, chn, dis, cnd, repint, mul, lossreg, reps);
 
     delete src;
     delete tgt;
