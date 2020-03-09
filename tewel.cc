@@ -307,6 +307,10 @@ void learnhans(
     dis->synth();
     dis->target(kfake);
     dis->learn(dismul);
+    if (cnd) {
+      ksplice(dis->kinp, dis->iw * dis->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+      cnd->learn(dismul);
+    }
 
 
 
@@ -316,6 +320,10 @@ void learnhans(
     dis->synth();
     dis->target(kreal);
     dis->learn(dismul);
+    if (cnd) {
+      ksplice(dis->kinp, dis->iw * dis->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+      cnd->learn(dismul);
+    }
 
 
 
