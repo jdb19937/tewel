@@ -109,8 +109,7 @@ inline std::string str(const char *x) {
   return std::string(x);
 }
 
-long double erfinv(long double x);
-long double erfinv(long double x, int nr_iter);
+void parse_bitfmt(const std::string &bitfmt, char *cp, unsigned int *bitsp, bool *bep);
 
 }
 
