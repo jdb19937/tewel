@@ -30,7 +30,10 @@ struct Cortex {
     uint32_t len;
     uint32_t ic, oc;
     uint32_t iw, ih, ow, oh;
-    char __unused[20];
+
+    double mul;
+
+    char __unused[12];
   };
 
   bool is_open, is_prep;

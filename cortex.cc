@@ -81,7 +81,8 @@ static void _parse_header(
   const Cortex::Segment &hdr,
   uint32_t *typep, int *lenp,
   int *icp = NULL, int *ocp = NULL,
-  int *iwp = NULL, int *ihp = NULL, int *owp = NULL, int *ohp = NULL
+  int *iwp = NULL, int *ihp = NULL, int *owp = NULL, int *ohp = NULL,
+  double *mulp = NULL
 ) {
   assert(!memcmp(hdr.magic, "MakeMore", 8));
   uint32_t v = ntohl(hdr.v);
@@ -106,6 +107,8 @@ static void _parse_header(
     *owp = ntohl(hdr.ow);
   if (ohp)
     *ohp = ntohl(hdr.oh);
+  if (mulp)
+    *mulp = hdr.mul;
 }
 
 
@@ -405,10 +408,10 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 }
 
 
-static double *_klnoise(int bufn) {
+static double *_klnoise(int bufn, double mul = 1.0) {
   double *buf = new double[bufn];
   for (int i = 0; i < bufn; ++i)
-    buf[i] = randgauss();
+    buf[i] = randgauss() * mul;
 
   double *kbuf;
   kmake(&kbuf, bufn);
@@ -418,10 +421,10 @@ static double *_klnoise(int bufn) {
   return kbuf;
 }
 
-static double *_kgnoise(int bufn, int c) {
+static double *_kgnoise(int bufn, int c, double mul = 1.0) {
   double *buf = new double[bufn];
   for (int i = 0; i < c; ++i)
-    buf[i] = randgauss();
+    buf[i] = randgauss() * mul;
   for (int i = c; i < bufn; ++i)
     buf[i] = buf[i % c];
 
@@ -465,7 +468,8 @@ static double *pipe_synth(
   uint32_t type;
   int len, ic, oc;
   int viw, vih, vow, voh;
-  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh);
+  double mul;
+  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul);
 
   if (viw)
     assert(viw == iw);
@@ -770,7 +774,7 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _klnoise((oc - ic) * ow * oh);
+      double *knz = _klnoise((oc - ic) * ow * oh, mul);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
@@ -782,7 +786,7 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _kgnoise((oc - ic) * ow * oh, oc - ic);
+      double *knz = _kgnoise((oc - ic) * ow * oh, oc - ic, mul);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
