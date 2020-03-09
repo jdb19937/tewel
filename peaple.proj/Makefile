@@ -157,3 +157,4 @@ clean3:
 	rm -f gen3.ctx dis3.ctx src3.rgb tgt3.rgb pgen3.ctx learnfunc3.done learnhans3.done
 
 clean: clean1 clean2 clean3
+	rm -f *.rvg *.ctx
