@@ -633,7 +633,7 @@ int main(int argc, char **argv) {
       specopt["ow"] = "0";
       specopt["oh"] = "0";
       specopt["oc"] = "0";
-      specopt["mul"] = "0.0";
+      specopt["mul"] = "1.0";
 
       int keys = parsekv(specline, &specopt);
       if (keys < 0)

@@ -108,7 +108,7 @@ static void _parse_header(
   if (ohp)
     *ohp = ntohl(hdr.oh);
   if (mulp)
-    *mulp = hdr.mul;
+    *mulp = hdr.mul + 1.0;
 }
 
 
@@ -408,10 +408,10 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 }
 
 
-static double *_klnoise(int bufn, double mul = 0.0) {
+static double *_klnoise(int bufn, double mul = 1.0) {
   double *buf = new double[bufn];
   for (int i = 0; i < bufn; ++i)
-    buf[i] = randgauss() * (1.0 + mul);
+    buf[i] = randgauss() * mul;
 
   double *kbuf;
   kmake(&kbuf, bufn);
@@ -421,10 +421,10 @@ static double *_klnoise(int bufn, double mul = 0.0) {
   return kbuf;
 }
 
-static double *_kgnoise(int bufn, int c, double mul = 0.0) {
+static double *_kgnoise(int bufn, int c, double mul = 1.0) {
   double *buf = new double[bufn];
   for (int i = 0; i < c; ++i)
-    buf[i] = randgauss() * (1.0 + mul);
+    buf[i] = randgauss() * mul;
   for (int i = c; i < bufn; ++i)
     buf[i] = buf[i % c];
 
@@ -2053,7 +2053,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   hdr.ih = htonl(nih);
   hdr.ow = htonl(now);
   hdr.oh = htonl(noh);
-  hdr.mul = mul;
+  hdr.mul = mul - 1.0;
 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;
