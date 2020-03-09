@@ -79,7 +79,7 @@ struct Cortex {
   void load();
   void save();
 
-  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0);
+  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0, double mul = 0.0);
   void scram(double dev = 1.0);
 
   void target(const double *ktgt);

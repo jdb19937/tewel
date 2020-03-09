@@ -408,10 +408,10 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 }
 
 
-static double *_klnoise(int bufn, double mul = 1.0) {
+static double *_klnoise(int bufn, double mul = 0.0) {
   double *buf = new double[bufn];
   for (int i = 0; i < bufn; ++i)
-    buf[i] = randgauss() * mul;
+    buf[i] = randgauss() * (1.0 + mul);
 
   double *kbuf;
   kmake(&kbuf, bufn);
@@ -421,10 +421,10 @@ static double *_klnoise(int bufn, double mul = 1.0) {
   return kbuf;
 }
 
-static double *_kgnoise(int bufn, int c, double mul = 1.0) {
+static double *_kgnoise(int bufn, int c, double mul = 0.0) {
   double *buf = new double[bufn];
   for (int i = 0; i < c; ++i)
-    buf[i] = randgauss() * mul;
+    buf[i] = randgauss() * (1.0 + mul);
   for (int i = c; i < bufn; ++i)
     buf[i] = buf[i % c];
 
@@ -1561,7 +1561,8 @@ void Cortex::dump(FILE *outfp) {
     uint32_t type;
     int len, ic, oc;
     int viw, vih, vow, voh;
-    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh);
+    double mul;
+    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul);
 
     uint32_t ntype = htonl(type);
     char stype[5];
@@ -1573,6 +1574,8 @@ void Cortex::dump(FILE *outfp) {
     if (vih) fprintf(outfp, " ih=%d", vih);
     if (vow) fprintf(outfp, " ow=%d", vow);
     if (voh) fprintf(outfp, " oh=%d", voh);
+    if (type == TYPE_LRND || type == TYPE_GRND)
+      fprintf(outfp, " mul=%g", mul);
     fprintf(outfp, "\n");
 
     assert(basei + len * sizeof(double) <= basen);
@@ -1923,7 +1926,7 @@ void Cortex::scram(double dev) {
   assert(basei == basen);
 }
 
-void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh) {
+void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh, double mul) {
   if (noc <= 0) {
     int ric = nic;
 
@@ -2050,6 +2053,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   hdr.ih = htonl(nih);
   hdr.ow = htonl(now);
   hdr.oh = htonl(noh);
+  hdr.mul = mul;
 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;

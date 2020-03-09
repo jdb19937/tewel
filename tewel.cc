@@ -633,6 +633,7 @@ int main(int argc, char **argv) {
       specopt["ow"] = "0";
       specopt["oh"] = "0";
       specopt["oc"] = "0";
+      specopt["mul"] = "0.0";
 
       int keys = parsekv(specline, &specopt);
       if (keys < 0)
@@ -647,6 +648,7 @@ int main(int argc, char **argv) {
       int ow = strtoi(specopt["ow"]);
       int oh = strtoi(specopt["oh"]);
       int oc = strtoi(specopt["oc"]);
+      double mul = strtod(specopt["mul"]);
 
 
       if (ic == 0)
@@ -656,7 +658,7 @@ int main(int argc, char **argv) {
       if (poc && ic != poc)
         error("input channels don't match output channels of previous layer");
 
-      out->push(type, ic, oc, iw, ih, ow, oh);
+      out->push(type, ic, oc, iw, ih, ow, oh, mul);
 
       poc = out->oc;
     }
