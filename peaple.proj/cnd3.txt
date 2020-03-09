@@ -1,5 +1,6 @@
 v=2
-type=lrnd ic=3 oc=6
+
+type=lrnd ic=3 oc=6 mul=0.25
 type=mean ic=6 oc=3
 type=iden ic=3 oc=12
 type=ups1 ic=12 oc=3
