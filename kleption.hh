@@ -38,14 +38,14 @@ struct Kleption {
 
     KIND_DIR,
     KIND_PIC,
-    KIND_DAT,
     KIND_CAM,
     KIND_VID,
     KIND_SDL,
     KIND_REF,
     KIND_RVG,
     KIND_RND,
-    KIND_RGB,
+    KIND_F64LE,
+    KIND_U8,
 
     KIND_UNK = -1,
   };
@@ -54,14 +54,16 @@ struct Kleption {
     if (kindstr == "")    return KIND_ANY;
     if (kindstr == "dir") return KIND_DIR;
     if (kindstr == "pic") return KIND_PIC;
-    if (kindstr == "dat") return KIND_DAT;
     if (kindstr == "cam") return KIND_CAM;
     if (kindstr == "vid") return KIND_VID;
     if (kindstr == "sdl") return KIND_SDL;
     if (kindstr == "ref") return KIND_REF;
     if (kindstr == "rvg") return KIND_RVG;
     if (kindstr == "rnd") return KIND_RND;
-    if (kindstr == "rgb") return KIND_RGB;
+    if (kindstr == "rgb") return KIND_U8;
+    if (kindstr == "u8") return KIND_U8;
+    if (kindstr == "f64le") return KIND_F64LE;
+    if (kindstr == "dat") return KIND_F64LE;
     return KIND_UNK;
   }
 

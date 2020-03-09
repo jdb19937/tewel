@@ -125,12 +125,12 @@ Kleption::Kleption(
       kind = KIND_RVG;
       return;
     }
-    if (_kind == KIND_DAT) {
-      kind = KIND_DAT;
+    if (_kind == KIND_F64LE) {
+      kind = KIND_F64LE;
       return;
     }
-    if (_kind == KIND_RGB) {
-      kind = KIND_RGB;
+    if (_kind == KIND_U8) {
+      kind = KIND_U8;
       return;
     }
     if (_kind == KIND_VID) {
@@ -144,10 +144,10 @@ Kleption::Kleption(
 
     assert(_kind == KIND_ANY);
 
-    if (endswith(fn, ".dat")) {
-      kind = KIND_DAT;
-    } else if (endswith(fn, ".rgb")) {
-      kind = KIND_RGB;
+    if (endswith(fn, ".dat") || endswith(fn, ".f64le")) {
+      kind = KIND_F64LE;
+    } else if (endswith(fn, ".rgb") || endswith(fn, ".u8")) {
+      kind = KIND_U8;
     } else if (endswith(fn, ".rvg")) {
       kind = KIND_RVG;
     } else if (
@@ -186,12 +186,12 @@ Kleption::Kleption(
     kind = KIND_CAM;
     return;
   } else {
-    if (_kind == KIND_DAT) {
-      kind = KIND_DAT;
+    if (_kind == KIND_F64LE) {
+      kind = KIND_F64LE;
       return;
     }
-    if (_kind == KIND_RGB) {
-      kind = KIND_RGB;
+    if (_kind == KIND_U8) {
+      kind = KIND_U8;
       return;
     }
     if (_kind == KIND_VID) {
@@ -210,10 +210,10 @@ Kleption::Kleption(
       return;
     }
 
-    if (endswith(fn, ".dat")) {
-      kind = KIND_DAT;
-    } else if (endswith(fn, ".rgb")) {
-      kind = KIND_RGB;
+    if (endswith(fn, ".dat") || endswith(fn, ".f64le")) {
+      kind = KIND_F64LE;
+    } else if (endswith(fn, ".rgb") || endswith(fn, ".u8")) {
+      kind = KIND_U8;
     } else if (endswith(fn, ".rvg")) {
       kind = KIND_RVG;
     } else if (
@@ -305,8 +305,8 @@ void Kleption::unload() {
     idi = 0;
     break;
   case KIND_PIC:
-  case KIND_RGB:
-  case KIND_DAT:
+  case KIND_U8:
+  case KIND_F64LE:
     assert(dat);
     delete[] dat;
     dat = NULL;
@@ -483,8 +483,8 @@ void Kleption::load() {
         }
         assert(
           subkl->kind == KIND_DIR ||
-          subkl->kind == KIND_DAT ||
-          subkl->kind == KIND_RGB ||
+          subkl->kind == KIND_F64LE ||
+          subkl->kind == KIND_U8 ||
           subkl->kind == KIND_PIC
         );
 
@@ -543,7 +543,7 @@ void Kleption::load() {
     assert(sc == 3);
 
     break;
-  case KIND_RGB:
+  case KIND_U8:
     {
       assert(!dat);
       if (!sw) {
@@ -586,7 +586,7 @@ void Kleption::load() {
 
       break;
     }
-  case KIND_DAT:
+  case KIND_F64LE:
     {
       assert(!dat);
       if (!sw) {
@@ -953,7 +953,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       return true;
     }
-  case KIND_RGB:
+  case KIND_U8:
     {
       assert(dat);
       if (flags & FLAG_ADDGEO)
@@ -1004,7 +1004,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       }
       return true;
     }
-  case KIND_DAT:
+  case KIND_F64LE:
     {
       assert(dat);
       if (flags & FLAG_ADDGEO)
@@ -1136,7 +1136,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       break;
     }
 
-  case KIND_RGB:
+  case KIND_U8:
     {
       assert(dat);
       assert(qid == "");
@@ -1186,7 +1186,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       delete[] ddat;
     }
     break;
-  case KIND_DAT:
+  case KIND_F64LE:
     {
       assert(dat);
       assert(qid == "");
@@ -1280,7 +1280,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
     return true;
 
-  case KIND_RGB:
+  case KIND_U8:
     {
       if (!datwriter) {
         datwriter = fopen(fn.c_str(), "w");
@@ -1301,7 +1301,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     }
     return true;
 
-  case KIND_DAT:
+  case KIND_F64LE:
     {
       if (!datwriter) {
         datwriter = fopen(fn.c_str(), "w");
