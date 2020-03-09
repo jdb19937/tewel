@@ -31,14 +31,14 @@ src1.rgb: tgt1.rgb
 
 
 learnfunc2: learnfunc2.done
-learnfunc2.done: src2.rgb tgt2.rgb gen2.ctx pgen2.ctx
-	tewel learnfunc gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x12 reps=256
+learnfunc2.done: src2.rgb tgt2.rgb gen2.ctx
+	tewel learnfunc gen2.ctx src=src2.rgb tgt=tgt2.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=64x64x3 reps=256
 	touch $@
 
 learnhans2: learnhans2.done
-learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx pgen2.ctx
-	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=32768
-	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=4096 mul=0.25
+learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx cnd2.ctx
+	tewel learnhans gen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx cnd=cnd2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=32768
+	tewel learnhans gen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx cnd=cnd2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=4096 mul=0.25
 	touch $@
 
 src2.rgb: dns1.ctx mean.ctx enc.ctx gen1.ctx iden.ctx learnfunc1.done
@@ -54,7 +54,7 @@ tgt2.rgb: dns1.ctx iden.ctx ups1.ctx
 	rm -f tgt2.tmp.rgb
 	tewel synth dns1.ctx \
 		dim=256x256x3 verbose=1 src=/spin/dan/hq.256 out=tgt2.tmp.rgb
-	tewel synth ups1.ctx iden.ctx dns1.ctx \
+	tewel synth ups1.ctx \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
 		srcdim=128x128x12 dim=32x32x12 limit=65536 src=tgt2.tmp.rgb out=$@
 	rm -f tgt2.tmp.rgb
@@ -67,14 +67,14 @@ tgt2.rgb: dns1.ctx iden.ctx ups1.ctx
 
 
 learnfunc3: learnfunc3.done
-learnfunc3.done: gen3.ctx pgen3.ctx src3.rgb tgt3.rgb
-	tewel learnfunc gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x12 reps=256
+learnfunc3.done: gen3.ctx src3.rgb tgt3.rgb
+	tewel learnfunc gen3.ctx src=src3.rgb tgt=tgt3.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=64x64x3 reps=256
 	touch $@
 
 learnhans3: learnhans3.done
-learnhans3.done: learnfunc3.done gen3.ctx dis3.ctx pgen3.ctx src3.rgb tgt3.rgb
-	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=32768
-	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=4096 mul=0.25
+learnhans3.done: learnfunc3.done gen3.ctx dis3.ctx cnd3.ctx src3.rgb tgt3.rgb
+	tewel learnhans gen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx cnd=cnd3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=32768
+	tewel learnhans gen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx cnd=cnd3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=4096 mul=0.25
 	touch $@
 
 src3.rgb: dns1.ctx mean.ctx
@@ -82,8 +82,8 @@ src3.rgb: dns1.ctx mean.ctx
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
 		dim=64x64x3 limit=65536 src=/spin/dan/dne.512 out=$@
 
-tgt3.rgb: dns1.ctx
-	tewel synth dns1.ctx \
+tgt3.rgb: iden.ctx
+	tewel synth iden.ctx \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
 		dim=64x64x3 limit=65536 src=/spin/dan/dne.512 out=$@
 
@@ -152,9 +152,9 @@ showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
 clean1:
 	rm -f gen1.ctx enc.ctx src1.rgb tgt1.rgb learnfunc1.done
 clean2:
-	rm -f gen2.ctx dis2.ctx src2.rgb tgt2.rgb pgen2.ctx src2.tmp.rgb tgt2.tmp.rgb learnfunc2.done learnhans2.done
+	rm -f gen2.ctx dis2.ctx cnd2.ctx src2.rgb tgt2.rgb src2.tmp.rgb tgt2.tmp.rgb learnfunc2.done learnhans2.done
 clean3:
-	rm -f gen3.ctx dis3.ctx src3.rgb tgt3.rgb pgen3.ctx learnfunc3.done learnhans3.done
+	rm -f gen3.ctx dis3.ctx cnd3.ctx src3.rgb tgt3.rgb learnfunc3.done learnhans3.done
 
 clean: clean1 clean2 clean3
 	rm -f *.rvg *.ctx *.out
