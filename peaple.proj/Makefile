@@ -11,7 +11,7 @@ all: learnfunc1 learnhans2 learnhans3
 
 learnfunc1: learnfunc1.done
 learnfunc1.done: enc.ctx gen1.ctx src1.rgb tgt1.rgb
-	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 reps=65536 verbose=1
+	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 reps=32768 verbose=1
 	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=0.25 reps=4096 verbose=1
 	touch $@
 
@@ -37,7 +37,7 @@ learnfunc2.done: src2.rgb tgt2.rgb gen2.ctx pgen2.ctx
 
 learnhans2: learnhans2.done
 learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx pgen2.ctx
-	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=65536
+	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=32768
 	tewel learnhans gen2.ctx pgen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.0 reps=4096 mul=0.25
 	touch $@
 
@@ -73,7 +73,7 @@ learnfunc3.done: gen3.ctx pgen3.ctx src3.rgb tgt3.rgb
 
 learnhans3: learnhans3.done
 learnhans3.done: learnfunc3.done gen3.ctx dis3.ctx pgen3.ctx src3.rgb tgt3.rgb
-	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=65536
+	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=32768
 	tewel learnhans gen3.ctx pgen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=32x32x12 noise=0.5 reps=4096 mul=0.25
 	touch $@
 
@@ -133,15 +133,18 @@ cand.rvg: dns1.ctx mean.ctx enc.ctx
 show1: enc.ctx gen1.ctx
 	tewel synth enc.ctx gen1.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
-
 show2: enc.ctx gen1.ctx gen2.ctx
 	tewel synth enc.ctx gen1.ctx gen2.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
-
 show3: enc.ctx gen1.ctx gen2.ctx gen3.ctx
 	tewel synth enc.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
-
+shownova: gen1.ctx gen2.ctx gen3.ctx nova2.rvg
+	tewel synth gen1.ctx gen2.ctx gen3.ctx src=nova2.rvg \
+		evolve=0.95 dim=1x1x1024 repeat=1 reload=1 delay=0.05 outkind=sdl
+showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
+	tewel synth gen1.ctx gen2.ctx gen3.ctx src=shampane.rvg \
+		evolve=0.95 dim=1x1x1024 repeat=1 reload=1 delay=0.05 outkind=sdl
 
 
 
