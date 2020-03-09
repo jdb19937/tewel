@@ -250,7 +250,7 @@ void learnhans(
   }
 
   assert((cnd ? cnd->ow : iw) == gen->ow);
-  assert((cnd ? cnd->ow : ih) == gen->oh);
+  assert((cnd ? cnd->oh : ih) == gen->oh);
   assert(dis->iw == gen->ow);
   assert(dis->ih == gen->oh);
 
@@ -290,8 +290,8 @@ void learnhans(
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
-    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, cnd->kinp, dis->ic, 0);
-    ksplice(cnd ? cnd->synth(kinp) : kinp, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, cnd ? cnd->oc : ic, 0, cnd ? cnd->oc : ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
@@ -302,7 +302,7 @@ void learnhans(
     chn->learn(genmul);
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    ksplice(cnd ? cnd->synth(kinp) : kinp, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, cnd ? cnd->oc : ic, 0, cnd ? cnd->oc : ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kfake);
@@ -311,7 +311,7 @@ void learnhans(
 
 
     ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    ksplice(cnd ? cnd->synth(kinp) : kinp, gen->ow * gen->oh, ic, 0, ic, dis->kinp, dis->ic, gen->oc);
+    ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, cnd ? cnd->oc : ic, 0, cnd ? cnd->oc : ic, dis->kinp, dis->ic, gen->oc);
 
     dis->synth();
     dis->target(kreal);
