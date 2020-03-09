@@ -14,9 +14,9 @@ TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
 %.ctx: %.txt tewel
 	./tewel make $@ spec=$< clobber=1
 
-OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o chain.o
+OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o chain.o server.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o
-HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh chain.hh
+HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh chain.hh server.hh
 
 SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc rando.cc \
