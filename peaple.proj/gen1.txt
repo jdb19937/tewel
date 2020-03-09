@@ -3,7 +3,7 @@ v=2 rdev=0.05 # test trailing comment
 
 # lone comment
 
-type=ups2 ic=1536 oc=64
+type=ups2 ic=1536 oc=96
 type=relu
 type=loc1 oc=192 iw=4 ih=4 ow=4 oh=4
 
