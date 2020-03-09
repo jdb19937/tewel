@@ -101,9 +101,9 @@ normalize: nrm.ctx den.ctx
 rvg: src1.rvg shampane.rvg nova2.rvg miniceleb.rvg lfw.rvg minidne.rvg cand.rvg
 
 nrm.ctx:
-	tewel identity nrm.ctx dim=1024 clobber=1
+	tewel identity nrm.ctx dim=1536 clobber=1
 den.ctx: nrm.ctx src1.rvg
-	tewel identity den.ctx dim=1024 clobber=1
+	tewel identity den.ctx dim=1536 clobber=1
 	tewel normalize nrm.ctx den.ctx rvg=src1.rvg
 
 
@@ -141,10 +141,10 @@ show3: enc.ctx gen1.ctx gen2.ctx gen3.ctx
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
 shownova: gen1.ctx gen2.ctx gen3.ctx nova2.rvg
 	tewel synth gen1.ctx gen2.ctx gen3.ctx src=nova2.rvg \
-		evolve=0.95 dim=1x1x1024 repeat=1 reload=1 delay=0.05 outkind=sdl
+		evolve=0.95 dim=1x1x1536 repeat=1 reload=1 delay=0.05 outkind=sdl
 showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
 	tewel synth gen1.ctx gen2.ctx gen3.ctx src=shampane.rvg \
-		evolve=0.95 dim=1x1x1024 repeat=1 reload=1 delay=0.05 outkind=sdl
+		evolve=0.95 dim=1x1x1536 repeat=1 reload=1 delay=0.05 outkind=sdl
 
 
 
