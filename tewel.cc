@@ -336,6 +336,9 @@ void learnhans(
       chn->save();
       dis->save();
 
+      if (cnd)
+        cnd->save();
+
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds,
