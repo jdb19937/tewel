@@ -152,7 +152,8 @@ void learnstyl(
   int repint,
   double mul,
   bool lossreg,
-  long reps
+  long reps,
+  double stoploss
 ) {
   Cortex *gen = chn->tail;
 
@@ -217,6 +218,11 @@ void learnstyl(
         gen->rms, dis->rms
       );
 
+      if (dis->rms < stoploss) {
+        warning("disrms reached stoploss value, all done");
+        break;
+      }
+
       ++rep;
     }
   }
@@ -233,7 +239,8 @@ void learnhans(
   int repint,
   double mul,
   bool lossreg,
-  long reps
+  long reps,
+  double stoploss
 ) {
   Cortex *gen = chn->tail;
 
@@ -345,6 +352,11 @@ void learnhans(
          dt, reps < 0 ? 0 : (reps - rep) * dt,
         gen->rms, dis->rms
       );
+
+      if (dis->rms < stoploss) {
+        warning("disrms reached stoploss value, all done");
+        break;
+      }
 
       ++rep;
     }
@@ -1165,6 +1177,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
     int lossreg = arg.get("lossreg", diropt["lossreg"]);
+    double stoploss = arg.get("stoploss", "0.0");
 
     int ic;
     chn->prepare(iw, ih);
@@ -1245,7 +1258,7 @@ int main(int argc, char **argv) {
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps);
+    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps, stoploss);
 
     delete src;
     delete sty;
@@ -1278,6 +1291,7 @@ int main(int argc, char **argv) {
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
     int lossreg = arg.get("lossreg", diropt["lossreg"]);
+    double stoploss = arg.get("stoploss", "0.0");
 
     int ic;
     chn->prepare(iw, ih);
@@ -1381,7 +1395,7 @@ int main(int argc, char **argv) {
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, tgt, chn, dis, cnd, repint, mul, lossreg, reps);
+    learnhans(src, tgt, chn, dis, cnd, repint, mul, lossreg, reps, stoploss);
 
     delete src;
     delete tgt;
