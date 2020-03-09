@@ -1575,7 +1575,7 @@ void Cortex::dump(FILE *outfp) {
     if (vow) fprintf(outfp, " ow=%d", vow);
     if (voh) fprintf(outfp, " oh=%d", voh);
     if (type == TYPE_LRND || type == TYPE_GRND)
-      fprintf(outfp, " mul=%g", mul + 1.0);
+      fprintf(outfp, " mul=%g", mul);
     fprintf(outfp, "\n");
 
     assert(basei + len * sizeof(double) <= basen);
