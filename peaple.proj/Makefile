@@ -11,7 +11,7 @@ all: learnfunc1 learnhans2 learnhans3
 
 learnfunc1: learnfunc1.done
 learnfunc1.done: enc.ctx gen1.ctx src1.rgb tgt1.rgb
-	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 reps=32768 verbose=1
+	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 stoploss=0.05 verbose=1
 	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=0.25 reps=4096 verbose=1
 	touch $@
 
