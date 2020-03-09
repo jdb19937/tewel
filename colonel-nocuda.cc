@@ -324,6 +324,36 @@ void learn_conv(
   CALL_KERNEL(learn_conv3, wn, d, ic, oc, wmv, nu, b1, b2, eps, rounds);
 }
 
+void synth_iden(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_iden, outn,
+    in, iw, ih, out, ic, oc, kbuf
+  );
+}
+
+
+void learn_iden(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc
+) {
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_iden, inn,
+    fin, iw, ih, fout, ic, oc
+  );
+}
+
+
+
 void synth_mean(
   const double *in, int iw, int ih,
   double *out,

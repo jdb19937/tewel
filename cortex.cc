@@ -78,36 +78,34 @@ static int _scale_factor(int ic, int oc) {
 }
 
 static void _parse_header(
-  layer_header_t& hdr, uint32_t *typep, int *lenp,
+  const Cortex::Segment &hdr,
+  uint32_t *typep, int *lenp,
   int *icp = NULL, int *ocp = NULL,
   int *iwp = NULL, int *ihp = NULL, int *owp = NULL, int *ohp = NULL
 ) {
-  assert(sizeof(hdr[0]) == 4);
-  assert(sizeof(hdr) >= 64);
-
-  assert(!memcmp((char *)hdr, "MakeMore", 8));
-  uint32_t v = ntohl(hdr[2]);
+  assert(!memcmp(hdr.magic, "MakeMore", 8));
+  uint32_t v = ntohl(hdr.v);
 
   assert(v != 0);
   assert(v < 256);
   // if (v != 2)
   //   warning("v != 2");
 
-  *typep = ntohl(hdr[3]);
-  *lenp = ntohl(hdr[4]);
+  *typep = ntohl(hdr.type);
+  *lenp = ntohl(hdr.len);
 
   if (icp)
-    *icp = ntohl(hdr[5]);
+    *icp = ntohl(hdr.ic);
   if (ocp)
-    *ocp = ntohl(hdr[6]);
+    *ocp = ntohl(hdr.oc);
   if (iwp)
-    *iwp = ntohl(hdr[7]);
+    *iwp = ntohl(hdr.iw);
   if (ihp)
-    *ihp = ntohl(hdr[8]);
+    *ihp = ntohl(hdr.ih);
   if (owp)
-    *owp = ntohl(hdr[9]);
+    *owp = ntohl(hdr.ow);
   if (ohp)
-    *ohp = ntohl(hdr[10]);
+    *ohp = ntohl(hdr.oh);
 }
 
 
@@ -122,9 +120,9 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
   assert(basei < basen);
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Cortex::Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -360,7 +358,9 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     case TYPE_IDEN:
       ow = iw;
       oh = ih;
-      assert(oc == ic);
+      assert(ic > 0);
+      assert(oc >= ic);
+      assert(oc % ic == 0);
       assert(len == 0);
       break;
     case TYPE_MEAN:
@@ -455,9 +455,9 @@ static double *pipe_synth(
 
   const double *in = (const double *)kbuf;
 
-  layer_header_t hdr;
+  Cortex::Segment hdr;
   assert(sizeof(hdr) <= basen);
-  memcpy(hdr, base, sizeof(hdr));
+  memcpy(&hdr, base, sizeof(hdr));
   base += sizeof(hdr);
   kbase += sizeof(hdr);
   basen -= sizeof(hdr);
@@ -802,10 +802,11 @@ static double *pipe_synth(
   case TYPE_IDEN:
     {
       assert(len == 0);
-      assert(ic == oc);
+      assert(oc >= ic);
+      assert(oc % ic == 0);
       ow = iw;
       oh = ih;
-      synth_pad(in, iw, ih, out, ic, oc, NULL);
+      synth_iden(in, iw, ih, out, ic, oc, NULL);
       break;
     }
   case TYPE_MEAN:
@@ -848,9 +849,9 @@ void pipe_learn(
     return;
   assert(basen > 0);
 
-  layer_header_t hdr;
+  Cortex::Segment hdr;
   assert(sizeof(hdr) <= basen);
-  memcpy(hdr, base, sizeof(hdr));
+  memcpy(&hdr, base, sizeof(hdr));
   base += sizeof(hdr);
   kbase += sizeof(hdr);
   basen -= sizeof(hdr);
@@ -1070,7 +1071,8 @@ void pipe_learn(
     oh = ih;
     break;
   case TYPE_IDEN:
-    assert(ic == oc);
+    assert(oc >= ic);
+    assert(oc % ic == 0);
     assert(len == 0);
     ow = iw;
     oh = ih;
@@ -1191,8 +1193,10 @@ void pipe_learn(
   case TYPE_LRND:
   case TYPE_GRND:
   case TYPE_PAD1:
-  case TYPE_IDEN:
     learn_pad(in, iw, ih, fout, ic, oc);
+    break;
+  case TYPE_IDEN:
+    learn_iden(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_MEAN:
     learn_mean(in, iw, ih, fout, ic, oc);
@@ -1309,9 +1313,9 @@ void Cortex::open(const std::string &_fn, int flags) {
   oc = 0;
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Cortex::Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -1338,9 +1342,9 @@ void Cortex::open(const std::string &_fn, int flags) {
 
 void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
   unsigned int basei = 0;
-  layer_header_t hdr;
+  Cortex::Segment hdr;
   assert(basei + sizeof(hdr) <= basen);
-  memcpy(hdr, base + basei, sizeof(hdr));
+  memcpy(&hdr, base + basei, sizeof(hdr));
   basei += sizeof(hdr);
 
   uint32_t type;
@@ -1367,9 +1371,9 @@ void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
 
 void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
   unsigned int basei = 0;
-  layer_header_t hdr;
+  Cortex::Segment hdr;
   assert(basei + sizeof(hdr) <= basen);
-  memcpy(hdr, base + basei, sizeof(hdr));
+  memcpy(&hdr, base + basei, sizeof(hdr));
   basei += sizeof(hdr);
 
   uint32_t type;
@@ -1395,9 +1399,9 @@ void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
   unsigned int basei = 0;
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Cortex::Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -1433,9 +1437,9 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
   unsigned int basei = 0;
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Cortex::Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -1545,9 +1549,9 @@ void Cortex::dump(FILE *outfp) {
   unsigned int basei = 0;
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -1585,9 +1589,9 @@ void Cortex::bindump(FILE *outfp, unsigned int a, unsigned int b) {
   }
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -1603,7 +1607,7 @@ void Cortex::bindump(FILE *outfp, unsigned int a, unsigned int b) {
     assert(i <= 4096);
 
     if (i >= a && i <= b) {
-      int ret = fwrite(hdr, 1, sizeof(hdr), outfp);
+      int ret = fwrite(&hdr, 1, sizeof(hdr), outfp);
       assert(ret == sizeof(hdr));
       ret = fwrite(base + basei, 1, len * sizeof(double), outfp);
       assert(ret == len * sizeof(double));
@@ -1885,9 +1889,9 @@ void Cortex::scram(double dev) {
   unsigned int basei = 0;
 
   while (basei < basen) {
-    layer_header_t hdr;
+    Segment hdr;
     assert(basei + sizeof(hdr) <= basen);
-    memcpy(hdr, base + basei, sizeof(hdr));
+    memcpy(&hdr, base + basei, sizeof(hdr));
     basei += sizeof(hdr);
 
     uint32_t type;
@@ -2014,7 +2018,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     assert(0);
   }
 
-  size_t new_basen = basen + sizeof(layer_header_t) + len * sizeof(double);
+  size_t new_basen = basen + sizeof(Segment) + len * sizeof(double);
 
   int ret = ::ftruncate(fd, new_basen + sizeof(Head));
   assert(ret == 0);
@@ -2029,20 +2033,19 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   head = (Head *)vbase;
   base = (uint8_t *)vbase + sizeof(Head);
 
-  layer_header_t hdr;
-  memset(hdr, 0, sizeof(hdr));
-  assert(sizeof(hdr[0]) == 4);
+  Segment hdr;
+  memset(&hdr, 0, sizeof(hdr));
   assert(sizeof(hdr) >= 64);
-  memcpy((char *)hdr, "MakeMore", 8);
-  hdr[2] = htonl(2);
-  hdr[3] = htonl(type);
-  hdr[4] = htonl(len);
-  hdr[5] = htonl(nic);
-  hdr[6] = htonl(noc);
-  hdr[7] = htonl(niw);
-  hdr[8] = htonl(nih);
-  hdr[9] = htonl(now);
-  hdr[10] = htonl(noh);
+  memcpy(hdr.magic, "MakeMore", 8);
+  hdr.v = htonl(2);
+  hdr.type = htonl(type);
+  hdr.len = htonl(len);
+  hdr.ic = htonl(nic);
+  hdr.oc = htonl(noc);
+  hdr.iw = htonl(niw);
+  hdr.ih = htonl(nih);
+  hdr.ow = htonl(now);
+  hdr.oh = htonl(noh);
 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;

@@ -11,8 +11,6 @@
 
 namespace makemore {
 
-typedef uint32_t layer_header_t[16];
-
 struct Cortex {
   struct Head {
     char magic[8];
@@ -23,6 +21,16 @@ struct Cortex {
     double rms, max, decay;
     double rdev;
     char blank[4008];
+  };
+
+  struct Segment {
+    char magic[8];
+    uint32_t v;
+    uint32_t type;
+    uint32_t len;
+    uint32_t ic, oc;
+    uint32_t iw, ih, ow, oh;
+    char __unused[20];
   };
 
   bool is_open, is_prep;
