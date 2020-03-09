@@ -1270,11 +1270,6 @@ int main(int argc, char **argv) {
     chn->prepare(iw, ih);
     ic = chn->head->ic;
 
-    if (iw != chn->tail->ow)
-      error("iw differs from ow");
-    if (ih != chn->tail->oh)
-      error("iw differs from oh");
-
     Cortex *dis = NULL;
     if (arg.present("dis")) {
       dis = new Cortex(arg.get("dis"));
@@ -1298,6 +1293,11 @@ int main(int argc, char **argv) {
       if (dis->ic != chn->tail->oc + cnd->oc)
         error("gen oc + cnd oc doesn't match dis ic");
     } else {
+      if (iw != chn->tail->ow)
+        error("gen ow doesn't match dis iw");
+      if (ih != chn->tail->oh)
+        error("gen oh doesn't match dis ih");
+
       if (dis->ic != chn->tail->oc + ic)
         error("gen oc + gen ic doesn't match dis ic");
     }
