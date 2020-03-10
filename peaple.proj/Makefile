@@ -125,7 +125,7 @@ normalize: enc0.ctx gen0.ctx
 rvg: src1.rvg shampane.rvg nova2.rvg miniceleb.rvg lfw.rvg minidne.rvg cand.rvg
 
 enc0.ctx gen0.ctx &: src1.rvg learnfunc1.done
-	tewel normalize enc0.ctx gen0.ctx rvg=src1.rvg verbose=1
+	tewel normalize enc0.ctx gen0.ctx rvg=src1.rvg verbose=1 clobber=1 nerf=1
 
 
 
