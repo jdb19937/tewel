@@ -10,9 +10,9 @@ all: learnfunc1 learnhans2 learnhans3
 
 
 learnfunc1: learnfunc1.done
-learnfunc1.done: enc.ctx gen1.ctx src1.rgb tgt1.rgb
-	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 stoploss=0.05 verbose=1
-	tewel learnfunc enc.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=0.25 reps=4096 verbose=1
+learnfunc1.done: enc1.ctx gen1.ctx src1.rgb tgt1.rgb
+	tewel learnfunc enc1.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=1 stoploss=0.05 verbose=1
+	tewel learnfunc enc1.ctx gen1.ctx src=src1.rgb tgt=tgt1.rgb dim=128x128 mul=0.25 stoploss=0.045 verbose=1
 	touch $@
 
 tgt1.rgb: iden.ctx
@@ -41,9 +41,9 @@ learnhans2.done: learnfunc2.done src2.rgb tgt2.rgb gen2.ctx dis2.ctx cnd2.ctx
 	tewel learnhans gen2.ctx src=src2.rgb tgt=tgt2.rgb dis=dis2.ctx cnd=cnd2.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=4096 mul=0.25
 	touch $@
 
-src2.rgb: dns1.ctx mean.ctx enc.ctx gen1.ctx iden.ctx learnfunc1.done
+src2.rgb: dns1.ctx mean.ctx enc1.ctx gen1.ctx iden.ctx learnfunc1.done
 	rm -f src2.tmp.rgb
-	tewel synth dns1.ctx mean.ctx enc.ctx gen1.ctx \
+	tewel synth dns1.ctx mean.ctx enc1.ctx gen1.ctx \
 		dim=256x256x3 verbose=1 src=/spin/dan/hq.256 out=src2.tmp.rgb
 	tewel synth iden.ctx \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
@@ -109,35 +109,35 @@ den.ctx: nrm.ctx src1.rvg
 
 
 
-src1.rvg: src1.rgb enc.ctx
-	tewel synth enc.ctx dim=128x128 src=$< out=$@ verbose=1
+src1.rvg: src1.rgb enc1.ctx
+	tewel synth enc1.ctx dim=128x128 src=$< out=$@ verbose=1
 
-shampane.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/shampane.aligned out=$@ verbose=1
-nova2.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/nova2.aligned out=$@ verbose=1
-miniceleb.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/miniceleb.aligned out=$@ verbose=1
-lfw.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/lfw.aligned out=$@ verbose=1
-minidne.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/minidne.aligned out=$@ verbose=1
-cand.rvg: dns1.ctx mean.ctx enc.ctx
-	tewel synth dns1.ctx mean.ctx enc.ctx dim=256x256 src=/spin/dan/cand.aligned out=$@ verbose=1
-
-
+shampane.rvg: dns1.ctx mean.ctx enc1.ctx
+	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/shampane.aligned out=$@ verbose=1
+nova2.rvg: dns1.ctx mean.ctx enc1.ctx
+	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/nova2.aligned out=$@ verbose=1
+miniceleb.rvg: dns1.ctx mean.ctx enc1.ctx
+	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/miniceleb.aligned out=$@ verbose=1
+lfw.rvg: dns1.ctx mean.ctx enc1.ctx
+	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/lfw.aligned out=$@ verbose=1
+minidne.rvg: dns1.ctx mean.ctx enc1.ctx
+	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/minidne.aligned out=$@ verbose=1
+cand.rvg: dns1.ctx mean.ctx enc1.ctx
+	tewel synth dns1.ctx mean.ctx enc1.ctx dim=256x256 src=/spin/dan/cand.aligned out=$@ verbose=1
 
 
 
 
-show1: enc.ctx gen1.ctx
-	tewel synth enc.ctx gen1.ctx src=/spin/dan/lq.128 \
+
+
+show1: enc1.ctx gen1.ctx
+	tewel synth enc1.ctx gen1.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
-show2: enc.ctx gen1.ctx gen2.ctx
-	tewel synth enc.ctx gen1.ctx gen2.ctx src=/spin/dan/lq.128 \
+show2: enc1.ctx gen1.ctx gen2.ctx
+	tewel synth enc1.ctx gen1.ctx gen2.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
-show3: enc.ctx gen1.ctx gen2.ctx gen3.ctx
-	tewel synth enc.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 \
+show3: enc1.ctx gen1.ctx gen2.ctx gen3.ctx
+	tewel synth enc1.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
 shownova: gen1.ctx gen2.ctx gen3.ctx nova2.rvg
 	tewel synth gen1.ctx gen2.ctx gen3.ctx src=nova2.rvg \
@@ -150,7 +150,7 @@ showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
 
 
 clean1:
-	rm -f gen1.ctx enc.ctx src1.rgb tgt1.rgb learnfunc1.done
+	rm -f gen1.ctx enc1.ctx src1.rgb tgt1.rgb learnfunc1.done
 clean2:
 	rm -f gen2.ctx dis2.ctx cnd2.ctx src2.rgb tgt2.rgb src2.tmp.rgb tgt2.tmp.rgb learnfunc2.done learnhans2.done
 clean3:
