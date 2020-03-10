@@ -120,15 +120,12 @@ sty4.rgb: iden.ctx
 
 
 
-normalize: nrm.ctx den.ctx
+normalize: enc0.ctx gen0.ctx
 
 rvg: src1.rvg shampane.rvg nova2.rvg miniceleb.rvg lfw.rvg minidne.rvg cand.rvg
 
-nrm.ctx:
-	tewel identity nrm.ctx dim=1536 clobber=1
-den.ctx: nrm.ctx src1.rvg
-	tewel identity den.ctx dim=1536 clobber=1
-	tewel normalize nrm.ctx den.ctx rvg=src1.rvg
+enc0.ctx gen0.ctx &: src1.rvg learnfunc1.done
+	tewel normalize enc0.ctx gen0.ctx rvg=src1.rvg verbose=1
 
 
 
