@@ -88,11 +88,15 @@ tgt3.rgb: iden.ctx
 		dim=64x64x3 limit=65536 src=/spin/dan/dne.512 out=$@
 
 
+learnfunc4: learnfunc4.done
+learnfunc4.done: gen4.ctx src4.rgb sty4.rgb dns1.ctx mean.ctx
+	tewel learnfunc gen4.ctx dns1.ctx mean.ctx src=src4.rgb tgt=src4.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=32x32x3 reps=256
+	touch $@
 
 learnstyl4: learnstyl4.done
 learnstyl4.done: gen4.ctx dis4.ctx src4.rgb sty4.rgb
-	tewel learnstyl gen4.ctx src=src4.rgb sty=sty4.rgb dis=dis4.ctx dim=64x64x3 srcdim=64x64x3 stydim=64x64x3 reps=32768
-	tewel learnstyl gen4.ctx src=src4.rgb sty=sty4.rgb dis=dis4.ctx dim=64x64x3 srcdim=64x64x3 stydim=64x64x3 reps=4096 mul=0.25
+	tewel learnstyl gen4.ctx src=src4.rgb sty=sty4.rgb dis=dis4.ctx dim=32x32x3 srcdim=32x32x3 stydim=64x64x3 reps=32768
+	tewel learnstyl gen4.ctx src=src4.rgb sty=sty4.rgb dis=dis4.ctx dim=32x32x3 srcdim=32x32x3 stydim=64x64x3 reps=4096 mul=0.25
 	touch $@
 
 src4.rgb: iden.ctx
