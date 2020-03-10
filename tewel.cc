@@ -68,13 +68,19 @@ void learnauto(
   int repint,
   double mul,
   long reps,
-  double stoploss
+  double stoploss,
+  long stoprounds
 ) {
   assert(chn->head->iw == chn->tail->ow);
   assert(chn->head->ih == chn->tail->oh);
   assert(chn->head->ic == chn->tail->oc);
 
   Cortex *gen = chn->tail;
+
+  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+    warning("genrounds reached stoprounds value, all done");
+    return;
+  }
 
   double t0 = now();
   int rep = 0;
@@ -103,6 +109,12 @@ void learnauto(
         break;
       }
 
+      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+        warning("genrounds reached stoprounds value, all done");
+        break;
+      }
+
+
       ++rep;
     }
   }
@@ -115,9 +127,15 @@ void learnfunc(
   int repint,
   double mul,
   long reps,
-  double stoploss
+  double stoploss,
+  long stoprounds
 ) {
   Cortex *gen = chn->tail;
+
+  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+    warning("genrounds reached stoprounds value, all done");
+    return;
+  }
 
   double *ktgt;
   kmake(&ktgt, gen->owhc);
@@ -150,6 +168,11 @@ void learnfunc(
         break;
       }
 
+      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+        warning("genrounds reached stoprounds value, all done");
+        break;
+      }
+
       ++rep;
     }
   }
@@ -165,9 +188,15 @@ void learnstyl(
   int repint,
   double mul,
   bool lossreg,
-  long reps
+  long reps,
+  long stoprounds
 ) {
   Cortex *gen = chn->tail;
+
+  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+    warning("genrounds reached stoprounds value, all done");
+    return;
+  }
 
   assert(gen->ow == dis->iw);
   assert(gen->oh == dis->ih);
@@ -241,6 +270,11 @@ void learnstyl(
         gen->rms, dis->rms
       );
 
+      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+        warning("genrounds reached stoprounds value, all done");
+        break;
+      }
+
       ++rep;
     }
   }
@@ -257,9 +291,15 @@ void learnhans(
   int repint,
   double mul,
   bool lossreg,
-  long reps
+  long reps,
+  long stoprounds
 ) {
   Cortex *gen = chn->tail;
+
+  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+    warning("genrounds reached stoprounds value, all done");
+    return;
+  }
 
   int iw, ih, ic, iwhc;
   iw = chn->head->iw;
@@ -369,6 +409,11 @@ void learnhans(
          dt, reps < 0 ? 0 : (reps - rep) * dt,
         gen->rms, dis->rms
       );
+
+      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+        warning("genrounds reached stoprounds value, all done");
+        break;
+      }
 
       ++rep;
     }
@@ -1145,11 +1190,12 @@ int main(int argc, char **argv) {
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
     double stoploss = arg.get("stoploss", "0.0");
+    long stoprounds = strtol(arg.get("stoprounds", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnauto(src, chn, repint, mul, reps, stoploss);
+    learnauto(src, chn, repint, mul, reps, stoploss, stoprounds);
 
     delete src;
     delete chn;
@@ -1240,11 +1286,12 @@ int main(int argc, char **argv) {
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
     double stoploss = arg.get("stoploss", "0.0");
+    long stoprounds = strtol(arg.get("stoprounds", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnfunc(src, tgt, chn, repint, mul, reps, stoploss);
+    learnfunc(src, tgt, chn, repint, mul, reps, stoploss, stoprounds);
 
     delete src;
     delete tgt;
@@ -1350,11 +1397,12 @@ int main(int argc, char **argv) {
     );
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
+    long stoprounds = strtol(arg.get("stoprounds", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps);
+    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps, stoprounds);
 
     delete src;
     delete sty;
@@ -1484,13 +1532,14 @@ int main(int argc, char **argv) {
     );
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
+    long stoprounds = strtol(arg.get("stoprounds", "-1"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, tgt, chn, dis, cnd, repint, mul, lossreg, reps);
+    learnhans(src, tgt, chn, dis, cnd, repint, mul, lossreg, reps, stoprounds);
 
     delete src;
     delete tgt;
