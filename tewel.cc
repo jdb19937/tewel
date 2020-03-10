@@ -67,9 +67,9 @@ static double calceta(double dt, int rep, int reps, int _round, int rounds, int 
   if (reps >= 0) {
     eta = (reps - rep) * dt;
     if (rounds >= 0)
-      eta = std::min(eta, (rounds - _round) * dt * repint);
+      eta = std::min(eta, (rounds - _round) * dt / (double)repint);
   } else if (rounds >= 0) {
-    eta = (rounds - _round) * dt * repint;
+    eta = (rounds - _round) * dt / (double)repint;
   }
   return eta;
 }
