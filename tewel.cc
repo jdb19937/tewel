@@ -18,6 +18,7 @@
 #include "display.hh"
 #include "camera.hh"
 #include "picpipes.hh"
+#include "server.hh"
 #include "chain.hh"
 
 using namespace makemore;
@@ -563,7 +564,7 @@ int main(int argc, char **argv) {
   verbose = arg.get("verbose", "0");
   info(fmt("verbose=%d", verbose));
 
-  setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
+  // setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
   setkbs(arg.get("kbs", "256"));
 
   Kleption::set_picreader_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
@@ -579,6 +580,31 @@ int main(int argc, char **argv) {
   info(fmt("first random uint %u", firstrand));
 
   int lowmem = arg.get("lowmem", "0");
+
+  if (cmd == "server") {
+    int pw = 0, ph = 0;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &pw, &ph))
+        error("dim must be like 256 or like 256x256");
+    }
+
+    int kids = arg.get("kids", "1");
+
+    int port = arg.get("port", "4444");
+    info(fmt("starting server on port %d", port));
+
+    Server *server = new Server(ctx, pw, ph);
+
+    server->open();
+    server->bind((uint16_t)port);
+    server->listen(1);
+    server->start(kids);
+    server->wait();
+    info("all done");
+
+    delete server;
+    return 0;
+  }
 
   if (cmd == "make") {
     if (ctx.size() != 1)
