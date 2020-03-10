@@ -512,8 +512,8 @@ void normalize(
   cpumatmat(gm, gw, gh, chol, oc, oc, tgm);
   memcpy(gm, tgm, sizeof(double) * gw * gh);
 
-  gen->_put_head_op(gb, gm, gw, gh);
-  enc->_put_tail_op(eb, em, ew, eh);
+  gen->_put_tail_op(gb, gm, gw, gh);
+  enc->_put_head_op(eb, em, ew, eh);
 
   delete[] mean;
   delete[] chol;
