@@ -194,25 +194,36 @@ void learnstyl(
       genmul *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
       dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
     }
+
+    info(fmt("choosing src rep=%d", rep));
  
     assert(src->pick(chn->kinp()));
+
+    info(fmt("synthing chn rep=%d", rep));
     chn->synth();
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
+    info(fmt("synthing dis rep=%d", rep));
     dis->synth(ktmp);
     dis->target(kreal);
 
     kcopy(dis->propback(), gen->owhc, gen->kout); 
+    info(fmt("learning chn rep=%d", rep));
     chn->learn(genmul);
 
+    info(fmt("synthing dis rep=%d", rep));
     dis->synth(ktmp);
     dis->target(kfake);
+    info(fmt("learning dis rep=%d", rep));
     dis->learn(dismul);
 
+    info(fmt("choosing sty rep=%d", rep));
     assert(sty->pick(dis->kinp));
+    info(fmt("synthing dis rep=%d", rep));
     dis->synth();
     dis->target(kreal);
+    info(fmt("learning dis rep=%d", rep));
     dis->learn(dismul);
 
     if (gen->rounds % repint == 0) {
@@ -563,9 +574,6 @@ int main(int argc, char **argv) {
   verbose = arg.get("verbose", "0");
   info(fmt("verbose=%d", verbose));
 
-  // setkdev(arg.get("cuda", kndevs() > 1 ? "1" : "0"));
-  setkbs(arg.get("kbs", "256"));
-
   Kleption::set_picreader_cmd(arg.get("picreader", "/opt/makemore/share/tewel/picreader.pl"));
   Kleption::set_picwriter_cmd(arg.get("picwriter", "/opt/makemore/share/tewel/picwriter.pl"));
   Kleption::set_vidreader_cmd(arg.get("vidreader", "/opt/makemore/share/tewel/vidreader.pl"));
@@ -579,6 +587,7 @@ int main(int argc, char **argv) {
   info(fmt("first random uint %u", firstrand));
 
   int lowmem = arg.get("lowmem", "0");
+  int cuda = arg.get("cuda", "-1");
 
   if (cmd == "server") {
     int pw = 0, ph = 0;
@@ -604,6 +613,9 @@ int main(int argc, char **argv) {
     delete server;
     return 0;
   }
+
+  setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? "1" : "0"));
+  setkbs(arg.get("kbs", "256"));
 
   if (cmd == "make") {
     if (ctx.size() != 1)
