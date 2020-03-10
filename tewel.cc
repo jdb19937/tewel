@@ -62,6 +62,18 @@ static void uerror(const std::string &str) {
   exit(1);
 }
 
+static double calceta(double dt, int rep, int reps, int _round, int rounds, int repint) {
+  double eta = -1;
+  if (reps >= 0) {
+    eta = (reps - rep) * dt;
+    if (rounds >= 0)
+      eta = std::min(eta, (rounds - _round) * dt * repint);
+  } else if (rounds >= 0) {
+    eta = (rounds - _round) * dt * repint;
+  }
+  return eta;
+}
+
 void learnauto(
   Kleption *src,
   Chain *chn,
@@ -100,7 +112,7 @@ void learnauto(
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
          gen->fn.c_str(), gen->rounds,
-         dt, reps < 0 ? 0 : (reps - rep) * dt,
+         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
         gen->rms
       );
 
@@ -159,7 +171,7 @@ void learnfunc(
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
          gen->fn.c_str(), gen->rounds,
-         dt, reps < 0 ? 0 : (reps - rep) * dt,
+         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
         gen->rms
       );
 
@@ -266,7 +278,7 @@ void learnstyl(
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds,
-         dt, reps < 0 ? 0 : (reps - rep) * dt,
+         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
         gen->rms, dis->rms
       );
 
@@ -406,7 +418,7 @@ void learnhans(
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
          gen->fn.c_str(), gen->rounds,
-         dt, reps < 0 ? 0 : (reps - rep) * dt,
+         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
         gen->rms, dis->rms
       );
 
