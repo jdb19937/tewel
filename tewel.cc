@@ -614,7 +614,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? "1" : "0"));
+  setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? 1 : 0);
   setkbs(arg.get("kbs", "256"));
 
   if (cmd == "make") {
