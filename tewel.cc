@@ -457,8 +457,7 @@ void matinv(const double *m, double *x, unsigned int n) {
 void normalize(
   Rando *rvg,
   Cortex *enc,
-  Cortex *gen,
-  int limit
+  Cortex *gen
 ) {
   int owh = enc->ow * enc->oh;
   int oc = enc->oc;
@@ -478,13 +477,13 @@ void normalize(
 
   double *em, *eb;
   int ew, eh;
-  enc->_get_tail_op(&eb, &em, &ew, &eh);
+  enc->_get_head_op(&eb, &em, &ew, &eh);
   assert(ew > 0);
   assert(eh == oc);
 
   double *gm, *gb;
   int gw, gh;
-  gen->_get_head_op(&gb, &gm, &gw, &gh);
+  gen->_get_tail_op(&gb, &gm, &gw, &gh);
   assert(gw == oc);
   assert(gh > 0);
 
@@ -977,22 +976,39 @@ int main(int argc, char **argv) {
     std::string encfn = ctx[0];
     std::string genfn = ctx[1];
 
-    Cortex *enc = new Cortex(encfn);
-    Cortex *gen = new Cortex(genfn);
-    if (enc->oc != gen->ic)
-      error("encoder oc doesn't match generator ic");
-
     if (!arg.present("rvg"))
       error("normalize requires rvg arg");
-    Rando *rvg = new Rando;
-    rvg->load(arg.get("rvg"));
+    std::string rvgfn = arg.get("rvg");
 
-    int limit = arg.get("limit", "-1");
+    int nerf = arg.get("nerf", "1");
+    int clobber = arg.get("clobber", "0");
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    normalize(rvg, enc, gen, limit);
+    Rando *rvg = new Rando;
+    rvg->load(rvgfn);
+
+    Cortex::create(encfn, (bool)clobber);
+    Cortex::create(genfn, (bool)clobber);
+
+    Cortex *enc = new Cortex(encfn, O_RDWR);
+    enc->push("con0", rvg->dim, rvg->dim);
+    if (nerf)
+      enc->push("nerf", rvg->dim, rvg->dim);
+
+    delete enc;
+    enc = new Cortex(encfn, O_RDWR);
+
+    Cortex *gen = new Cortex(genfn, O_RDWR);
+    if (nerf)
+      gen->push("inrf", rvg->dim, rvg->dim);
+    gen->push("con0", rvg->dim, rvg->dim);
+
+    delete gen;
+    gen = new Cortex(genfn, O_RDWR);
+
+    normalize(rvg, enc, gen);
 
     delete gen;
     delete enc;
