@@ -65,17 +65,10 @@ tgt2.rgb: dns1.ctx iden.ctx ups1.ctx
 
 
 
-
-learnfunc3: learnfunc3.done
-learnfunc3.done: gen3.ctx src3.rgb tgt3.rgb
-	tewel learnfunc gen3.ctx src=src3.rgb tgt=tgt3.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=64x64x3 reps=256
-	touch $@
-
-learnhans3: learnhans3.done
-learnhans3.done: learnfunc3.done gen3.ctx dis3.ctx cnd3.ctx src3.rgb tgt3.rgb
-	tewel learnhans gen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx cnd=cnd3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=32768
-	tewel learnhans gen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx cnd=cnd3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 reps=4096 mul=0.25
-	touch $@
+learn3: src3.rgb tgt3.rgb gen3.ctx dis3.ctx cnd3.ctx
+	tewel learnfunc gen3.ctx src=src3.rgb tgt=tgt3.rgb srcdim=32x32x3 dim=32x32x3 tgtdim=64x64x3 stoprounds=32768
+	tewel learnhans gen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx cnd=cnd3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 stoprounds=4000000
+	tewel learnhans gen3.ctx src=src3.rgb tgt=tgt3.rgb dis=dis3.ctx cnd=cnd3.ctx dim=32x32x3 srcdim=32x32x3 tgtdim=64x64x3 stoprounds=4032768
 
 src3.rgb: dns1.ctx mean.ctx
 	tewel synth dns1.ctx mean.ctx \
