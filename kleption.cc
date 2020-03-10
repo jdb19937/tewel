@@ -670,7 +670,7 @@ static void _outcrop(
   for (unsigned int y = y0; y <= y1; ++y)
     for (unsigned int x = x0; x <= x1; ++x) {
       for (unsigned int z = 0; z < sc; ++z)
-        *edat++ = (double)tmpdat[z + sc * (x + sw * y)] / 255.0;
+        *edat++ = (0.5 + (double)tmpdat[z + sc * (x + sw * y)]) / 256.0;
       if (flags & Kleption::FLAG_ADDGEO)
         _addgeo(edat, x, y, sw, sh);
     }
