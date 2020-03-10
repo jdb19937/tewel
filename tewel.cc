@@ -988,25 +988,66 @@ int main(int argc, char **argv) {
 
     Rando *rvg = new Rando;
     rvg->load(rvgfn);
+    int dim = rvg->dim;
 
     Cortex::create(encfn, (bool)clobber);
     Cortex::create(genfn, (bool)clobber);
 
     Cortex *enc = new Cortex(encfn, O_RDWR);
-    enc->push("con0", rvg->dim, rvg->dim);
+    enc->push("con0", dim, dim);
     if (nerf)
-      enc->push("nerf", rvg->dim, rvg->dim);
+      enc->push("nerf", dim, dim);
+
+    {
+      double *m, *b;
+      int w, h;
+      enc->_get_head_op(&b, &m, &w, &h);
+      assert(w == dim);
+      assert(h == dim);
+
+      memset(b, 0, sizeof(double) * dim);
+
+      for (int y = 0; y < dim; ++y)
+        for (int x = 0; x < dim; ++x)
+          m[x + dim * y] = (x == y) ? 1.0 : 0.0;
+
+      enc->_put_head_op(b, m, w, h);
+
+      delete[] m;
+      delete[] b;
+    }
 
     delete enc;
     enc = new Cortex(encfn, O_RDWR);
+    enc->prepare(1, 1);
 
     Cortex *gen = new Cortex(genfn, O_RDWR);
     if (nerf)
-      gen->push("inrf", rvg->dim, rvg->dim);
-    gen->push("con0", rvg->dim, rvg->dim);
+      gen->push("inrf", dim, dim);
+    gen->push("con0", dim, dim);
+
+    {
+      double *m, *b;
+      int w, h;
+      gen->_get_tail_op(&b, &m, &w, &h);
+      assert(w == dim);
+      assert(h == dim);
+
+      memset(b, 0, sizeof(double) * dim);
+
+      for (int y = 0; y < dim; ++y)
+        for (int x = 0; x < dim; ++x)
+          m[x + dim * y] = (x == y) ? 1.0 : 0.0;
+
+      gen->_put_tail_op(b, m, w, h);
+
+      delete[] m;
+      delete[] b;
+    }
 
     delete gen;
     gen = new Cortex(genfn, O_RDWR);
+    gen->prepare(1, 1);
 
     normalize(rvg, enc, gen);
 
