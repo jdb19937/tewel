@@ -1,4 +1,4 @@
-.PHONY: all learnfunc1 learnfunc2 learnhans2 learnfunc3 learnhans3 clean normalize rvg clean1 clean2 clean3 show1 show2 show3
+.PHONY: all learnfunc1 learnfunc2 learnhans2 learnfunc3 learnhans3 learnstyl4 clean normalize rvg clean1 clean2 clean3 show1 show2 show3
 
 
 
@@ -86,6 +86,24 @@ tgt3.rgb: iden.ctx
 	tewel synth iden.ctx \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
 		dim=64x64x3 limit=65536 src=/spin/dan/dne.512 out=$@
+
+
+
+learnstyl4: learnstyl4.done
+learnstyl4.done: gen4.ctx dis4.ctx src4.rgb sty4.rgb
+	tewel learnstyl gen4.ctx src=src4.rgb sty=sty4.rgb dis=dis4.ctx dim=64x64x3 srcdim=64x64x3 stydim=64x64x3 reps=32768
+	tewel learnstyl gen4.ctx src=src4.rgb sty=sty4.rgb dis=dis4.ctx dim=64x64x3 srcdim=64x64x3 stydim=64x64x3 reps=4096 mul=0.25
+	touch $@
+
+src4.rgb: tgt3.rgb
+	cp -f $< $@
+
+sty4.rgb: iden.ctx
+	tewel synth iden.ctx \
+		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
+		dim=64x64x3 limit=65536 src=/spin/dan/vangogh out=$@
+
+
 
 
 
