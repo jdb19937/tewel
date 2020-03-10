@@ -113,4 +113,12 @@ void parse_bitfmt(const std::string &bitfmt, char *cp, unsigned int *bitsp, bool
 
 }
 
+inline double clamp(double x, double x0 = 0.0, double x1 = 1.0) {
+  if (x < x0)
+    return x0;
+  if (x > x1)
+    return x1;
+  return x;
+}
+
 #endif

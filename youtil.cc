@@ -465,5 +465,73 @@ void parse_bitfmt(const std::string &bitfmt, char *cp, unsigned int *bitsp, bool
   *bep = be;
 }
 
+void *encode_bitfmt(const std::string &bitfmt, const double *x, unsigned int n) {
+  char c;
+  unsigned int bits;
+  bool be;
+
+  parse_bitfmt(bitfmt, &c, &bits, &be);
+
+  assert(bits % 8 == 0);
+  unsigned int yn = n * (bits / 8);
+  void *ret = NULL;
+
+  if (be) {
+    error("bigendian not supported");
+  }
+
+  if (c == 'u' && bits == 8) {
+    uint8_t *y = new uint8_t[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (uint8_t)(clamp(x[i] * 256.0, 0.5, 255.5));
+    ret = y;
+
+  } else if (c == 'u' && bits == 16) {
+    uint16_t *y = new uint16_t[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (uint16_t)(clamp(x[i] * 65536.0, 0.5, 65535.5));
+    ret = y;
+
+  } else if (c == 'u' && bits == 32) {
+    uint32_t *y = new uint32_t[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (uint32_t)(clamp(x[i] * 4294967296, 0.5, 4294967295.5));
+    ret = y;
+
+  } else if (c == 's' && bits == 8) {
+    int8_t *y = new int8_t[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (int8_t)(clamp(x[i] * 256.0, -127.5, 127.5));
+    ret = y;
+
+  } else if (c == 's' && bits == 16) {
+    int16_t *y = new int16_t[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (int16_t)(clamp(x[i] * 65536.0, -32767.5, 32767.5));
+    ret = y;
+
+  } else if (c == 's' && bits == 32) {
+    int32_t *y = new int32_t[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (int32_t)(clamp(x[i] * 2147483648.0, -2147483647.5, 2147483647.5));
+    ret = y;
+
+  } else if (c == 'f' && bits == 32) {
+    float *y = new float[n];
+    for (unsigned int i = 0; i < n; ++i)
+      y[i] = (float)x[i];
+    ret = y;
+
+  } else if (c == 'f' && bits == 64) {
+    double *y = new double[n];
+    memcpy(y, x, n * sizeof(double));
+    ret = y;
+
+  } else {
+    error("unsupported bitfmt");
+  }
+
+  return ret;
+}
 
 }
