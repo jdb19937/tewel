@@ -49,6 +49,7 @@ const uint32_t TYPE_ABSV = CC4('a','b','s','v');
 const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
+const uint32_t TYPE_ADDG = CC4('a','d','d','g');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 const uint32_t TYPE_MEAN = CC4('m','e','a','n');
 const uint32_t TYPE_NERF = CC4('n','e','r','f');
@@ -356,6 +357,12 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       ow = iw;
       oh = ih;
       assert(oc >= ic);
+      assert(len == 0);
+      break;
+    case TYPE_ADDG:
+      ow = iw;
+      oh = ih;
+      assert(oc == ic + 4);
       assert(len == 0);
       break;
     case TYPE_IDEN:
@@ -791,6 +798,16 @@ static double *pipe_synth(
       kfree(knz);
       break;
     }
+  case TYPE_ADDG:
+    {
+      assert(len == 0);
+      assert(ic + 4 == oc);
+      ow = iw;
+      oh = ih;
+
+      synth_addgeo(in, iw, ih, out, ic, oc);
+      break;
+    }
   case TYPE_PAD1:
     {
       assert(len == 0);
@@ -1074,6 +1091,12 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_ADDG:
+    assert(ic + 4 == oc);
+    assert(len == 0);
+    ow = iw;
+    oh = ih;
+    break;
   case TYPE_IDEN:
     assert(oc >= ic);
     assert(oc % ic == 0);
@@ -1198,6 +1221,9 @@ void pipe_learn(
   case TYPE_GRND:
   case TYPE_PAD1:
     learn_pad(in, iw, ih, fout, ic, oc);
+    break;
+  case TYPE_ADDG:
+    learn_addgeo(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_IDEN:
     learn_iden(in, iw, ih, fout, ic, oc);
@@ -2017,6 +2043,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_GRND:
   case TYPE_LRND:
   case TYPE_PAD1:
+  case TYPE_ADDG:
   case TYPE_IDEN:
   case TYPE_MEAN:
     len = 0;
