@@ -8,6 +8,12 @@ DEFN_KERNEL(ksubvec, const double *a, const double *b, unsigned int n, double *c
   c[i] = a[i] - b[i];
 }
 
+DEFN_KERNEL(krectify, const double *a, double *b, unsigned int n) {
+  PREF_KERNEL;
+  if (a[i] <= 0.0)
+    b[i] = 0.0;
+}
+
 DEFN_KERNEL(ksumsq, const double *a, unsigned int n, double *sumsqp) {
   PREF_KERNEL;
 
