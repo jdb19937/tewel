@@ -671,8 +671,10 @@ static void _outcrop(
     for (unsigned int x = x0; x <= x1; ++x) {
       for (unsigned int z = 0; z < sc; ++z)
         *edat++ = (0.5 + (double)tmpdat[z + sc * (x + sw * y)]) / 256.0;
-      if (flags & Kleption::FLAG_ADDGEO)
+      if (flags & Kleption::FLAG_ADDGEO) {
         _addgeo(edat, x, y, sw, sh);
+        edat += 4;
+      }
     }
 
   enk(ddat, pwhc, kdat);
@@ -711,8 +713,10 @@ static void _outcrop(
     for (unsigned int x = x0; x <= x1; ++x) {
       for (unsigned int z = 0; z < sc; ++z)
         *edat++ = tmpdat[z + sc * (x + sw * y)];
-      if (flags & Kleption::FLAG_ADDGEO)
+      if (flags & Kleption::FLAG_ADDGEO) {
         _addgeo(edat, x, y, sw, sh);
+        edat += 4;
+      }
     }
 
   enk(ddat, pwhc, kdat);
@@ -956,6 +960,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   case KIND_U8:
     {
       assert(dat);
+fprintf(stderr,"pc=%d sc=%d\n",pc,sc);
       if (flags & FLAG_ADDGEO)
         assert(pc == sc + 4);
       else
@@ -1126,8 +1131,10 @@ void Kleption::find(const std::string &id, double *kdat) {
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
             *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO)
+          if (flags & FLAG_ADDGEO) {
             _addgeo(edat, x, y, sw, sh);
+            edat += 4;
+          }
         }
 
       enk(ddat, pwhc, kdat);
@@ -1178,8 +1185,10 @@ void Kleption::find(const std::string &id, double *kdat) {
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
             *edat++ = (double)tmpdat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO)
+          if (flags & FLAG_ADDGEO) {
             _addgeo(edat, x, y, sw, sh);
+            edat += 4;
+          }
         }
 
       enk(ddat, pwhc, kdat);
@@ -1227,8 +1236,10 @@ void Kleption::find(const std::string &id, double *kdat) {
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
             *edat++ = tmpdat[z + sc * (x + sw * y)];
-          if (flags & FLAG_ADDGEO)
+          if (flags & FLAG_ADDGEO) {
             _addgeo(edat, x, y, sw, sh);
+            edat += 4;
+          }
         }
 
       enk(ddat, pwhc, kdat);
