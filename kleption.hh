@@ -69,7 +69,7 @@ struct Kleption {
 
   typedef uint32_t Flags;
   const static Flags FLAG_LOWMEM = (1 << 0);
-  const static Flags FLAG_ADDGEO = (1 << 1);
+  // const static Flags FLAG_ADDGEO = (1 << 1);
   const static Flags FLAG_REPEAT = (1 << 2);
   const static Flags FLAG_WRITER = (1 << 4);
   const static Flags FLAG_CENTER = (1 << 5);

@@ -355,11 +355,11 @@ void Kleption::load() {
       if (ph == 0)
         ph = sh;
       if (pc == 0)
-        pc = 3 + ((flags & FLAG_ADDGEO) ? 4 : 0);
+        pc = 3;
 
       assert(pw <= w);
       assert(ph <= h);
-      assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+      assert(pc == 3);
 
       b = 1;
     }
@@ -371,20 +371,20 @@ void Kleption::load() {
       if (ph == 0)
         ph = sh;
       if (pc == 0)
-        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+        pc = sc;
 
       if (sw == 0)
         sw = pw;
       if (sh == 0)
         sh = ph;
       if (sc == 0)
-        sc = pc - ((flags & FLAG_ADDGEO) ? 4 : 0);
+        sc = pc;
 
       assert(pw <= sw);
       assert(ph <= sh);
       assert(pw > 0);
       assert(ph > 0);
-      assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
+      assert(pc == sc);
     }
     break;
   case KIND_RVG:
@@ -394,20 +394,20 @@ void Kleption::load() {
       if (ph == 0)
         ph = sh;
       if (pc == 0)
-        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+        pc = sc;
 
       if (sw == 0)
         sw = pw;
       if (sh == 0)
         sh = ph;
       if (sc == 0)
-        sc = pc - ((flags & FLAG_ADDGEO) ? 4 : 0);
+        sc = pc;
 
       assert(pw <= sw);
       assert(ph <= sh);
       assert(pw > 0);
       assert(ph > 0);
-      assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
+      assert(pc == sc);
 
       assert(!rvg);
       rvg = new Rando(sc);
@@ -436,13 +436,13 @@ void Kleption::load() {
       if (ph == 0)
         ph = sh;
       if (pc == 0)
-        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+        pc = sc;
 
       assert(pw <= sw);
       assert(ph <= sh);
       assert(pw > 0);
       assert(ph > 0);
-      assert(pc == 3 + ((flags & FLAG_ADDGEO) ? 4 : 0));
+      assert(pc == 3);
 
       assert(!dat);
       dat = new uint8_t[sw * sh * 3];
@@ -529,11 +529,11 @@ void Kleption::load() {
     if (ph == 0)
       ph = sh;
     if (pc == 0)
-      pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+      pc = sc;
 
     assert(pw <= sw);
     assert(ph <= sh);
-    assert(pc == sc + ((flags & FLAG_ADDGEO) ? 4 : 0));
+    assert(pc == sc);
 
     assert(pw > 0);
     assert(sw > 0);
@@ -557,17 +557,9 @@ void Kleption::load() {
           error("dat height required");
       }
       if (!sc) {
-        if (flags & FLAG_ADDGEO) {
-          if (pc == 0)
-            error("dat channels required");
-          if (pc <= 4)
-            error("too few out channels for addgeo");
-          sc = pc - 4;
-        } else {
-          sc = pc;
-          if (!sc)
-            error("dat channels required");
-        }
+        sc = pc;
+        if (!sc)
+          error("dat channels required");
       }
 
       if (pw == 0)
@@ -575,7 +567,7 @@ void Kleption::load() {
       if (ph == 0)
         ph = sh;
       if (pc == 0)
-        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+        pc = sc;
 
       size_t datn;
       dat = slurp(fn, &datn);
@@ -600,17 +592,9 @@ void Kleption::load() {
           error("dat height required");
       }
       if (!sc) {
-        if (flags & FLAG_ADDGEO) {
-          if (pc == 0)
-            error("dat channels required");
-          if (pc <= 4)
-            error("too few out channels for addgeo");
-          sc = pc - 4;
-        } else {
-          sc = pc;
-          if (!sc)
-            error("dat channels required");
-        }
+        sc = pc;
+        if (!sc)
+          error("dat channels required");
       }
 
       if (pw == 0)
@@ -618,7 +602,7 @@ void Kleption::load() {
       if (ph == 0)
         ph = sh;
       if (pc == 0)
-        pc = sc + ((flags & FLAG_ADDGEO) ? 4 : 0);
+        pc = sc;
 
       size_t datn;
       dat = slurp(fn, &datn);
@@ -636,13 +620,6 @@ void Kleption::load() {
   loaded = true;
 }
 
-static void _addgeo(double *edat, double x, double y, double w, double h) {
-  *edat++ = x / w;
-  *edat++ = y / h;
-  *edat++ = 1.0 - fabs(2.0 * x / w - 1.0);
-  *edat++ = 1.0 - fabs(2.0 * y / h - 1.0);
-}
-
 static void _outcrop(
   const uint8_t *tmpdat, double *kdat, Kleption::Flags flags,
   int sw, int sh, int sc, int pw, int ph, int pc,
@@ -650,7 +627,7 @@ static void _outcrop(
 ) {
   assert(pw <= sw);
   assert(ph <= sh);
-  assert(pc == sc + ((flags & Kleption::FLAG_ADDGEO) ? 4 : 0));
+  assert(pc == sc);
 
   unsigned int x0, y0, x1, y1;
   if (flags & Kleption::FLAG_CENTER) {
@@ -671,10 +648,6 @@ static void _outcrop(
     for (unsigned int x = x0; x <= x1; ++x) {
       for (unsigned int z = 0; z < sc; ++z)
         *edat++ = (0.5 + (double)tmpdat[z + sc * (x + sw * y)]) / 256.0;
-      if (flags & Kleption::FLAG_ADDGEO) {
-        _addgeo(edat, x, y, sw, sh);
-        edat += 4;
-      }
     }
 
   enk(ddat, pwhc, kdat);
@@ -692,7 +665,7 @@ static void _outcrop(
 ) {
   assert(pw <= sw);
   assert(ph <= sh);
-  assert(pc == sc + ((flags & Kleption::FLAG_ADDGEO) ? 4 : 0));
+  assert(pc == sc);
 
   unsigned int x0, y0, x1, y1;
   if (flags & Kleption::FLAG_CENTER) {
@@ -713,10 +686,6 @@ static void _outcrop(
     for (unsigned int x = x0; x <= x1; ++x) {
       for (unsigned int z = 0; z < sc; ++z)
         *edat++ = tmpdat[z + sc * (x + sw * y)];
-      if (flags & Kleption::FLAG_ADDGEO) {
-        _addgeo(edat, x, y, sw, sh);
-        edat += 4;
-      }
     }
 
   enk(ddat, pwhc, kdat);
@@ -778,10 +747,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   case KIND_CAM:
     {
       assert(cam);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
 
       assert(cam->w == sw);
       assert(cam->h == sh);
@@ -932,10 +898,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(sw >= pw);
       assert(sh >= ph);
       assert(sc == 3);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
 
       unsigned int x0, y0;
       _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
@@ -960,11 +923,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   case KIND_U8:
     {
       assert(dat);
-fprintf(stderr,"pc=%d sc=%d\n",pc,sc);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
 
       assert(b > 0);
       unsigned int v;
@@ -1012,10 +971,7 @@ fprintf(stderr,"pc=%d sc=%d\n",pc,sc);
   case KIND_F64LE:
     {
       assert(dat);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
 
       assert(b > 0);
       unsigned int v;
@@ -1107,10 +1063,7 @@ void Kleption::find(const std::string &id, double *kdat) {
       assert(vph == ph);
       assert(vpc == pc);
       assert(sc == 3);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
       assert(x0 >= 0);
       assert(x0 < sw);
       assert(y0 >= 0);
@@ -1131,10 +1084,6 @@ void Kleption::find(const std::string &id, double *kdat) {
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
             *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO) {
-            _addgeo(edat, x, y, sw, sh);
-            edat += 4;
-          }
         }
 
       enk(ddat, pwhc, kdat);
@@ -1159,10 +1108,7 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       assert(sw == pw);
       assert(sh == ph);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
       assert(x0 >= 0);
       assert(x0 < sw);
       assert(y0 >= 0);
@@ -1185,10 +1131,6 @@ void Kleption::find(const std::string &id, double *kdat) {
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
             *edat++ = (double)tmpdat[z + sc * (x + sw * y)] / 255.0;
-          if (flags & FLAG_ADDGEO) {
-            _addgeo(edat, x, y, sw, sh);
-            edat += 4;
-          }
         }
 
       enk(ddat, pwhc, kdat);
@@ -1210,10 +1152,7 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       assert(sw == pw);
       assert(sh == ph);
-      if (flags & FLAG_ADDGEO)
-        assert(pc == sc + 4);
-      else
-        assert(pc == sc);
+      assert(pc == sc);
       assert(x0 >= 0);
       assert(x0 < sw);
       assert(y0 >= 0);
@@ -1236,10 +1175,6 @@ void Kleption::find(const std::string &id, double *kdat) {
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
             *edat++ = tmpdat[z + sc * (x + sw * y)];
-          if (flags & FLAG_ADDGEO) {
-            _addgeo(edat, x, y, sw, sh);
-            edat += 4;
-          }
         }
 
       enk(ddat, pwhc, kdat);
@@ -1275,8 +1210,6 @@ bool Kleption::place(const std::string &id, const double *kdat) {
     break;
   case KIND_RVG:
     {
-      assert(!(flags & FLAG_ADDGEO));
-
       if (!rvg)
         rvg = new Rando(pc);
 
