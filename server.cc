@@ -203,7 +203,7 @@ bool Server::accept() {
   assert(sizeof(struct in_addr) == 4);
   memcpy(&ip, &cin.sin_addr, 4);
 
-  info(fmt("accepted %s", ipstr(ip).c_str()));
+  info(fmt("accepted %s pid=%d", ipstr(ip).c_str(), getpid()));
   
   Client *client = new Client(c, ip);
   clients.push_back(client);
