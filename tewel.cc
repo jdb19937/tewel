@@ -645,6 +645,7 @@ int main(int argc, char **argv) {
 
   int lowmem = arg.get("lowmem", "0");
   int cuda = arg.get("cuda", "-1");
+  int kbs = arg.get("kbs", "256");
 
   if (cmd == "server") {
     int pw = 0, ph = 0;
@@ -658,7 +659,7 @@ int main(int argc, char **argv) {
     int port = arg.get("port", "4444");
     info(fmt("starting server on port %d", port));
 
-    Server *server = new Server(ctx, pw, ph);
+    Server *server = new Server(ctx, pw, ph, cuda, kbs);
 
     server->open();
     server->bind((uint16_t)port);
@@ -672,7 +673,7 @@ int main(int argc, char **argv) {
   }
 
   setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? 1 : 0);
-  setkbs(arg.get("kbs", "256"));
+  setkbs(kbs);
 
   if (cmd == "make") {
     if (ctx.size() != 1)

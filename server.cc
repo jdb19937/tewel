@@ -38,7 +38,7 @@ static inline double realtime() {
   return ((double)c / (double)CLOCKS_PER_SEC);
 }
 
-Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph) {
+Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda, int _kbs) {
   port = 0;
   s = -1;
 
@@ -47,6 +47,9 @@ Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph) {
   ctx = _ctx;
 
   chn = NULL;
+
+  cuda = _cuda;
+  kbs = _kbs;
 }
 
 Server::~Server() {
@@ -107,6 +110,9 @@ static void sigpipe(int) {
 }
 
 void Server::main() {
+  setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? 1 : 0);
+  setkbs(kbs);
+
   chn = new Chain;
   for (auto ctxfn : ctx)
     chn->push(ctxfn, O_RDONLY);
@@ -205,20 +211,33 @@ bool Server::accept() {
 }
 
 bool Server::handle(Client *client) {
-  int inpn = chn->head->iw * chn->head->ih * chn->head->ic * sizeof(double);
-  int outn = chn->tail->ow * chn->tail->oh * chn->tail->oc * sizeof(double);
+  int inpn = chn->head->iw * chn->head->ih * chn->head->ic;
+  int outn = chn->tail->ow * chn->tail->oh * chn->tail->oc;
 
   assert(inpn > 0);
   assert(outn > 0);
 
-  while (client->can_read(inpn) && client->can_write(outn)) {
-    info(fmt("synthing inpn=%d outn=%d", inpn, outn));
-    enk(client->inpbuf, inpn, (uint8_t *)chn->kinp());
-    chn->synth();
-    dek((uint8_t *)chn->kout(), outn, client->outbuf + client->outbufk);
+  double *buf = new double[outn];
+  uint8_t *rgb = new uint8_t[outn];
 
-    assert(client->read(NULL, inpn));
-    client->outbufk += outn;
+  while (client->can_read(inpn * sizeof(double))) {
+    info(fmt("synthing inpn=%d outn=%d", inpn, outn));
+    enk((double *)client->inpbuf, inpn, chn->kinp());
+    assert(client->read(NULL, inpn * sizeof(double)));
+
+    chn->synth();
+
+    dek(chn->kout(), outn, buf);
+    for (int i = 0; i < outn; ++i)
+      rgb[i] = (uint8_t)clamp(buf[i] * 256.0, 0, 255);
+    
+    assert(chn->tail->oc == 3);
+    uint8_t *png;
+    unsigned int pngn;
+    rgbpng(rgb, chn->tail->ow, chn->tail->oh, &png, &pngn);
+    
+    if (!client->write(png, pngn))
+      return false;
   }
 
   return true;

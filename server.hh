@@ -34,7 +34,10 @@ struct Server {
   fd_set fdsets[3];
   std::list<Client*> clients;
 
-  Server(const std::vector<std::string> &_cx, int _pw, int _ph);
+  int cuda;
+  int kbs;
+
+  Server(const std::vector<std::string> &_cx, int _pw, int _ph, int _cuda, int _kbs);
   ~Server();
 
   void open();

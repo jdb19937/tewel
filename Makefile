@@ -3,7 +3,7 @@ NVCC = nvcc
 OPT = -g
 NVCCFLAGS = $(OPT) -Xcompiler -fPIC
 CXXFLAGS = $(OPT) -fPIC
-LDFLAGS = -lm
+LDFLAGS = -lm -lpng
 
 VERSION = 0.4
 

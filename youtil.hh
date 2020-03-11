@@ -111,14 +111,24 @@ inline std::string str(const char *x) {
 
 void parse_bitfmt(const std::string &bitfmt, char *cp, unsigned int *bitsp, bool *bep);
 
-}
-
 inline double clamp(double x, double x0 = 0.0, double x1 = 1.0) {
   if (x < x0)
     return x0;
   if (x > x1)
     return x1;
   return x;
+}
+
+bool rgbpng(
+  const uint8_t *rgb,
+  unsigned int w,
+  unsigned int h,
+  uint8_t **pngp,
+  unsigned int *pngnp,
+  const std::vector<std::string> *tags = NULL,
+  const uint8_t *alpha = NULL
+);
+
 }
 
 #endif

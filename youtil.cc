@@ -12,6 +12,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include <png.h>
+
 #include <string>
 #include <vector>
 #include <cmath>
@@ -532,6 +534,123 @@ void *encode_bitfmt(const std::string &bitfmt, const double *x, unsigned int n) 
   }
 
   return ret;
+}
+
+bool rgbpng(
+  const uint8_t *rgb,
+  unsigned int w,
+  unsigned int h,
+  uint8_t **pngp,
+  unsigned int *pngnp,
+  const std::vector<std::string> *tags,
+  const uint8_t *alpha
+) {
+  uint8_t *pngbuf = new uint8_t[10 << 20];
+  FILE *fp = fmemopen(pngbuf, 10 << 20, "wb");
+  assert(fp);
+
+  uint8_t header[8];
+  size_t ret;
+  png_structp png_ptr;
+  png_infop info_ptr;
+  png_infop end_ptr;
+  png_textp text = NULL;
+  png_bytep *row_pointers = NULL;
+
+  png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  if (!png_ptr)
+    goto fail;
+  info_ptr = png_create_info_struct(png_ptr);
+  if (!info_ptr)
+    goto fail;
+  end_ptr = png_create_info_struct(png_ptr);
+  if (!end_ptr)
+    goto fail;
+
+  assert(!setjmp(png_jmpbuf(png_ptr)));
+
+  png_init_io(png_ptr, fp);
+
+  assert(!setjmp(png_jmpbuf(png_ptr)));
+
+  png_set_IHDR(
+    png_ptr, info_ptr, w, h,
+    8, alpha ? PNG_COLOR_TYPE_RGBA : PNG_COLOR_TYPE_RGB, PNG_INTERLACE_ADAM7,
+    PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE
+  );
+
+  png_write_info(png_ptr, info_ptr);
+
+  assert(!setjmp(png_jmpbuf(png_ptr)));
+  row_pointers = new png_bytep[h];
+
+  if (alpha) {
+    for (unsigned int y = 0; y < h; y++) {
+      uint8_t *p = new uint8_t[w * 4];
+      for (unsigned int x = 0; x < w; ++x) {
+        p[x * 4 + 0] = *(rgb + y * w * 3 + x * 3 + 0);
+        p[x * 4 + 1] = *(rgb + y * w * 3 + x * 3 + 1);
+        p[x * 4 + 2] = *(rgb + y * w * 3 + x * 3 + 2);
+        p[x * 4 + 3] = *(alpha + y * w + x);
+      }
+      row_pointers[y] = p;
+    }
+  } else {
+    for (unsigned int y = 0; y < h; y++)
+      row_pointers[y] = (png_bytep)rgb + y * w * 3;
+  }
+
+  png_write_image(png_ptr, row_pointers);
+
+  if (tags) {
+    std::string comment;
+    for (auto tag : *tags)
+      comment += std::string(comment.length() ? " " : "") + "#" + tag;
+    png_text text;
+    text.compression = PNG_TEXT_COMPRESSION_NONE;
+    text.key = (char *)"comment";
+    text.text = (char *)comment.c_str();
+    text.text_length = comment.length();
+    png_set_text(png_ptr, end_ptr, &text, 1);
+  }
+
+  assert(!setjmp(png_jmpbuf(png_ptr)));
+  png_write_end(png_ptr, end_ptr);
+
+  {
+    unsigned long pngbufn = ftell(fp);
+    fclose(fp);
+
+    *pngnp = pngbufn;
+    *pngp = new uint8_t[pngbufn];
+    memcpy(*pngp, pngbuf, pngbufn);
+  }
+
+  delete[] pngbuf;
+
+  if (alpha)
+    for (unsigned int y = 0; y < h; y++)
+      delete[] ((uint8_t *)row_pointers[y]);
+  delete[] row_pointers;
+
+  if (png_ptr)
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+
+  return true;
+
+fail:
+  fclose(fp);
+  if (row_pointers) {
+    if (alpha)
+      for (unsigned int y = 0; y < h; y++)
+        delete[] ((uint8_t *)row_pointers[y]);
+    delete[] row_pointers;
+  }
+  if (pngbuf)
+    delete[] pngbuf;
+  if (png_ptr)
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+  return false;
 }
 
 }
