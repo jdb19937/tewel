@@ -26,7 +26,7 @@ namespace makemore {
 
 using namespace std;
 
-void Server::nonblock(int fd) {
+static void nonblock(int fd) {
   int flags = fcntl(fd, F_GETFL, 0);
   assert(flags > 0);
   int ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -66,6 +66,8 @@ void Server::open() {
   assert(ret == 0);
   ret = setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
   assert(ret == 0);
+
+  nonblock(s);
 }
 
 void Server::close() {
@@ -101,16 +103,62 @@ void Server::listen(int backlog) {
 }
 
 static void sigpipe(int) {
-  fprintf(stderr, "SIGPIPE\n");
+  info("SIGPIPE");
 }
 
-void Server::setup() {
+void Server::main() {
   chn = new Chain;
   for (auto ctxfn : ctx)
     chn->push(ctxfn, O_RDONLY);
   chn->prepare(pw, ph);
 
   signal(SIGPIPE, sigpipe);
+
+  while (1) {
+    this->select();
+
+    if (FD_ISSET(s, fdsets + 0))
+      while (this->accept());
+
+    auto ci = clients.begin();
+    while (ci != clients.end()) {
+      Client *client = *ci;
+
+      if (FD_ISSET(client->s, fdsets + 0)) {
+        if (!client->slurp()) {
+          info("slurp failed, deleting client");
+          delete client;
+          clients.erase(ci++);
+          continue;
+        }
+      }
+
+      if (FD_ISSET(client->s, fdsets + 1)) {
+        if (!client->flush()) {
+          info("flush failed, deleting client");
+          delete client;
+          clients.erase(ci++);
+          continue;
+        }
+      }
+
+      ++ci;
+    }
+
+
+    ci = clients.begin();
+    while (ci != clients.end()) {
+      Client *client = *ci;
+      if (!handle(client)) {
+        info("handle failed, deleting client");
+        delete client;
+        clients.erase(ci++);
+        continue;
+      }
+      ++ci;
+    }
+
+  }
 }
 
 
@@ -123,12 +171,7 @@ void Server::start(unsigned int kids) {
       continue;
     }
 
-    this->setup();
-    while (1) {
-      info("calling accept");
-      this->accept();
-      info("done with accept");
-    }
+    this->main();
 
     assert(0);
   }
@@ -141,80 +184,52 @@ static std::string ipstr(uint32_t ip) {
   return std::string(buf);
 }
 
-void Server::accept() {
-  fprintf(stderr, "accepting\n");
-
+bool Server::accept() {
   struct sockaddr_in cin;
   socklen_t cinlen = sizeof(cin);
   int c = ::accept(s, (struct sockaddr *)&cin, &cinlen);
-  if (c < 0) {
-    error("accept failed");
-    return;
-  }
+  if (c < 0)
+    return false;
+
+  nonblock(c);
 
   uint32_t ip;
   assert(sizeof(struct in_addr) == 4);
   memcpy(&ip, &cin.sin_addr, 4);
+
   info(fmt("accepted %s", ipstr(ip).c_str()));
-
-  handle(c, ip);
-
-  ::close(c);
+  
+  Client *client = new Client(c, ip);
+  clients.push_back(client);
+  return true;
 }
 
-void Server::handle(int c, uint32_t ip) {
+bool Server::handle(Client *client) {
   int inpn = chn->head->iw * chn->head->ih * chn->head->ic * sizeof(double);
   int outn = chn->tail->ow * chn->tail->oh * chn->tail->oc * sizeof(double);
 
   assert(inpn > 0);
   assert(outn > 0);
 
-  uint8_t *inpbuf = new uint8_t[inpn];
-  uint8_t *outbuf = new uint8_t[outn];
-
-  while (1) {
-    int inpi = 0;
-    while (inpi < inpn) {
-      info(fmt("reading %d", inpn - inpi));
-      int ret = ::read(c, inpbuf + inpi, inpn - inpi);
-      info(fmt("done reading, ret=%d", ret));
-      if (ret < 1) {
-        info("failed to read, closing");
-        delete[] inpbuf;
-        delete[] outbuf;
-        return;
-      }
-      inpi += ret;
-    }
-
-    info("synthing");
-    enk(inpbuf, inpn, (uint8_t *)chn->kinp());
+  while (client->can_read(inpn) && client->can_write(outn)) {
+    info(fmt("synthing inpn=%d outn=%d", inpn, outn));
+    enk(client->inpbuf, inpn, (uint8_t *)chn->kinp());
     chn->synth();
-    dek((uint8_t *)chn->kout(), outn, outbuf);
+    dek((uint8_t *)chn->kout(), outn, client->outbuf + client->outbufk);
 
-    info("writing");
-    int outi = 0;
-    while (outi < outn) {
-      info(fmt("writing %d", outn - outi));
-      int ret = ::write(c, outbuf + outi, outn - outi);
-      info(fmt("done writing, got %d", ret));
-      if (ret < 1) {
-        info("failed to write, closing");
-        delete[] inpbuf;
-        delete[] outbuf;
-        return;
-      }
-      outi += ret;
-    }
+    assert(client->read(NULL, inpn));
+    client->outbufk += outn;
   }
+
+  return true;
 }
 
 void Server::wait() {
   for (auto pidi = pids.begin(); pidi != pids.end(); ++pidi) {
     pid_t pid = *pidi;
-    fprintf(stderr, "waiting for pid=%d\n", pid);
+    info(fmt("waiting for pid=%d", pid));
     assert(pid == ::waitpid(pid, NULL, 0));
-    fprintf(stderr, "waited\n");
+    info("waited");
   }
   pids.clear();
 }
@@ -222,12 +237,37 @@ void Server::wait() {
 void Server::stop() {
   for (auto pidi = pids.begin(); pidi != pids.end(); ++pidi) {
     pid_t pid = *pidi;
-    fprintf(stderr, "killing pid=%d\n", pid);
+    info(fmt("killing pid=%d", pid));
     ::kill(pid, 9);
-    fprintf(stderr, "killed\n");
+    info("killed");
   }
 
   this->wait();
 }
+
+void Server::select() {
+  FD_ZERO(fdsets + 0);
+  FD_ZERO(fdsets + 1);
+  FD_ZERO(fdsets + 2);
+
+  int nfds = s + 1;
+  FD_SET(s, fdsets + 0);
+
+  for (auto client : clients) {
+    if (client->s >= nfds)
+      nfds = client->s + 1;
+    if (client->need_flush())
+      FD_SET(client->s, fdsets + 1);
+    if (client->need_slurp())
+      FD_SET(client->s, fdsets + 0);
+  }
+
+  struct timeval timeout;
+  timeout.tv_sec = 0;
+  timeout.tv_usec = 50000;
+
+  (void)::select(nfds, fdsets + 0, fdsets + 1, fdsets + 2, &timeout);
+}
+
 
 }

@@ -14,12 +14,13 @@
 #include <map>
 #include <set>
 #include <string>
+#include <list>
+
+#include "client.hh"
 
 namespace makemore {
 
 struct Server {
-  static void nonblock(int fd);
-
   int s;
   uint16_t port;
 
@@ -29,6 +30,10 @@ struct Server {
   int pw, ph;
   std::vector<std::string> ctx;
 
+
+  fd_set fdsets[3];
+  std::list<Client*> clients;
+
   Server(const std::vector<std::string> &_cx, int _pw, int _ph);
   ~Server();
 
@@ -36,14 +41,14 @@ struct Server {
   void close();
   void bind(uint16_t _port);
   void listen(int backlog = 256);
+  void select();
 
   void start(unsigned int kids = 1);
-  void accept();
-  void handle(int c, uint32_t ip);
+  bool accept();
+  bool handle(class Client *);
   void wait();
   void stop();
-
-  void setup();
+  void main();
 };
 
 }
