@@ -5,7 +5,7 @@ NVCCFLAGS = $(OPT) -Xcompiler -fPIC
 CXXFLAGS = $(OPT) -fPIC
 LDFLAGS = -lm -lpng
 
-VERSION = 0.4
+VERSION = 0.5
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
@@ -23,7 +23,7 @@ SRC = \
   colonel-cuda.cu colonel-nocuda.cc colonel-core.inc colonel-common.inc display-sdl.cc display-nosdl.cc \
   $(HDR) Makefile README LICENSE \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
-  zoom2x.sh zoom4x.sh zoom8x.sh zoom16x.sh shrink2x.sh shrink4x.sh shrink8x.sh shrink16x.sh degrade2x.sh degrade4x.sh degrade8x.sh degrade16x \
+  zoom2x.sh zoom4x.sh zoom8x.sh zoom16x.sh shrink2x.sh shrink4x.sh shrink8x.sh shrink16x.sh degrade2x.sh degrade4x.sh degrade8x.sh degrade16x.sh \
   tewel.lyx
 
 PACKAGE = tewel_$(VERSION)-1_amd64.deb
