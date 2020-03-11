@@ -20,8 +20,8 @@ HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh
 
 SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc rando.cc \
-  colonel-cuda.cu colonel-nocuda.cc colonel.inc display-sdl.cc display-nosdl.cc \
-  $(HDR) Makefile README LICENSE colonel.inc \
+  colonel-cuda.cu colonel-nocuda.cc colonel-core.inc colonel-common.inc display-sdl.cc display-nosdl.cc \
+  $(HDR) Makefile README LICENSE \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
   zoom2x.sh zoom4x.sh zoom8x.sh zoom16x.sh shrink2x.sh shrink4x.sh shrink8x.sh shrink16x.sh degrade2x.sh degrade4x.sh degrade8x.sh degrade16x \
   tewel.lyx
@@ -100,8 +100,8 @@ tewel-nocuda-nosdl: $(OBJ) colonel-nocuda.o display-nosdl.o
 	$(CXX) -o $@ $(CXXFLAGS) $^ $(LDFLAGS)
 
 $(OBJ): $(HDR)
-colonel-cuda.o: colonel.inc
-colonel-nocuda.o: colonel.inc
+colonel-cuda.o: colonel-core.inc colonel-common.inc
+colonel-nocuda.o: colonel-core.inc colonel-common.inc
 
 %.tex: %.lyx
 	lyx --export latex $^
