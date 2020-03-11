@@ -145,6 +145,9 @@ show2: enc1.ctx gen1.ctx gen2.ctx
 show3: enc1.ctx gen1.ctx gen2.ctx gen3.ctx
 	tewel synth enc1.ctx gen1.ctx gen2.ctx gen3.ctx src=/spin/dan/lq.128 \
 		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
+show4: enc1.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx
+	tewel synth enc1.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx src=/spin/dan/lq.128 \
+		srctrav=rand dim=128x128 repeat=1 reload=1 delay=1 outkind=sdl
 shownova: gen1.ctx gen2.ctx gen3.ctx nova2.rvg
 	tewel synth gen1.ctx gen2.ctx gen3.ctx src=nova2.rvg \
 		evolve=0.95 dim=1x1x1536 repeat=1 reload=1 delay=0.05 outkind=sdl
