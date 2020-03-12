@@ -38,7 +38,7 @@ static inline double realtime() {
   return ((double)c / (double)CLOCKS_PER_SEC);
 }
 
-Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda, int _kbs) {
+Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda, int _kbs, double _reload) {
   port = 0;
   s = -1;
 
@@ -50,6 +50,9 @@ Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda
 
   cuda = _cuda;
   kbs = _kbs;
+
+  reload = _reload;
+  last_reload = 0.0;
 }
 
 Server::~Server() {
@@ -118,6 +121,8 @@ void Server::main() {
     chn->push(ctxfn, O_RDONLY);
   chn->prepare(pw, ph);
 
+  last_reload = now();
+
   signal(SIGPIPE, sigpipe);
 
   while (1) {
@@ -164,6 +169,11 @@ void Server::main() {
       ++ci;
     }
 
+    if (reload > 0 && last_reload + reload < now()) {
+      info("reloading chain");
+      chn->load();
+      last_reload = now();
+    }
   }
 }
 

@@ -33,7 +33,7 @@ Kleption::Kleption(
   unsigned int _pw, unsigned int _ph, unsigned int _pc,
   Flags _flags, Trav _trav, Kind _kind,
   unsigned int _sw, unsigned int _sh, unsigned int _sc,
-  const char *refsfn, double _evolve
+  const char *refsfn, double _evolve, double _rvgmul
 ) {
   fn = _fn;
 
@@ -66,6 +66,7 @@ Kleption::Kleption(
 
   rvg = NULL;
   evolve = _evolve;
+  rvgmul = _rvgmul;
 
   if (refsfn) {
     if (trav != TRAV_REFS)
@@ -795,7 +796,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       unsigned int swhc = swh * sc;
       double *rnd = new double[swhc];
       for (int xy = 0; xy < swh; ++xy)
-        rvg->generate(rnd + xy * sc, 1.0, evolve);
+        rvg->generate(rnd + xy * sc, rvgmul, evolve);
 
       unsigned int x0, y0;
       _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);

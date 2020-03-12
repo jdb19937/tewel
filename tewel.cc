@@ -648,6 +648,8 @@ int main(int argc, char **argv) {
   int kbs = arg.get("kbs", "256");
 
   if (cmd == "server") {
+    double reload = arg.get("reload", "0.0");
+
     int pw = 0, ph = 0;
     if (arg.present("dim")) {
       if (!parsedim2(arg.get("dim"), &pw, &ph))
@@ -659,7 +661,7 @@ int main(int argc, char **argv) {
     int port = arg.get("port", "4444");
     info(fmt("starting server on port %d", port));
 
-    Server *server = new Server(ctx, pw, ph, cuda, kbs);
+    Server *server = new Server(ctx, pw, ph, cuda, kbs, reload);
 
     server->open();
     server->bind((uint16_t)port);
@@ -966,9 +968,8 @@ int main(int argc, char **argv) {
     if (srckind == Kleption::KIND_UNK)
       error("unknown srckind");
 
-    double evolve = 0.0;
-    if (arg.present("evolve"))
-      evolve = arg.get("evolve");
+    double evolve = arg.get("evolve", "0.0");
+    double rvgmul = arg.get("rvgmul", "1.0");
 
     std::string srcfn = arg.get("src");
 
@@ -977,7 +978,7 @@ int main(int argc, char **argv) {
       pw, ph, pc,
       srcflags, srctrav, srckind,
       sw, sh, sc,
-      refsfn, evolve
+      refsfn, evolve, rvgmul
     );
 
     

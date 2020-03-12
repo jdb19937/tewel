@@ -36,8 +36,10 @@ struct Server {
 
   int cuda;
   int kbs;
+  double reload;
+  double last_reload;
 
-  Server(const std::vector<std::string> &_cx, int _pw, int _ph, int _cuda, int _kbs);
+  Server(const std::vector<std::string> &_cx, int _pw, int _ph, int _cuda, int _kbs, double _reload = 0.0);
   ~Server();
 
   void open();
