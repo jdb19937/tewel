@@ -31,7 +31,7 @@ struct Client {
     s = _s;
     ip = _ip;
 
-    outbufn = (1 << 20);
+    outbufn = (10 << 20);
     outbufk = 0;
     outbuf = new uint8_t[outbufn];
 
