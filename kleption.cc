@@ -957,7 +957,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(v < b);
 
       unsigned int swhc = sw * sh * sc;
-      const uint8_t *tmpdat = dat + v * swhc;
+      const uint8_t *tmpdat = dat + (long)v * (long)swhc;
       unsigned int x0, y0;
       _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
@@ -1005,7 +1005,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(v < b);
 
       unsigned int swhc = sw * sh * sc;
-      const double *tmpdat = ((double *)dat) + v * swhc;
+      const double *tmpdat = ((double *)dat) + (long)v * (long)swhc;
       unsigned int x0, y0;
       _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
 
@@ -1123,7 +1123,7 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       unsigned int pwhc = pw * ph * pc;
       unsigned int swhc = sw * sh * sc;
-      const uint8_t *tmpdat = dat + v * swhc;
+      const uint8_t *tmpdat = dat + (long)v * (long)swhc;
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
@@ -1167,7 +1167,7 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       unsigned int pwhc = pw * ph * pc;
       unsigned int swhc = sw * sh * sc;
-      const double *tmpdat = ((double *)dat) + v * swhc;
+      const double *tmpdat = ((double *)dat) + (long)v * (long)swhc;
       double *ddat = new double[pwhc];
       double *edat = ddat;
 
