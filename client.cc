@@ -66,6 +66,7 @@ bool Client::write(const uint8_t *buf, unsigned int len) {
     if (outbufk + len > outbufn)
       return false;
     memcpy(outbuf + outbufk, buf, len);
+    outbufk += len;
     return true;
   }
 
@@ -85,6 +86,7 @@ bool Client::write(const uint8_t *buf, unsigned int len) {
   if (outbufk + len > outbufn)
     return false;
   memcpy(outbuf + outbufk, buf, len);
+  outbufk += len;
   return true;
 }
 
