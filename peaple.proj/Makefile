@@ -183,7 +183,7 @@ showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
 
 
 server:
-	tewel server gen0-nova2.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx verbose=1 dim=1x1x1536 kids=1 reload=5
+	tewel server gen0-nova2.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx verbose=1 dim=1x1x1536 kids=1 reload=60
 
 
 
