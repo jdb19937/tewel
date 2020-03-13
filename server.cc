@@ -231,7 +231,7 @@ bool Server::handle(Client *client) {
     int32_t stop;
     memcpy(&stop, hdr, 4);
 info(fmt("got stop=%d", stop));
-    if (stop > 0 || stop < -2)
+    if (stop > 0 || stop < -3)
       return false;
 
     Cortex *tail = chn->ctxv[chn->ctxv.size() + stop - 1];
