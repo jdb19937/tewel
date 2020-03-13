@@ -938,6 +938,7 @@ int main(int argc, char **argv) {
     if (repeat)
       srcflags |= Kleption::FLAG_REPEAT;
 
+    double trim = arg.get("trim", "0.0");
     std::string crop = arg.get("crop", "center");
     if (crop == "center")
       srcflags |= Kleption::FLAG_CENTER;
@@ -978,7 +979,7 @@ int main(int argc, char **argv) {
       pw, ph, pc,
       srcflags, srctrav, srckind,
       sw, sh, sc,
-      refsfn, evolve, rvgmul
+      refsfn, evolve, rvgmul, trim
     );
 
     

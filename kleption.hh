@@ -97,6 +97,8 @@ struct Kleption {
   unsigned int sw, sh, sc;
   bool loaded;
 
+  double trim;
+
   // pic, dat
   uint8_t *dat;
   unsigned int b;
@@ -132,7 +134,8 @@ struct Kleption {
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
     Flags _flags = 0, Trav _trav = TRAV_RAND, Kind _kind = KIND_UNK,
     unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0,
-    const char *refsfn = NULL, double _evolve = 0, double _rvgmul = 1.0
+    const char *refsfn = NULL, double _evolve = 0, double _rvgmul = 1.0,
+    double trim = 0.0
   );
   ~Kleption();
 

@@ -33,7 +33,7 @@ Kleption::Kleption(
   unsigned int _pw, unsigned int _ph, unsigned int _pc,
   Flags _flags, Trav _trav, Kind _kind,
   unsigned int _sw, unsigned int _sh, unsigned int _sc,
-  const char *refsfn, double _evolve, double _rvgmul
+  const char *refsfn, double _evolve, double _rvgmul, double _trim
 ) {
   fn = _fn;
 
@@ -48,6 +48,8 @@ Kleption::Kleption(
   sc = _sc;
 
   loaded = false;
+
+  trim = _trim;
 
   b = 0;
   dat = NULL;
@@ -624,7 +626,7 @@ void Kleption::load() {
 static void _outcrop(
   const uint8_t *tmpdat, double *kdat, Kleption::Flags flags,
   int sw, int sh, int sc, int pw, int ph, int pc,
-  unsigned int *x0p, unsigned int *y0p
+  unsigned int *x0p, unsigned int *y0p, double trim
 ) {
   assert(pw <= sw);
   assert(ph <= sh);
@@ -635,8 +637,19 @@ static void _outcrop(
     x0 = (sw - pw) / 2;
     y0 = (sh - ph) / 2;
   } else {
-    x0 = randuint() % (sw - pw + 1);
-    y0 = randuint() % (sh - ph + 1);
+    int bx0 = trim * sw;
+    int by0 = trim * sh;
+    int bx1 = sw - bx0;
+    int by1 = sh - by0;
+    assert(bx1 > bx0);
+    assert(by1 > by0);
+    int bsw = bx1 - bx0;
+    int bsh = by1 - by0;
+    assert(bsw >= pw);
+    assert(bsh >= ph);
+
+    x0 = bx0 + (randuint() % (bsw - pw + 1));
+    y0 = by0 + (randuint() % (bsh - ph + 1));
   }
   x1 = x0 + pw - 1;
   y1 = y0 + ph - 1;
@@ -662,7 +675,7 @@ static void _outcrop(
 static void _outcrop(
   const double *tmpdat, double *kdat, Kleption::Flags flags,
   int sw, int sh, int sc, int pw, int ph, int pc,
-  unsigned int *x0p, unsigned int *y0p
+  unsigned int *x0p, unsigned int *y0p, double trim
 ) {
   assert(pw <= sw);
   assert(ph <= sh);
@@ -673,8 +686,19 @@ static void _outcrop(
     x0 = (sw - pw) / 2;
     y0 = (sh - ph) / 2;
   } else {
-    x0 = randuint() % (sw - pw + 1);
-    y0 = randuint() % (sh - ph + 1);
+    int bx0 = trim * sw;
+    int by0 = trim * sh;
+    int bx1 = sw - bx0;
+    int by1 = sh - by0;
+    assert(bx1 > bx0);
+    assert(by1 > by0);
+    int bsw = bx1 - bx0;
+    int bsh = by1 - by0;
+    assert(bsw >= pw);
+    assert(bsh >= ph);
+
+    x0 = bx0 + (randuint() % (bsw - pw + 1));
+    y0 = by0 + (randuint() % (bsh - ph + 1));
   }
   x1 = x0 + pw - 1;
   y1 = y0 + ph - 1;
@@ -724,7 +748,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       }
 
       unsigned int x0, y0;
-      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       assert(vidreader);
       if (!vidreader->read(dat, sw, sh)) {
@@ -756,7 +780,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       cam->read(dat);
 
       unsigned int x0, y0;
-      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       if (idp) {
         char buf[256];
@@ -775,7 +799,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         rnd[j] = randgauss();
 
       unsigned int x0, y0;
-      _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       delete[] rnd;
 
@@ -799,7 +823,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
         rvg->generate(rnd + xy * sc, rvgmul, evolve);
 
       unsigned int x0, y0;
-      _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(rnd, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       delete[] rnd;
 
@@ -902,7 +926,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(pc == sc);
 
       unsigned int x0, y0;
-      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(dat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       if ((flags & FLAG_LOWMEM) && kind == KIND_PIC)
         unload();
@@ -960,7 +984,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       unsigned int swhc = sw * sh * sc;
       const uint8_t *tmpdat = dat + (long)v * (long)swhc;
       unsigned int x0, y0;
-      _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       if (idp) {
         char buf[256];
@@ -1008,7 +1032,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       unsigned int swhc = sw * sh * sc;
       const double *tmpdat = ((double *)dat) + (long)v * (long)swhc;
       unsigned int x0, y0;
-      _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0);
+      _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
 
       if (idp) {
         char buf[256];
