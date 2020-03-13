@@ -222,29 +222,44 @@ bool Server::accept() {
 
 bool Server::handle(Client *client) {
   int inpn = chn->head->iw * chn->head->ih * chn->head->ic;
-  int outn = chn->tail->ow * chn->tail->oh * chn->tail->oc;
 
   assert(inpn > 0);
-  assert(outn > 0);
 
-  double *buf = new double[outn];
-  uint8_t *rgb = new uint8_t[outn];
+  while (client->can_read(256 + inpn * sizeof(double))) {
+    uint8_t *hdr = client->inpbuf;
 
-  while (client->can_read(inpn * sizeof(double))) {
+    int32_t stop;
+    memcpy(&stop, hdr, 4);
+info(fmt("got stop=%d", stop));
+    if (stop > 0 || stop < -2)
+      return false;
+
+    Cortex *tail = chn->ctxv[chn->ctxv.size() + stop - 1];
+    int outn = tail->ow * tail->oh * tail->oc;
+    assert(outn > 0);
+    double *buf = new double[outn];
+    uint8_t *rgb = new uint8_t[outn];
+
+    double *dat = (double *)(client->inpbuf + 256);
+
+    enk(dat, inpn, chn->kinp());
+    assert(client->read(NULL, 256 + inpn * sizeof(double)));
+
     info(fmt("synthing inpn=%d outn=%d", inpn, outn));
-    enk((double *)client->inpbuf, inpn, chn->kinp());
-    assert(client->read(NULL, inpn * sizeof(double)));
+    chn->synth(stop);
+    info("done with synth");
 
-    chn->synth();
-
-    dek(chn->kout(), outn, buf);
+    dek(tail->kout, outn, buf);
     for (int i = 0; i < outn; ++i)
       rgb[i] = (uint8_t)clamp(buf[i] * 256.0, 0, 255);
-    
-    assert(chn->tail->oc == 3);
+
+    assert(tail->oc == 3);
     uint8_t *png;
     unsigned int pngn;
-    rgbpng(rgb, chn->tail->ow, chn->tail->oh, &png, &pngn);
+    rgbpng(rgb, tail->ow, tail->oh, &png, &pngn);
+
+    delete[] buf;
+    delete[] rgb;
     
     if (!client->write(png, pngn))
       return false;
