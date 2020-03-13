@@ -296,6 +296,7 @@ void learnstyl(
 
 void learnhans(
   Kleption *src,
+  Kleption *alt,
   Kleption *tgt,
   Chain *chn,
   Cortex *dis,
@@ -359,6 +360,25 @@ void learnhans(
       genmul *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
       dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
     }
+
+    if (alt) {
+      alt->pick(kinp);
+      kcopy(kinp, iwhc, chn->kinp());
+      chn->synth();
+
+      kcopy(gen->kout, gen->owhc, ktmp);
+
+      ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
+
+      dis->synth();
+      dis->target(kreal);
+      dis->propback();
+
+      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+
+      chn->learn(genmul);
+    }
  
     Kleption::pick_pair(src, kinp, tgt, ktgt);
     kcopy(kinp, iwhc, chn->kinp());
@@ -376,6 +396,7 @@ void learnhans(
     ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
 
     chn->learn(genmul);
+
 
     ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
     ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
@@ -1504,6 +1525,21 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
+    Kleption *alt = NULL;
+    if (arg.present("alt")) {
+      std::string altfn = (std::string)arg.get("alt");
+
+      Kleption::Flags altflags = Kleption::FLAG_REPEAT;
+      if (lowmem)
+        altflags |= Kleption::FLAG_LOWMEM;
+
+      alt = new Kleption(
+        altfn, iw, ih, ic,
+        altflags, Kleption::TRAV_RAND, srckind,
+        sw, sh, sc
+      );
+    }
+
     std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(tgtdim, &tw, &th, &tc))
@@ -1539,7 +1575,7 @@ int main(int argc, char **argv) {
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, tgt, chn, dis, cnd, repint, mul, lossreg, reps, stoprounds);
+    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, lossreg, reps, stoprounds);
 
     delete src;
     delete tgt;
