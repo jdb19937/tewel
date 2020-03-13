@@ -63,15 +63,20 @@ void Chain::prepare(int iw, int ih) {
   prepared = true;
 }
 
-void Chain::synth() {
+double *Chain::synth(int stop) {
   assert(prepared);
 
   int n = ctxv.size();
   assert(n > 0);
 
+  if (stop < 0)
+    stop = n + stop;
+
   ctxv[0]->synth();
-  for (int i = 1; i < n; ++i)
+  for (int i = 1; i < stop; ++i)
     ctxv[i]->synth(ctxv[i - 1]->kout);
+
+  return ctxv[stop - 1]->kout;
 }
 
 void Chain::target(const double *ktgt) {

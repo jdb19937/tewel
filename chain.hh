@@ -22,7 +22,7 @@ struct Chain {
   double *kinp();
   double *kout();
 
-  void synth();
+  double *synth(int stop = 0);
   void learn(double mul);
   void target(const double *);
 
