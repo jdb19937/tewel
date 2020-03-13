@@ -69,7 +69,7 @@ double *Chain::synth(int stop) {
   int n = ctxv.size();
   assert(n > 0);
 
-  if (stop < 0)
+  if (stop <= 0)
     stop = n + stop;
 
   ctxv[0]->synth();
