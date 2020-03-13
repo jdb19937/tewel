@@ -46,7 +46,7 @@ src2.tmp.u8: enc1.ctx gen1.ctx dns1.ctx mean.ctx iden.ctx learn1.done
 
 $(SRC2): src2.tmp.u8 iden.ctx
 	tewel synth iden.ctx \
-		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
+		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random trim=0.125 \
 		srcdim=128x128x3 dim=32x32x3 limit=65536 src=src2.tmp.u8 out=$@
 
 tgt2.tmp.u8: dns1.ctx
@@ -55,7 +55,7 @@ tgt2.tmp.u8: dns1.ctx
 
 $(TGT2): tgt2.tmp.u8 ups1.ctx
 	tewel synth ups1.ctx \
-		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
+		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random trim=0.125 \
 		srcdim=128x128x12 dim=32x32x12 limit=65536 src=tgt2.tmp.u8 out=$@
 
 
