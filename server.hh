@@ -38,8 +38,9 @@ struct Server {
   int kbs;
   double reload;
   double last_reload;
+  bool pngout;
 
-  Server(const std::vector<std::string> &_cx, int _pw, int _ph, int _cuda, int _kbs, double _reload = 0.0);
+  Server(const std::vector<std::string> &_cx, int _pw, int _ph, int _cuda, int _kbs, double _reload = 0.0, bool _pngout = false);
   ~Server();
 
   void open();

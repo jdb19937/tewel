@@ -440,6 +440,34 @@ void learn_inrf(
   );
 }
 
+void synth_clamp(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic
+) {
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_clamp, outn,
+    in, iw, ih, out, ic
+  );
+}
+
+void learn_clamp(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic
+) {
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_clamp, inn,
+    fin, iw, ih, fout, ic
+  );
+}
+
 void synth_relu(
   const double *in, int iw, int ih,
   double *out,

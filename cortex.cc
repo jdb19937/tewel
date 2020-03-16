@@ -45,6 +45,7 @@ const uint32_t TYPE_DNS4 = CC4('d','n','s','4');
 const uint32_t TYPE_DNS5 = CC4('d','n','s','5');
 const uint32_t TYPE_SIGM = CC4('s','i','g','m');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
+const uint32_t TYPE_CLMP = CC4('c','l','m','p');
 const uint32_t TYPE_ABSV = CC4('a','b','s','v');
 const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
@@ -343,6 +344,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_ABSV:
     case TYPE_RELU:
+    case TYPE_CLMP:
     case TYPE_SIGM:
     case TYPE_NERF:
     case TYPE_INRF:
@@ -738,6 +740,15 @@ static double *pipe_synth(
       synth_sigm(in, iw, ih, out, ic);
       break;
     }
+  case TYPE_CLMP:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      synth_clamp(in, iw, ih, out, ic);
+      break;
+    }
   case TYPE_RELU:
     {
       assert(len == 0);
@@ -1075,6 +1086,7 @@ void pipe_learn(
     }
   case TYPE_SIGM:
   case TYPE_RELU:
+  case TYPE_CLMP:
   case TYPE_ABSV:
   case TYPE_NERF:
   case TYPE_INRF:
@@ -1204,6 +1216,9 @@ void pipe_learn(
     break;
   case TYPE_SIGM:
     learn_sigm(in, iw, ih, fout, ic);
+    break;
+  case TYPE_CLMP:
+    learn_clamp(in, iw, ih, fout, ic);
     break;
   case TYPE_RELU:
     learn_relu(in, iw, ih, fout, ic);
@@ -2037,6 +2052,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_DNS5:
   case TYPE_SIGM:
   case TYPE_RELU:
+  case TYPE_CLMP:
   case TYPE_NERF:
   case TYPE_INRF:
   case TYPE_ABSV:

@@ -1089,6 +1089,53 @@ DEFN_KERNEL(learn_nerf,
 }
 
 
+DEFN_KERNEL(synth_clamp,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  int ini = outi;
+  if (in[ini] > 0) {
+    if (in[ini] < 1)
+      out[outi] = in[ini];
+    else
+      out[outi] = 1;
+  } else
+    out[outi] = 0;
+}
+
+DEFN_KERNEL(learn_clamp,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int outi = ini;
+
+  if (fin[ini] > 0 && fin[ini] <= 1) {
+    fin[ini] = fout[outi];
+  } else {
+    fin[ini] = 0;
+  }
+}
+
 DEFN_KERNEL(synth_relu,
   const double *in, int iw, int ih,
   double *out,

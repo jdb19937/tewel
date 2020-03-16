@@ -38,7 +38,7 @@ static inline double realtime() {
   return ((double)c / (double)CLOCKS_PER_SEC);
 }
 
-Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda, int _kbs, double _reload) {
+Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda, int _kbs, double _reload, bool _pngout) {
   port = 0;
   s = -1;
 
@@ -52,6 +52,7 @@ Server::Server(const std::vector<std::string> &_ctx, int _pw, int _ph, int _cuda
   kbs = _kbs;
 
   reload = _reload;
+  pngout = _pngout;
   last_reload = 0.0;
 }
 
@@ -230,7 +231,6 @@ bool Server::handle(Client *client) {
 
     int32_t stop;
     memcpy(&stop, hdr, 4);
-info(fmt("got stop=%d", stop));
     if (stop > 0 || stop < -3)
       return false;
 
@@ -250,19 +250,24 @@ info(fmt("got stop=%d", stop));
     info("done with synth");
 
     dek(tail->kout, outn, buf);
-    for (int i = 0; i < outn; ++i)
-      rgb[i] = (uint8_t)clamp(buf[i] * 256.0, 0, 255);
+    if (pngout) {
+      for (int i = 0; i < outn; ++i)
+        rgb[i] = (uint8_t)clamp(buf[i] * 256.0, 0, 255);
 
-    assert(tail->oc == 3);
-    uint8_t *png;
-    unsigned int pngn;
-    rgbpng(rgb, tail->ow, tail->oh, &png, &pngn);
+      assert(tail->oc == 3);
+      uint8_t *png;
+      unsigned int pngn;
+      rgbpng(rgb, tail->ow, tail->oh, &png, &pngn);
 
-    delete[] buf;
-    delete[] rgb;
+      delete[] buf;
+      delete[] rgb;
     
-    if (!client->write(png, pngn))
-      return false;
+      if (!client->write(png, pngn))
+        return false;
+    } else {
+      if (!client->write((uint8_t *)buf, outn * sizeof(double)))
+        return false;
+    }
   }
 
   return true;
