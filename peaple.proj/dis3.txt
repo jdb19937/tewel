@@ -1,6 +1,6 @@
 v=2 rdev=0.1
 
-type=con1 ic=6 oc=16
+type=con1 ic=6 oc=32
 type=relu
 
 type=con1
