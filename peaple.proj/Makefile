@@ -30,14 +30,15 @@ src1.rgb: tgt1.rgb
 SRC2DIM = 32x32x3
 TGT2DIM = 64x64x3
 SRC2 = src2.$(SRC2DIM).u8
+ALT2 = alt2.$(SRC2DIM).u8
 TGT2 = tgt2.$(TGT2DIM).u8
 
 learn2: learn2.done
 
-learn2.done: $(SRC2) $(TGT2) gen2.ctx dis2.ctx cnd2.ctx
+learn2.done: $(SRC2) $(TGT2) $(ALT2) gen2.ctx dis2.ctx cnd2.ctx
 	tewel learnfunc gen2.ctx src=$(SRC2) tgt=$(TGT2) srcdim=$(SRC2DIM) dim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=32768
-	tewel learnhans gen2.ctx src=$(SRC2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=4000000
-	tewel learnhans gen2.ctx src=$(SRC2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=4032768 mul=0.25
+	tewel learnhans gen2.ctx src=$(SRC2) alt=$(ALT2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=4000000
+	tewel learnhans gen2.ctx src=$(SRC2) alt=$(ALT2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=4032768 mul=0.25
 	touch $@
 
 src2.tmp.u8: enc1.ctx gen1.ctx dns1.ctx mean.ctx iden.ctx learn1.done
@@ -48,6 +49,14 @@ $(SRC2): src2.tmp.u8 iden.ctx
 	tewel synth iden.ctx \
 		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random trim=0.125 \
 		srcdim=128x128x3 dim=32x32x3 limit=65536 src=src2.tmp.u8 out=$@
+
+alt2.tmp.u8: enc1.ctx gen1.ctx learn1.done
+	tewel synth gen1.ctx dim=1x1x1536 verbose=1 src=nova2.rvg limit=4096 out=$@
+
+$(ALT2): alt2.tmp.u8 iden.ctx
+	tewel synth iden.ctx \
+		randseed=7 verbose=1 lowmem=1 srctrav=rand crop=random trim=0.125 \
+		srcdim=128x128x3 dim=32x32x3 limit=65536 src=alt2.tmp.u8 out=$@
 
 tgt2.tmp.u8: dns1.ctx
 	tewel synth dns1.ctx \
@@ -81,7 +90,7 @@ src3.tmp.u8: dns1.ctx mean.ctx
 
 $(SRC3): src3.tmp.u8 iden.ctx
 	tewel synth iden.ctx \
-		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
+		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random trim=0.125 \
 		srcdim=256x256x3 dim=32x32x3 limit=65536 src=src3.tmp.u8 out=$@
 
 tgt3.tmp.u8: dns1.ctx
@@ -90,7 +99,7 @@ tgt3.tmp.u8: dns1.ctx
 
 $(TGT3): tgt3.tmp.u8 ups1.ctx
 	tewel synth ups1.ctx \
-		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random \
+		randseed=1 verbose=1 lowmem=1 srctrav=rand crop=random trim=0.125 \
 		srcdim=256x256x12 dim=32x32x12 limit=65536 src=tgt3.tmp.u8 out=$@
 
 
@@ -183,7 +192,7 @@ showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
 
 
 server:
-	tewel server gen0-nova2.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx verbose=1 dim=1x1x1536 kids=1 reload=5
+	tewel server gen0-nova2.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx verbose=1 dim=1x1x1536 kids=1 reload=60
 
 
 
