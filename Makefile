@@ -24,7 +24,7 @@ SRC = \
   zoom2x.sh zoom4x.sh zoom8x.sh zoom16x.sh shrink2x.sh shrink4x.sh shrink8x.sh shrink16x.sh degrade2x.sh degrade4x.sh degrade8x.sh degrade16x.sh \
   tewel.lyx manual-fig*.png
 
-PACKAGE = tewel_$(VERSION)-1_amd64.deb
+PACKAGE = tewel_$(VERSION)_amd64.deb
 TARBALL = tewel-$(VERSION).tar.gz
 
 .PHONY: all
