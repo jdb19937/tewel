@@ -1,9 +1,10 @@
-tewel (0.5-1) UNRELEASED; urgency=medium
+tewel (0.6) UNRELEASED; urgency=medium
 
   * Initial release.
   * Lots of changes.  Testing version bump.
   * Many more changes.
   * Options processing looking better.  Started writing manual.
   * Many new features.
+  * Fixing everything. 
 
- -- Dan Brumleve <dan@makemoresoftware.com>  Wed, 10 Mar 2020 12:12:17 -0600
+ -- Dan Brumleve <dan@longyearbyen>  Mon, 16 Mar 2020 11:29:57 -0500

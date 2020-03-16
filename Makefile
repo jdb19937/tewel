@@ -5,7 +5,7 @@ NVCCFLAGS = $(OPT) -Xcompiler -fPIC
 CXXFLAGS = $(OPT) -fPIC
 LDFLAGS = -lm -lpng
 
-VERSION = 0.5
+VERSION = 0.6
 
 TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
