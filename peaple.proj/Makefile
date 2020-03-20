@@ -36,8 +36,8 @@ learn2: learn2.done
 
 learn2.done: $(SRC2) $(TGT2) $(ALT2) gen2.ctx dis2.ctx cnd2.ctx
 	tewel learnfunc gen2.ctx src=$(SRC2) tgt=$(TGT2) srcdim=$(SRC2DIM) dim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=32768
-	tewel learnhans gen2.ctx src=$(SRC2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=8000000
-	tewel learnhans gen2.ctx src=$(SRC2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=8032768 mul=0.25
+	tewel learnhans gen2.ctx src=$(SRC2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=4000000
+	tewel learnhans gen2.ctx src=$(SRC2) tgt=$(TGT2) dis=dis2.ctx cnd=cnd2.ctx dim=$(SRC2DIM) srcdim=$(SRC2DIM) tgtdim=$(TGT2DIM) stoprounds=4032768 mul=0.25
 	touch $@
 
 src2.tmp.u8: enc1.ctx gen1.ctx dns1.ctx mean.ctx learn1.done
@@ -219,8 +219,11 @@ showpane: gen1.ctx gen2.ctx gen3.ctx shampane.rvg
 		evolve=0.95 dim=1x1x1536 repeat=1 reload=1 delay=0.05 outkind=sdl
 
 
-server:
-	tewel server gen0.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx verbose=1 dim=1x1x1536 kids=1 reload=60
+genserver:
+	tewel server gen0.ctx gen1.ctx gen2.ctx gen3.ctx gen4.ctx gen5.ctx verbose=1 dim=1x1x1536 kids=1 reload=60 port=4444 pngout=1
+
+encserver:
+	tewel server enc1.ctx enc0.ctx verbose=1 dim=128x128x3 kids=1 port=4445
 
 
 

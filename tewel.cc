@@ -670,6 +670,7 @@ int main(int argc, char **argv) {
 
   if (cmd == "server") {
     double reload = arg.get("reload", "0.0");
+    bool pngout = (int)arg.get("pngout", "0");
 
     int pw = 0, ph = 0;
     if (arg.present("dim")) {
@@ -682,7 +683,7 @@ int main(int argc, char **argv) {
     int port = arg.get("port", "4444");
     info(fmt("starting server on port %d", port));
 
-    Server *server = new Server(ctx, pw, ph, cuda, kbs, reload);
+    Server *server = new Server(ctx, pw, ph, cuda, kbs, reload, pngout);
 
     server->open();
     server->bind((uint16_t)port);
