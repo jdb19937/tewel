@@ -1,4 +1,0 @@
-v=2
-
-type=dns1 ic=3 oc=12
-type=mean ic=12 oc=3
