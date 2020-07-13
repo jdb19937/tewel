@@ -1,4 +1,3 @@
-
 void kaddvec(const double *a, const double *b, unsigned int n, double *c) {
   CALL_KERNEL(kaddvec, n, a, b, n, c);
 }
@@ -185,7 +184,7 @@ void learn_local(
   int d, int ic, int oc,
 
   double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   int f = d * 2 + 1;
   int outn = iw * ih * oc;
@@ -194,7 +193,7 @@ void learn_local(
 
   CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);
   CALL_KERNEL(learn_local2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
-  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, nu, b1, b2, eps, rounds);
+  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, nu, b1, b2, eps, clip, rounds);
 }
 
 
@@ -230,7 +229,7 @@ void learn_conv(
   int d, int ic, int oc,
 
   double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   int f = d * 2 + 1;
   int wn = (oc + ic * f * f * oc);
@@ -238,7 +237,7 @@ void learn_conv(
 
   CALL_KERNEL(learn_conv1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);
   CALL_KERNEL(learn_conv2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
-  CALL_KERNEL(learn_conv3, wn, d, ic, oc, wmv, nu, b1, b2, eps, rounds);
+  CALL_KERNEL(learn_conv3, wn, d, ic, oc, wmv, nu, b1, b2, eps, clip, rounds);
 }
 
 void synth_addgeo(

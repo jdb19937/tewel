@@ -1,3 +1,4 @@
+
 DEFN_KERNEL(kaddvec, const double *a, const double *b, unsigned int n, double *c) {
   PREF_KERNEL;
   c[i] = a[i] + b[i];
@@ -493,7 +494,7 @@ DEFN_KERNEL(learn_local3,
   int iw, int ih,
   int d, int ic, int oc,
   double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   PREF_KERNEL;
 
@@ -518,6 +519,14 @@ DEFN_KERNEL(learn_local3,
   }
 
   w += nu * m / (sqrt(v) + eps);
+
+  if (clip > 0 && wi >= outn) {
+    if (w > clip)
+      w = clip;
+    else if (w < -clip)
+      w = -clip;
+  }
+
 
   wmv[wi * 3 + 0] = w;
 }
@@ -703,7 +712,7 @@ DEFN_KERNEL(learn_conv2,
 DEFN_KERNEL(learn_conv3,
   int d, int ic, int oc,
   double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   PREF_KERNEL;
 
@@ -727,6 +736,13 @@ DEFN_KERNEL(learn_conv3,
   }
 
   w += nu * m / (sqrt(v) + eps);
+
+  if (clip > 0 && wi >= oc) {
+    if (w > clip)
+      w = clip;
+    else if (w < -clip)
+      w = -clip;
+  }
 
   wmv[wi * 3 + 0] = w;
 }

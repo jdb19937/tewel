@@ -875,7 +875,7 @@ static double *pipe_synth(
 
 void pipe_learn(
   uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf,
-  double nu, double b1, double b2, double eps, uint64_t rounds
+  double nu, double b1, double b2, double eps, double clip, uint64_t rounds
 ) {
   if (basen == 0)
     return;
@@ -1145,7 +1145,7 @@ void pipe_learn(
   pipe_learn(
     base, basen, kbase,
     ow, oh, kbuf,
-    nu, b1, b2, eps, rounds
+    nu, b1, b2, eps, clip, rounds
   );
 
   switch (type) {
@@ -1156,22 +1156,22 @@ void pipe_learn(
     learn_bias(in, iw, ih, fout, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
     break;
   case TYPE_LOC0:
-    learn_local(in, iw, ih, fout, 0, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_local(in, iw, ih, fout, 0, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_LOC1:
-    learn_local(in, iw, ih, fout, 1, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_local(in, iw, ih, fout, 1, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_LOC2:
-    learn_local(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_local(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON0:
-    learn_conv(in, iw, ih, fout, 0, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_conv(in, iw, ih, fout, 0, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON1:
-    learn_conv(in, iw, ih, fout, 1, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_conv(in, iw, ih, fout, 1, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON2:
-    learn_conv(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_conv(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_SCAL:
     {
@@ -1293,6 +1293,7 @@ void Cortex::_clear() {
   b1 = 0.1;
   b2 = 0.001;
   eps = 1e-8;
+  clip = 0;
 
   decay = 0.0;
   rms = 0.0;
@@ -1350,6 +1351,7 @@ void Cortex::open(const std::string &_fn, int flags) {
   b1 = head->b1;
   b2 = head->b2;
   eps = head->eps;
+  clip = head->clip;
 
   int i = 0;
   unsigned int basei = 0;
@@ -1580,6 +1582,7 @@ void Cortex::create(const std::string &_fn, bool clobber) {
   head.b1 = 0.1;
   head.b2 = 0.001;
   head.eps = 1e-8;
+  head.clip = 0;
   memset(head.blank, 0, sizeof(head.blank));
 
   int ret = ::write(fd, &head, sizeof(Head));
@@ -1784,7 +1787,7 @@ void Cortex::target(const double *ktgt) {
 double *Cortex::propback() {
   assert(is_open);
   assert(is_prep);
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, rounds);
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds);
   return kinp;
 }
 
@@ -1792,7 +1795,7 @@ double *Cortex::learn(double mul) {
   assert(is_open);
   assert(is_prep);
   stats();
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, rounds);
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, clip, rounds);
   return kinp;
 }
 
@@ -1913,6 +1916,10 @@ void Cortex::save() {
   if (head->eps != eps) {
     eps = head->eps;
     warning("eps changed");
+  }
+  if (head->clip != clip) {
+    clip = head->clip;
+    warning("clip changed");
   }
 
   if (head->decay == 0) {

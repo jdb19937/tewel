@@ -35,6 +35,7 @@ template <class T> inline void kcopy(const T *da, unsigned int n, T *db)
   { kcopyv(da, n * sizeof(T), db); }
 
 
+extern void kclip3(double *a, unsigned int n, double c);
 extern void kaddvec(const double *a, const double *b, unsigned int n, double *c);
 extern void ksubvec(const double *a, const double *b, unsigned int n, double *c);
 extern double ksumsq(const double *a, unsigned int n);
@@ -110,7 +111,7 @@ extern void learn_local(
   int d, int ic, int oc,
 
   double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double nu, double b1, double b2, double eps, double clip, double rounds
 );
 
 
@@ -128,7 +129,7 @@ extern void learn_conv(
   const double *fout,
   int d, int ic, int oc,
   double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double nu, double b1, double b2, double eps, double clip, double rounds
 );
 
 

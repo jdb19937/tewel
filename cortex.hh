@@ -20,7 +20,8 @@ struct Cortex {
     double nu, b1, b2, eps;
     double rms, max, decay;
     double rdev;
-    char blank[4008];
+    double clip;
+    char blank[4000];
   };
 
   struct Segment {
@@ -50,7 +51,7 @@ struct Cortex {
   int ow, oh, oc, owhc;
 
   uint8_t *kbuf;
-  double nu, b1, b2, eps;
+  double nu, b1, b2, eps, clip;
 
   double *kfakebuf;
 
