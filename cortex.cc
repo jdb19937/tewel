@@ -32,6 +32,7 @@ const uint32_t TYPE_NORM = CC4('n','o','r','m');
 const uint32_t TYPE_CON0 = CC4('c','o','n','0');
 const uint32_t TYPE_CON1 = CC4('c','o','n','1');
 const uint32_t TYPE_CON2 = CC4('c','o','n','2');
+const uint32_t TYPE_CON3 = CC4('c','o','n','3');
 const uint32_t TYPE_SCAL = CC4('s','c','a','l');
 const uint32_t TYPE_UPS1 = CC4('u','p','s','1');
 const uint32_t TYPE_UPS2 = CC4('u','p','s','2');
@@ -53,6 +54,7 @@ const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_ADDG = CC4('a','d','d','g');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 const uint32_t TYPE_MEAN = CC4('m','e','a','n');
+const uint32_t TYPE_SUMM = CC4('s','u','m','m');
 const uint32_t TYPE_NERF = CC4('n','e','r','f');
 const uint32_t TYPE_INRF = CC4('i','n','r','f');
 
@@ -225,6 +227,14 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         oh = ih;
         break;
       }
+    case TYPE_CON3:
+      {
+        int wmvn = size_conv(3, ic, oc);
+        assert(wmvn == len);
+        ow = iw;
+        oh = ih;
+        break;
+      }
     case TYPE_SCAL:
       {
         int s = _scale_factor(ic, oc);
@@ -371,15 +381,14 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       ow = iw;
       oh = ih;
       assert(ic > 0);
-      assert(oc >= ic);
-      assert(oc % ic == 0);
+      assert(oc > 0);
       assert(len == 0);
       break;
     case TYPE_MEAN:
+    case TYPE_SUMM:
       ow = iw;
       oh = ih;
       assert(oc > 0);
-      assert(ic % oc == 0);
       assert(len == 0);
       break;
     default:
@@ -582,6 +591,19 @@ static double *pipe_synth(
   case TYPE_CON2:
     {
       int d = 2;
+      int wmvn = size_conv(d, ic, oc);
+      assert(wmvn == len);
+      double *wmv = (double *)kbase;
+
+      ow = iw;
+      oh = ih;
+
+      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      break;
+    }
+  case TYPE_CON3:
+    {
+      int d = 3;
       int wmvn = size_conv(d, ic, oc);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
@@ -834,8 +856,8 @@ static double *pipe_synth(
   case TYPE_IDEN:
     {
       assert(len == 0);
-      assert(oc >= ic);
-      assert(oc % ic == 0);
+      assert(ic > 0);
+      assert(oc > 0);
       ow = iw;
       oh = ih;
       synth_iden(in, iw, ih, out, ic, oc, NULL);
@@ -848,6 +870,14 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
       synth_mean(in, iw, ih, out, ic, oc, NULL);
+      break;
+    }
+  case TYPE_SUMM:
+    {
+      assert(len == 0);
+      ow = iw;
+      oh = ih;
+      synth_sum(in, iw, ih, out, ic, oc, NULL);
       break;
     }
   default:
@@ -987,6 +1017,17 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_CON3:
+    {
+      int d = 3;
+      int wmvn = size_conv(d, ic, oc);
+      assert(wmvn == len);
+
+      ow = iw;
+      oh = ih;
+
+      break;
+    }
   case TYPE_SCAL:
     {
       int s = _scale_factor(ic, oc);
@@ -1110,15 +1151,15 @@ void pipe_learn(
     oh = ih;
     break;
   case TYPE_IDEN:
-    assert(oc >= ic);
-    assert(oc % ic == 0);
+    assert(ic > 0);
+    assert(oc > 0);
     assert(len == 0);
     ow = iw;
     oh = ih;
     break;
   case TYPE_MEAN:
+  case TYPE_SUMM:
     assert(oc > 0);
-    assert(ic % oc == 0);
     assert(len == 0);
     ow = iw;
     oh = ih;
@@ -1172,6 +1213,9 @@ void pipe_learn(
     break;
   case TYPE_CON2:
     learn_conv(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    break;
+  case TYPE_CON3:
+    learn_conv(in, iw, ih, fout, 3, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_SCAL:
     {
@@ -1242,6 +1286,9 @@ void pipe_learn(
     break;
   case TYPE_IDEN:
     learn_iden(in, iw, ih, fout, ic, oc);
+    break;
+  case TYPE_SUMM:
+    learn_sum(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_MEAN:
     learn_mean(in, iw, ih, fout, ic, oc);
@@ -1784,6 +1831,14 @@ void Cortex::target(const double *ktgt) {
   ksubvec(ktgt, kout, owhc, kout);
 }
 
+void Cortex::setloss(const double *ktgt) {
+  assert(is_open);
+  assert(is_prep);
+  assert(kout);
+  assert(owhc > 0);
+  kcopy(ktgt, owhc, kout);
+}
+
 double *Cortex::propback() {
   assert(is_open);
   assert(is_prep);
@@ -2046,6 +2101,9 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_CON2:
     len = size_conv(2, nic, oc);
     break;
+  case TYPE_CON3:
+    len = size_conv(3, nic, oc);
+    break;
   case TYPE_SCAL:
   case TYPE_UPS1:
   case TYPE_UPS2:
@@ -2069,6 +2127,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_ADDG:
   case TYPE_IDEN:
   case TYPE_MEAN:
+  case TYPE_SUMM:
     len = 0;
     break;
   default:

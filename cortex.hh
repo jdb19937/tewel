@@ -85,6 +85,7 @@ struct Cortex {
   void scram(double dev = 1.0);
 
   void target(const double *ktgt);
+  void setloss(const double *ktgt);
   double *synth(const double *_kinp);
   double *synth();
   void stats();

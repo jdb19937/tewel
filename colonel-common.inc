@@ -355,6 +355,34 @@ void learn_mean(
   );
 }
 
+void synth_sum(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_sum, outn,
+    in, iw, ih, out, ic, oc, kbuf
+  );
+}
+
+
+void learn_sum(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc
+) {
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_sum, inn,
+    fin, iw, ih, fout, ic, oc
+  );
+}
+
 void synth_sigm(
   const double *in, int iw, int ih,
   double *out,
