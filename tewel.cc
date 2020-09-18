@@ -449,6 +449,10 @@ void learnhans(
       dis->synth();
       dis->target(kfake);
       dis->learn(dismul);
+      if (cnd) {
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+        cnd->learn(dismul);
+      }
 
       if (!cnd)
         tgt->pick(ktgt);
@@ -460,6 +464,10 @@ void learnhans(
       dis->synth();
       dis->target(kreal);
       dis->learn(dismul);
+      if (cnd) {
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+        cnd->learn(dismul);
+      }
     }
 
     if (i % repint == 0) {
@@ -469,6 +477,9 @@ void learnhans(
 
       chn->save();
       dis->save();
+
+      if (cnd)
+        cnd->save();
 
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g fakerms=%g\n",
