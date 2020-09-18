@@ -1,6 +1,6 @@
 CXX = g++
 NVCC = nvcc
-OPT = -g
+OPT = -O6
 NVCCFLAGS = $(OPT) -Xcompiler -fPIC
 CXXFLAGS = $(OPT) -fPIC
 LDFLAGS = -lm -lpng

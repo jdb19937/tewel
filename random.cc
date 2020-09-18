@@ -17,6 +17,11 @@ double randgauss() {
   return rn(rg);
 }
 
+double randrange(double a, double b) {
+  std::uniform_real_distribution<double> uniform(a, b);
+  return uniform(rg);
+}
+
 uint32_t randuint() {
   return ru(rg);
 }

@@ -6,6 +6,10 @@ void ksubvec(const double *a, const double *b, unsigned int n, double *c) {
   CALL_KERNEL(ksubvec, n, a, b, n, c);
 }
 
+void kmul(const double *a, const double b, unsigned int n, double *c) {
+  CALL_KERNEL(kmul, n, a, b, n, c);
+}
+
 double ksumsq(
   const double *a, unsigned int n
 ) {
@@ -72,6 +76,13 @@ void ksplice(
   double *y, int ym, int ya
 ) {
   CALL_KERNEL(ksplice, n * xk, x, n, xm, xa, xk, y, ym, ya);
+}
+
+void ksplice2(
+  const double *x, const double *z, double l, int n, int xm, int xa, int xk,
+  double *y, int ym, int ya
+) {
+  CALL_KERNEL(ksplice2, n * xk, x, z, l, n, xm, xa, xk, y, ym, ya);
 }
 
 int size_norm(
@@ -198,18 +209,39 @@ void learn_local(
 
 
 int size_conv(
-  int d, int ic, int oc
+  int d, int ic, int oc, int dim
 ) {
   int f = d * 2 + 1;
-  return (3 * (oc + ic * f * f * oc));
+  assert(f > 0);
+  assert(dim == 1 || dim == 2);
+  if (dim == 1) {
+    return (3 * (oc + ic * f * oc));
+  } else {
+    return (3 * (oc + ic * f * f * oc));
+  }
 }
 
+void synth_trim(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic
+) {
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_trim, outn,
+    in, iw, ih, out, d, ic
+  );
+}
 
 
 void synth_conv(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
+  bool relu, int freeze, int dim,
   const double *wmv
 ) {
   int ow = iw;
@@ -217,8 +249,19 @@ void synth_conv(
   int outn = ow * oh * oc;
 
   CALL_KERNEL(synth_conv, outn,
-    in, iw, ih, out, d, ic, oc, wmv
+    in, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv
   );
+}
+
+void learn_trim(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic
+) {
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_trim, inn, fin, iw, ih, fout, d, ic);
 }
 
 
@@ -227,6 +270,7 @@ void learn_conv(
   const double *fout,
 
   int d, int ic, int oc,
+  bool relu, int freeze, int dim,
 
   double *wmv,
   double nu, double b1, double b2, double eps, double clip, double rounds
@@ -235,9 +279,9 @@ void learn_conv(
   int wn = (oc + ic * f * f * oc);
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_conv1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);
-  CALL_KERNEL(learn_conv2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
-  CALL_KERNEL(learn_conv3, wn, d, ic, oc, wmv, nu, b1, b2, eps, clip, rounds);
+  CALL_KERNEL(learn_conv1, wn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_conv2, inn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv);
+  CALL_KERNEL(learn_conv3, wn, d, ic, oc, dim, wmv, nu, b1, b2, eps, clip, rounds);
 }
 
 void synth_addgeo(
@@ -326,6 +370,34 @@ void learn_iden(
   );
 }
 
+
+void synth_smax(
+  double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_smax, outn,
+    in, iw, ih, out, ic, oc, kbuf
+  );
+}
+
+
+void learn_smax(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc
+) {
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_smax, inn,
+    fin, iw, ih, fout, ic, oc
+  );
+}
 
 void synth_mean(
   const double *in, int iw, int ih,
@@ -556,16 +628,23 @@ void learn_abs(
 void synth_upscale(
   const double *in, int iw, int ih,
   double *out,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
-  assert((oc << (s + s)) == ic);
+  assert(dim == 1 || dim == 2);
+  if (dim == 1) {
+    assert((oc << s) == ic);
+  } else {
+    assert((oc << (s + s)) == ic);
+  }
 
   int ow = (iw << s);
   int oh = (ih << s);
   int outn = ow * oh * oc;
 
+  assert(dim == 1 || dim == 2);
+
   CALL_KERNEL(synth_upscale, outn,
-    in, iw, ih, out, s, ic, oc
+    in, iw, ih, out, s, ic, oc, dim
   );
 }
 
@@ -573,11 +652,13 @@ void synth_upscale(
 void learn_upscale(
   double *fin, int iw, int ih,
   const double *fout,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_upscale, inn, fin, iw, ih, fout, s, ic, oc);
+  assert(dim == 1 || dim == 2);
+
+  CALL_KERNEL(learn_upscale, inn, fin, iw, ih, fout, s, ic, oc, dim);
 }
 
 
@@ -586,14 +667,16 @@ void learn_upscale(
 void synth_downscale(
   const double *in, int iw, int ih,
   double *out,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
 
+  assert(dim == 1 || dim == 2);
+
   CALL_KERNEL(synth_downscale, outn,
-    in, iw, ih, out, s, ic, oc
+    in, iw, ih, out, s, ic, oc, dim
   );
 }
 
@@ -601,10 +684,12 @@ void synth_downscale(
 void learn_downscale(
   double *fin, int iw, int ih,
   const double *fout,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_downscale, inn, fin, iw, ih, fout, s, ic, oc);
+  assert(dim == 1 || dim == 2);
+
+  CALL_KERNEL(learn_downscale, inn, fin, iw, ih, fout, s, ic, oc, dim);
 }
 

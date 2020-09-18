@@ -26,16 +26,17 @@ struct Cortex {
 
   struct Segment {
     char magic[8];
-    uint32_t v;
+    uint32_t dim;
     uint32_t type;
     uint32_t len;
     uint32_t ic, oc;
     uint32_t iw, ih, ow, oh;
 
-    uint32_t _____pad;
+    uint32_t rad;
     double mul;
 
-    char __unused[8];
+    uint32_t freeze;
+    uint32_t relu;
   };
 
   bool is_open, is_prep;
@@ -81,7 +82,9 @@ struct Cortex {
   void load();
   void save();
 
-  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0, double mul = 0.0);
+  void unfreeze(int last);
+
+  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0, double mul = 0.0, int rad = 1, int freeze = 0, int relu = 0, int dim = 2);
   void scram(double dev = 1.0);
 
   void target(const double *ktgt);

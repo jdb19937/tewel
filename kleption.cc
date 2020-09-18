@@ -1171,9 +1171,10 @@ void Kleption::find(const std::string &id, double *kdat) {
       sscanf(pid.c_str(), "%ux%ux%u+%u+%u+%u.ppm", &vpw, &vph, &vpc, &x0, &y0, &v);
       assert(v < b);
  
-      assert(vpw == pw);
-      assert(vph == ph);
-      assert(vpc == pc);
+     // fprintf(stderr, "pid=%s pw=%d ph=%d pc=%d\n", pid.c_str(), pw, ph, pc);
+      // assert(vpw == pw);
+      // assert(vph == ph);
+      // assert(vpc == pc);
 
       assert(sw == pw);
       assert(sh == ph);

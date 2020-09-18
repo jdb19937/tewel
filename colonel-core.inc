@@ -9,6 +9,11 @@ DEFN_KERNEL(ksubvec, const double *a, const double *b, unsigned int n, double *c
   c[i] = a[i] - b[i];
 }
 
+DEFN_KERNEL(kmul, const double *a, const double b, unsigned int n, double *c) {
+  PREF_KERNEL;
+  c[i] = a[i] * b;
+}
+
 DEFN_KERNEL(krectify, const double *a, double *b, unsigned int n) {
   PREF_KERNEL;
   if (a[i] <= 0.0)
@@ -73,6 +78,20 @@ DEFN_KERNEL(ksplice,
   int in = i % n;
 
   y[in * ym + ya + ixk] = x[in * xm + xa + ixk];
+}
+
+DEFN_KERNEL(ksplice2,
+  const double *x, const double *z, double l, int n, int xm, int xa, int xk,
+  double *y, int ym, int ya
+) {
+  PREF_KERNEL;
+
+  int ixk = i / n;
+  int in = i % n;
+
+  y[in * ym + ya + ixk] =
+    (1.0 - l) * x[in * xm + xa + ixk] +
+    l * z[in * xm + xa + ixk];
 }
 
 DEFN_KERNEL(synth_norm,
@@ -531,10 +550,43 @@ DEFN_KERNEL(learn_local3,
   wmv[wi * 3 + 0] = w;
 }
 
+DEFN_KERNEL(synth_trim,
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic
+) {
+  PREF_KERNEL;
+
+  int ow = iw - 2 * d;
+  int oh = ih - 2 * d;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int iz = oz;
+  int ix = ox + d;
+  int iy = oy + d;
+
+  int ini = iz + ic * (ix + iw * iy);
+
+  out[outi] = in[ini];
+}
+
+
 DEFN_KERNEL(synth_conv,
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
+  bool relu, int freeze,
+  int dim,
   const double *wmv
 ) {
   PREF_KERNEL;
@@ -553,31 +605,65 @@ DEFN_KERNEL(synth_conv,
   int ox = tmp % ow; tmp /= ow;
   int oy = tmp;
 
+  if (oz < freeze) {
+    int ix = ox;
+    int iy = oy;
+    int iz = oz;
+    int ini = iz + ic * (ix + iw * iy);
+    double v = in[ini];
+
+    out[outi] = v;
+    return;
+  }
+
   int ix0 = ox - d;
   int ix1 = ox + d;
-  int iy0 = oy - d;
-  int iy1 = oy + d;
-
-  int f = d * 2 + 1;
-  // int wmvn = 3 * (oc + ic * f * f * oc);
-
   double outv = 0;
+  int f = d * 2 + 1;
 
-  for (int iyt = iy0; iyt <= iy1; ++iyt) {
-    int iy = (iyt + ih) % ih;
+  if (dim == 1) {
+    // int wmvn = 3 * (oc + ic * f * f * oc);
+
+    int iy = oy;
     for (int ixt = ix0; ixt <= ix1; ++ixt) { 
       int ix = (ixt + iw) % iw;
       for (int iz = 0; iz < ic; ++iz) {
         int ini = iz + ic * (ix + iw * iy);
-
-        int dx = ixt - ix0;
-        int dy = iyt - iy0;
-        int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
-
         double v = in[ini];
-        double w = wmv[wi * 3];
 
-        outv += v * w;
+        if (!relu || v > 0 || iz < freeze) {
+          int dx = ixt - ix0;
+          int wi = oc + (iz + ic * (dx + f * oz));
+
+          double w = wmv[wi * 3];
+
+          outv += v * w;
+        }
+      }
+    }
+  } else {
+    int iy0 = oy - d;
+    int iy1 = oy + d;
+    // int wmvn = 3 * (oc + ic * f * f * oc);
+
+    for (int iyt = iy0; iyt <= iy1; ++iyt) {
+      int iy = (iyt + ih) % ih;
+      for (int ixt = ix0; ixt <= ix1; ++ixt) { 
+        int ix = (ixt + iw) % iw;
+        for (int iz = 0; iz < ic; ++iz) {
+          int ini = iz + ic * (ix + iw * iy);
+          double v = in[ini];
+
+          if (!relu || v > 0 || iz < freeze) {
+            int dx = ixt - ix0;
+            int dy = iyt - iy0;
+            int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
+
+            double w = wmv[wi * 3];
+  
+            outv += v * w;
+          }
+        }
       }
     }
   }
@@ -587,13 +673,55 @@ DEFN_KERNEL(synth_conv,
   out[outi] = outv;
 }
 
+DEFN_KERNEL(learn_trim,
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int ow = iw - 2 * d;
+  // int oh = ih - 2 * d;
+  int oc = ic;
+
+  int tmp = ini;
+  int iz = tmp % ic; tmp /= ic;
+  int ix = tmp % iw; tmp /= iw;
+  int iy = tmp;
+
+  if (ix < d || ix >= iw - d) {
+    fin[ini] = 0;
+    return;
+  }
+  if (iy < d || iy >= ih - d) {
+    fin[ini] = 0;
+    return;
+  }
+
+  int oz = iz;
+  int ox = ix - d;
+  int oy = iy - d;
+  int outi = oz + oc * (ox + ow * oy);
+
+  fin[ini] = fout[outi];
+}
+
 
 DEFN_KERNEL(learn_conv1,
   const double *in, int iw, int ih,
   const double *fout,
 
   int d, int ic, int oc,
+  bool relu,
 
+  int freeze,
+  int dim,
   double *wmv,
   double nu, double b1, double b2
 ) {
@@ -603,7 +731,12 @@ DEFN_KERNEL(learn_conv1,
     return;
 
   int f = d * 2 + 1;
-  int wn = (oc + ic * f * f * oc);
+  int wn;
+  if (dim == 1) {
+    wn = (oc + ic * f * oc);
+  } else {
+    wn = (oc + ic * f * f * oc);
+  }
 
   int wi = i;
   if (wi >= wn)
@@ -617,28 +750,68 @@ DEFN_KERNEL(learn_conv1,
   if (wi < oc) {
     int oz = wi;
 
-    for (int oy = 0; oy < oh; ++oy) {
-      for (int ox = 0; ox < ow; ++ox) {
-        int outi = oz + oc * (ox + ow * oy);
-        dw += fout[outi];
+    if (oz < freeze) {
+      dw = -wmv[wi * 3 + 0];
+      wmv[3 * wi + 2] = 1.0;
+    } else {
+      for (int oy = 0; oy < oh; ++oy) {
+        for (int ox = 0; ox < ow; ++ox) {
+          int outi = oz + oc * (ox + ow * oy);
+          dw += fout[outi];
+        }
       }
     }
   } else {
-    int tmp = wi - oc;
-    int iz = tmp % ic; tmp /= ic;
-    int dx = tmp % f; tmp /= f;
-    int dy = tmp % f; tmp /= f;
-    int oz = tmp % oc;
+    if (dim == 1) {
+      int tmp = wi - oc;
+      int iz = tmp % ic; tmp /= ic;
+      int dx = tmp % f; tmp /= f;
+      int oz = tmp % oc;
 
-    for (int oy = 0; oy < oh; ++oy) {
-      for (int ox = 0; ox < ow; ++ox) {
-        int ix = (ox - d + dx + iw) % iw;
-        int iy = (oy - d + dy + ih) % ih;
+      if (oz < freeze) {
+        double q = (dx == d && iz == oz) ? 1.0 : 0.0;
+        dw = q - wmv[3 * wi + 0];
+        wmv[3 * wi + 2] = 1.0;
+      } else {
+        for (int oy = 0; oy < oh; ++oy) {
+          for (int ox = 0; ox < ow; ++ox) {
+            int ix = (ox - d + dx + iw) % iw;
+            int iy = oy;
+  
+            int ini = iz + ic * (ix + iw * iy);
+            double v = in[ini];
+            if (!relu || v > 0 || iz < freeze) {
+              int outi = oz + oc * (ox + ow * oy);
+              dw += fout[outi] * v;
+            }
+          }
+        }
+      }
+    } else {
+      int tmp = wi - oc;
+      int iz = tmp % ic; tmp /= ic;
+      int dx = tmp % f; tmp /= f;
+      int dy = tmp % f; tmp /= f;
+      int oz = tmp % oc;
 
-        int ini = iz + ic * (ix + iw * iy);
-        int outi = oz + oc * (ox + ow * oy);
-
-        dw += fout[outi] * in[ini];
+      if (oz < freeze) {
+        double q = (dx == d && dy == d && iz == oz) ? 1.0 : 0.0;
+        dw = q - wmv[3 * wi + 0];
+        wmv[3 * wi + 2] = 1.0;
+      } else {
+        for (int oy = 0; oy < oh; ++oy) {
+          for (int ox = 0; ox < ow; ++ox) {
+            int ix = (ox - d + dx + iw) % iw;
+            int iy = (oy - d + dy + ih) % ih;
+    
+            int ini = iz + ic * (ix + iw * iy);
+            double v = in[ini];
+            if (!relu || v > 0 || iz < freeze) {
+              int outi = oz + oc * (ox + ow * oy);
+              dw += fout[outi] * v;
+            }
+          }
+        }
       }
     }
   }
@@ -659,6 +832,8 @@ DEFN_KERNEL(learn_conv2,
   const double *fout,
 
   int d, int ic, int oc,
+  bool relu, int freeze,
+  int dim,
 
   const double *wmv
 ) {
@@ -677,30 +852,72 @@ DEFN_KERNEL(learn_conv2,
   int ix = tmp % iw; tmp /= iw;
   int iy = tmp;
 
+  if (relu && fin[ini] <= 0 && iz >= freeze) {
+    fin[ini] = 0;
+    return;
+  }
+
   int ox0 = ix - d;
   int ox1 = ix + d;
-  int oy0 = iy - d;
-  int oy1 = iy + d;
-
   int f = d * 2 + 1;
-  // int wmvn = 3 * (oc + ic * f * f * oc);
-
   double finv = 0;
 
-  for (int oyt = oy0; oyt <= oy1; ++oyt) {
-    int oy = (oyt + oh) % oh;
+  if (dim == 1) {
+    int oy = iy;
     for (int oxt = ox0; oxt <= ox1; ++oxt) { 
       int ox = (oxt + ow) % ow;
       for (int oz = 0; oz < oc; ++oz) {
         int outi = oz + oc * (ox + ow * oy);
 
-        int dx = ix - oxt + d;
-        int dy = iy - oyt + d;
-        int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
-
         double v = fout[outi];
-        double w = wmv[wi * 3];
+        double w;
+
+        if (oz < freeze) {
+          if (ix == ox && iy == oy && iz == oz) {
+            w = 1.0;
+          } else {
+            w = 0.0;
+          }
+        } else {
+          int dx = ix - oxt + d;
+          int wi = oc + (iz + ic * (dx + f * oz));
+          w = wmv[wi * 3];
+        }
+
         finv += v * w;
+      }
+    }
+  } else {
+    int oy0 = iy - d;
+    int oy1 = iy + d;
+    // int wmvn = 3 * (oc + ic * f * f * oc);
+
+    for (int oyt = oy0; oyt <= oy1; ++oyt) {
+      int oy = (oyt + oh) % oh;
+      for (int oxt = ox0; oxt <= ox1; ++oxt) { 
+        int ox = (oxt + ow) % ow;
+        for (int oz = 0; oz < oc; ++oz) {
+          int outi = oz + oc * (ox + ow * oy);
+
+          double v = fout[outi];
+          double w;
+
+          if (oz < freeze) {
+            if (ix == ox && iy == oy && iz == oz) {
+              w = 1.0;
+            } else {
+              w = 0.0;
+            }
+          } else {
+            int dx = ix - oxt + d;
+            int dy = iy - oyt + d;
+            int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
+  
+            w = wmv[wi * 3];
+          }
+
+          finv += v * w;
+        }
       }
     }
   }
@@ -710,7 +927,7 @@ DEFN_KERNEL(learn_conv2,
 
 
 DEFN_KERNEL(learn_conv3,
-  int d, int ic, int oc,
+  int d, int ic, int oc, int dim,
   double *wmv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
@@ -720,7 +937,12 @@ DEFN_KERNEL(learn_conv3,
     return;
 
   int f = d * 2 + 1;
-  int wn = (oc + ic * f * f * oc);
+  int wn;
+  if (dim == 1) {
+    wn = (oc + ic * f * oc);
+  } else {
+    wn = (oc + ic * f * f * oc);
+  }
 
   int wi = i;
   if (wi >= wn)
@@ -933,6 +1155,77 @@ DEFN_KERNEL(learn_iden,
   fin[ini] = v;
 }
 
+DEFN_KERNEL(synth_smax,
+  double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int ix = ox;
+  int iy = oy;
+
+  double v = 0;
+  for (int iz = oz; iz < ic; iz += oc) {
+    int ini = iz + ic * (ix + iw * iy);
+    if (iz == oz || in[ini] > v)
+      v = in[ini];
+  }
+
+  unsigned int nmax = 0;
+  for (int iz = oz; iz < ic; iz += oc) {
+    int ini = iz + ic * (ix + iw * iy);
+    if (in[ini] >= v)
+      ++nmax;
+  }
+
+  for (int iz = oz; iz < ic; iz += oc) {
+    int ini = iz + ic * (ix + iw * iy);
+    in[ini] = (in[ini] >= v) ? 1.0 / (double)nmax : 0.0;
+  }
+
+  out[outi] = v;
+}
+
+DEFN_KERNEL(learn_smax,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int ow = iw;
+
+  int tmp = ini;
+  int iz = tmp % ic; tmp /= ic;
+  int ix = tmp % iw; tmp /= iw;
+  int iy = tmp;
+
+  int oz = iz % oc;
+  int ox = ix;
+  int oy = iy;
+
+  int outi = oz + oc * (ox + ow * oy);
+  fin[ini] = fout[outi] * fin[ini];
+}
+
 DEFN_KERNEL(synth_mean,
   const double *in, int iw, int ih,
   double *out,
@@ -1102,7 +1395,14 @@ DEFN_KERNEL(synth_inrf,
     return;
 
   int ini = outi;
-  out[outi] = sqrt(2.0) * erfinv(-1.0 + 2.0 * in[ini]);
+  double v = in[ini];
+
+  if (v < 1.0/256.0)
+    v = 1.0/256.0;
+  if (v >= 255.0/256.0)
+    v = 255.0/256.0;
+
+  out[outi] = sqrt(2.0) * erfinv(-1.0 + 2.0 * v);
 }
 
 DEFN_KERNEL(learn_inrf,
@@ -1142,6 +1442,7 @@ DEFN_KERNEL(synth_nerf,
   const double isq2 = 0.7071067812;
 
   int ini = outi;
+
   out[outi] = (erf(in[ini] * isq2) + 1.0) / 2.0;
 }
 
@@ -1303,42 +1604,69 @@ DEFN_KERNEL(learn_abs,
 DEFN_KERNEL(synth_upscale,
   const double *in, int iw, int ih,
   double *out,
-  int s, int ic, int oc
+  int s, int ic, int oc,
+  int dim
 ) {
   PREF_KERNEL;
 
   int ow = (iw << s);
-  int oh = (ih << s);
 
-  int outn = ow * oh * oc;
-  int outi = i;
-  if (outi >= outn)
-    return;
+  if (dim == 1) {
+    int oh = ih;
 
-  int tmp = outi;
-  int oz = tmp % oc; tmp /= oc;
-  int ox = tmp % ow; tmp /= ow;
-  int oy = tmp;
+    int outn = ow * oh * oc;
+    int outi = i;
+    if (outi >= outn)
+      return;
 
-  // assert((oc << (s + s)) == ic);
-  int ix = (ox >> s);
-  int iy = (oy >> s);
+    int tmp = outi;
+    int oz = tmp % oc; tmp /= oc;
+    int ox = tmp % ow; tmp /= ow;
+    int oy = tmp;
 
-  int f = (1 << s);
-  int dx = ox % f;
-  int dy = oy % f;
+    // assert((oc << (s + s)) == ic);
+    int ix = (ox >> s);
+    int iy = oy;
 
-  int iz = oz + oc * (dx + f * dy);
-  int ini = iz + ic * (ix + iw * iy);
+    int f = (1 << s);
+    int dx = ox % f;
 
-  out[outi] = in[ini];
+    int iz = oz + oc * dx;
+    int ini = iz + ic * (ix + iw * iy);
+
+    out[outi] = in[ini];
+  } else {
+    int oh = (ih << s);
+
+    int outn = ow * oh * oc;
+    int outi = i;
+    if (outi >= outn)
+      return;
+
+    int tmp = outi;
+    int oz = tmp % oc; tmp /= oc;
+    int ox = tmp % ow; tmp /= ow;
+    int oy = tmp;
+
+    // assert((oc << (s + s)) == ic);
+    int ix = (ox >> s);
+    int iy = (oy >> s);
+
+    int f = (1 << s);
+    int dx = ox % f;
+    int dy = oy % f;
+
+    int iz = oz + oc * (dx + f * dy);
+    int ini = iz + ic * (ix + iw * iy);
+    out[outi] = in[ini];
+  }
 }
 
 
 DEFN_KERNEL(learn_upscale,
   double *fin, int iw, int ih,
   const double *fout,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
   PREF_KERNEL;
 
@@ -1348,8 +1676,7 @@ DEFN_KERNEL(learn_upscale,
     return;
 
   int ow = (iw << s);
-  // int oh = (ih << s);
-
+  
   int tmp = ini;
   int iz = tmp % ic; tmp /= ic;
   int ix = tmp % iw; tmp /= iw;
@@ -1359,55 +1686,87 @@ DEFN_KERNEL(learn_upscale,
   tmp = iz;
   int oz = tmp % oc; tmp /= oc;
   int dx = tmp % f; tmp /= f;
-  int dy = tmp;
   int ox = (ix << s) + dx;
-  int oy = (iy << s) + dy;
 
-  int outi = oz + oc * (ox + ow * oy);
-
-  fin[ini] = fout[outi];
+  if (dim == 1) {
+    int oy = iy;
+    int outi = oz + oc * (ox + ow * oy);
+    fin[ini] = fout[outi];
+  } else {
+    int dy = tmp;
+    int oy = (iy << s) + dy;
+    int outi = oz + oc * (ox + ow * oy);
+    fin[ini] = fout[outi];
+  }
 }
 
 
 DEFN_KERNEL(synth_downscale,
   const double *in, int iw, int ih,
   double *out,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
   PREF_KERNEL;
 
-  int ow = (iw >> s);
-  int oh = (ih >> s);
+  if (dim == 1) {
+    int ow = (iw >> s);
+    int oh = ih;
+  
+    int outn = ow * oh * oc;
+    int outi = i;
+    if (outi >= outn)
+      return;
+  
+    int tmp = outi;
+    int oz = tmp % oc; tmp /= oc;
+    int ox = tmp % ow; tmp /= ow;
+    int oy = tmp;
+  
+    int f = (1 << s);
+    tmp = oz;
+    int iz = tmp % ic; tmp /= ic;
+    int dx = tmp % f;
+  
+    int ix = (ox << s) + dx;
+    int iy = oy;
 
-  int outn = ow * oh * oc;
-  int outi = i;
-  if (outi >= outn)
-    return;
+    int ini = iz + ic * (ix + iw * iy);
 
-  int tmp = outi;
-  int oz = tmp % oc; tmp /= oc;
-  int ox = tmp % ow; tmp /= ow;
-  int oy = tmp;
+    out[outi] = in[ini];
+  } else {
+    int ow = (iw >> s);
+    int oh = (ih >> s);
+  
+    int outn = ow * oh * oc;
+    int outi = i;
+    if (outi >= outn)
+      return;
+  
+    int tmp = outi;
+    int oz = tmp % oc; tmp /= oc;
+    int ox = tmp % ow; tmp /= ow;
+    int oy = tmp;
+  
+    int f = (1 << s);
+    tmp = oz;
+    int iz = tmp % ic; tmp /= ic;
+    int dx = tmp % f; tmp /= f;
+    int dy = tmp;
+  
+    int ix = (ox << s) + dx;
+    int iy = (oy << s) + dy;
 
-  int f = (1 << s);
-  tmp = oz;
-  int iz = tmp % ic; tmp /= ic;
-  int dx = tmp % f; tmp /= f;
-  int dy = tmp;
+    int ini = iz + ic * (ix + iw * iy);
 
-  int ix = (ox << s) + dx;
-  int iy = (oy << s) + dy;
-
-  int ini = iz + ic * (ix + iw * iy);
-
-  out[outi] = in[ini];
+    out[outi] = in[ini];
+  }
 }
 
 
 DEFN_KERNEL(learn_downscale,
   double *fin, int iw, int ih,
   const double *fout,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 ) {
   PREF_KERNEL;
 
@@ -1417,8 +1776,7 @@ DEFN_KERNEL(learn_downscale,
     return;
 
   int ow = (iw >> s);
-  // int oh = (ih >> s);
-
+  
   int tmp = ini;
   int iz = tmp % ic; tmp /= ic;
   int ix = tmp % iw; tmp /= iw;
@@ -1426,14 +1784,26 @@ DEFN_KERNEL(learn_downscale,
 
   int f = (1 << s);
   int ox = (ix >> s);
-  int oy = (iy >> s);
 
-  int dx = ix % f;
-  int dy = iy % f;
-  int oz = iz + ic * (dx + f * dy);
-
-  int outi = oz + oc * (ox + ow * oy);
-
-  fin[ini] = fout[outi];
+  if (dim == 1) {
+    int oy = iy;
+  
+    int dx = ix % f;
+    int oz = iz + ic * dx;
+  
+    int outi = oz + oc * (ox + ow * oy);
+  
+    fin[ini] = fout[outi];
+  } else {
+    int oy = (iy >> s);
+  
+    int dx = ix % f;
+    int dy = iy % f;
+    int oz = iz + ic * (dx + f * dy);
+  
+    int outi = oz + oc * (ox + ow * oy);
+  
+    fin[ini] = fout[outi];
+  }
 }
 

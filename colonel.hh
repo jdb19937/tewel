@@ -38,6 +38,7 @@ template <class T> inline void kcopy(const T *da, unsigned int n, T *db)
 extern void kclip3(double *a, unsigned int n, double c);
 extern void kaddvec(const double *a, const double *b, unsigned int n, double *c);
 extern void ksubvec(const double *a, const double *b, unsigned int n, double *c);
+extern void kmul(const double *a, const double b, unsigned int n, double *c);
 extern double ksumsq(const double *a, unsigned int n);
 extern double kmaxabs(const double *a, unsigned int n);
 
@@ -48,6 +49,10 @@ extern void kspliceadd(
 );
 extern void ksplice(
   const double *x, int n, int xm, int xa, int xk,
+  double *y, int ym, int ya
+);
+extern void ksplice2(
+  const double *x, const double *z, double l, int n, int xm, int xa, int xk,
   double *y, int ym, int ya
 );
 
@@ -114,13 +119,27 @@ extern void learn_local(
   double nu, double b1, double b2, double eps, double clip, double rounds
 );
 
+extern void synth_trim(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic
+);
 
-extern int size_conv(int d, int ic, int oc);
+extern void learn_trim(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int d, int ic
+);
+
+
+
+extern int size_conv(int d, int ic, int oc, int dim);
 
 extern void synth_conv(
   const double *in, int iw, int ih,
   double *out,
   int d, int ic, int oc,
+  bool relu, int freeze, int dim,
   const double *wmv
 );
 
@@ -128,6 +147,7 @@ extern void learn_conv(
   double *fin, int iw, int ih,
   const double *fout,
   int d, int ic, int oc,
+  bool relu, int freeze, int dim,
   double *wmv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 );
@@ -140,6 +160,18 @@ extern void synth_iden(
 );
 
 extern void learn_iden(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+);
+
+extern void synth_smax(
+  double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+);
+
+extern void learn_smax(
   double *fin, int iw, int ih,
   const double *fout,
   int ic, int oc
@@ -269,25 +301,25 @@ extern void learn_abs(
 extern void synth_upscale(
   const double *in, int iw, int ih,
   double *out,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 );
 
 extern void learn_upscale(
   double *fin, int iw, int ih,
   const double *fout,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 );
 
 extern void synth_downscale(
   const double *in, int iw, int ih,
   double *out,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 );
 
 extern void learn_downscale(
   double *fin, int iw, int ih,
   const double *fout,
-  int s, int ic, int oc
+  int s, int ic, int oc, int dim
 );
 
 }

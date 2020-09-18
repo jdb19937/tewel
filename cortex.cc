@@ -29,10 +29,15 @@ const uint32_t TYPE_LOC1 = CC4('l','o','c','1');
 const uint32_t TYPE_LOC2 = CC4('l','o','c','2');
 const uint32_t TYPE_BIAS = CC4('b','i','a','s');
 const uint32_t TYPE_NORM = CC4('n','o','r','m');
+const uint32_t TYPE_RCN0 = CC4('r','c','n','0');
+const uint32_t TYPE_RCN1 = CC4('r','c','n','1');
+const uint32_t TYPE_RCN2 = CC4('r','c','n','2');
+const uint32_t TYPE_RCN3 = CC4('r','c','n','3');
 const uint32_t TYPE_CON0 = CC4('c','o','n','0');
 const uint32_t TYPE_CON1 = CC4('c','o','n','1');
 const uint32_t TYPE_CON2 = CC4('c','o','n','2');
 const uint32_t TYPE_CON3 = CC4('c','o','n','3');
+const uint32_t TYPE_CONV = CC4('c','o','n','v');
 const uint32_t TYPE_SCAL = CC4('s','c','a','l');
 const uint32_t TYPE_UPS1 = CC4('u','p','s','1');
 const uint32_t TYPE_UPS2 = CC4('u','p','s','2');
@@ -44,6 +49,7 @@ const uint32_t TYPE_DNS2 = CC4('d','n','s','2');
 const uint32_t TYPE_DNS3 = CC4('d','n','s','3');
 const uint32_t TYPE_DNS4 = CC4('d','n','s','4');
 const uint32_t TYPE_DNS5 = CC4('d','n','s','5');
+const uint32_t TYPE_TRIM = CC4('t','r','i','m');
 const uint32_t TYPE_SIGM = CC4('s','i','g','m');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
 const uint32_t TYPE_CLMP = CC4('c','l','m','p');
@@ -54,6 +60,7 @@ const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_ADDG = CC4('a','d','d','g');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 const uint32_t TYPE_MEAN = CC4('m','e','a','n');
+const uint32_t TYPE_SMAX = CC4('s','m','a','x');
 const uint32_t TYPE_SUMM = CC4('s','u','m','m');
 const uint32_t TYPE_NERF = CC4('n','e','r','f');
 const uint32_t TYPE_INRF = CC4('i','n','r','f');
@@ -86,15 +93,9 @@ static void _parse_header(
   uint32_t *typep, int *lenp,
   int *icp = NULL, int *ocp = NULL,
   int *iwp = NULL, int *ihp = NULL, int *owp = NULL, int *ohp = NULL,
-  double *mulp = NULL
+  double *mulp = NULL, int *radp = NULL, int *freezep = NULL, int *relup = NULL, int *dimp = NULL
 ) {
   assert(!memcmp(hdr.magic, "MakeMore", 8));
-  uint32_t v = ntohl(hdr.v);
-
-  assert(v != 0);
-  assert(v < 256);
-  // if (v != 2)
-  //   warning("v != 2");
 
   *typep = ntohl(hdr.type);
   *lenp = ntohl(hdr.len);
@@ -113,6 +114,14 @@ static void _parse_header(
     *ohp = ntohl(hdr.oh);
   if (mulp)
     *mulp = hdr.mul + 1.0;
+  if (radp)
+    *radp = ntohl(hdr.rad);
+  if (freezep)
+    *freezep = ntohl(hdr.freeze);
+  if (relup)
+    *relup = ntohl(hdr.relu);
+  if (dimp)
+    *dimp = ntohl(hdr.dim);
 }
 
 
@@ -135,7 +144,10 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     uint32_t type;
     int len, vic;
     int viw, vih, vow, voh;
-    _parse_header(hdr, &type, &len, &vic, &oc, &viw, &vih, &vow, &voh);
+    int rad, freeze, relu;
+    double _mul;
+    int dim;
+    _parse_header(hdr, &type, &len, &vic, &oc, &viw, &vih, &vow, &voh, &_mul, &rad, &freeze, &relu, &dim);
 
     if (viw)
       assert(viw == iw);
@@ -203,33 +215,55 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         oh = ih;
         break;
       }
+    case TYPE_TRIM:
+      {
+        assert(len == 0);
+        assert(ic == oc);
+        assert(iw > rad * 2);
+        assert(ih > rad * 2);
+        ow = iw - rad * 2;
+        oh = ih - rad * 2;
+        break;
+      }
+    case TYPE_CONV:
+      {
+        int wmvn = size_conv(rad, ic, oc, dim);
+        assert(wmvn == len);
+        ow = iw;
+        oh = ih;
+        break;
+      }
+    case TYPE_RCN0:
     case TYPE_CON0:
       {
-        int wmvn = size_conv(0, ic, oc);
+        int wmvn = size_conv(0, ic, oc, dim);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
         break;
       }
+    case TYPE_RCN1:
     case TYPE_CON1:
       {
-        int wmvn = size_conv(1, ic, oc);
+        int wmvn = size_conv(1, ic, oc, dim);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
         break;
       }
+    case TYPE_RCN2:
     case TYPE_CON2:
       {
-        int wmvn = size_conv(2, ic, oc);
+        int wmvn = size_conv(2, ic, oc, dim);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
         break;
       }
+    case TYPE_RCN3:
     case TYPE_CON3:
       {
-        int wmvn = size_conv(3, ic, oc);
+        int wmvn = size_conv(3, ic, oc, dim);
         assert(wmvn == len);
         ow = iw;
         oh = ih;
@@ -255,101 +289,176 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     case TYPE_UPS1:
       {
         int s = 1;
-        assert(len == 0);
-        assert((oc << (s + s)) == ic);
-        ow = (iw << s);
-        oh = (ih << s);
+        if (dim == 1) {
+          assert(len == 0);
+          assert((oc << s) == ic);
+          ow = (iw << s);
+          oh = ih;
+        } else {
+          assert(len == 0);
+          assert((oc << (s + s)) == ic);
+          ow = (iw << s);
+          oh = (ih << s);
+        }
         break;
       }
     case TYPE_UPS2:
       {
         int s = 2;
-        assert(len == 0);
-        assert((oc << (s + s)) == ic);
-        ow = (iw << s);
-        oh = (ih << s);
+        if (dim == 1) {
+          assert(len == 0);
+          assert((oc << s) == ic);
+          ow = (iw << s);
+          oh = ih;
+        } else {
+          assert(len == 0);
+          assert((oc << (s + s)) == ic);
+          ow = (iw << s);
+          oh = (ih << s);
+        }
         break;
       }
     case TYPE_UPS3:
       {
         int s = 3;
-        assert(len == 0);
-        assert((oc << (s + s)) == ic);
-        ow = (iw << s);
-        oh = (ih << s);
+        if (dim == 1) {
+          assert(len == 0);
+          assert((oc << s) == ic);
+          ow = (iw << s);
+          oh = ih;
+        } else {
+          assert(len == 0);
+          assert((oc << (s + s)) == ic);
+          ow = (iw << s);
+          oh = (ih << s);
+        }
         break;
       }
     case TYPE_UPS4:
       {
         int s = 4;
-        assert(len == 0);
-        assert((oc << (s + s)) == ic);
-        ow = (iw << s);
-        oh = (ih << s);
+        if (dim == 1) {
+          assert(len == 0);
+          assert((oc << s) == ic);
+          ow = (iw << s);
+          oh = ih;
+        } else {
+          assert(len == 0);
+          assert((oc << (s + s)) == ic);
+          ow = (iw << s);
+          oh = (ih << s);
+        }
         break;
       }
     case TYPE_UPS5:
       {
         int s = 5;
-        assert(len == 0);
-        assert((oc << (s + s)) == ic);
-        ow = (iw << s);
-        oh = (ih << s);
+        if (dim == 1) {
+          assert(len == 0);
+          assert((oc << s) == ic);
+          ow = (iw << s);
+          oh = ih;
+        } else {
+          assert(len == 0);
+          assert((oc << (s + s)) == ic);
+          ow = (iw << s);
+          oh = (ih << s);
+        }
         break;
       }
     case TYPE_DNS1:
       {
         int s = 1;
         assert(len == 0);
-        assert((ic << (s + s)) == oc);
-        ow = (iw >> s);
-        oh = (ih >> s);
-        assert((ow << s) == iw);
-        assert((oh << s) == ih);
+        if (dim == 1) {
+          assert((ic << s) == oc);
+          ow = (iw >> s);
+          oh = ih;
+          assert((ow << s) == iw);
+          assert(oh == ih);
+        } else {
+          assert((ic << (s + s)) == oc);
+          ow = (iw >> s);
+          oh = (ih >> s);
+          assert((ow << s) == iw);
+          assert((oh << s) == ih);
+        }
         break;
       }
     case TYPE_DNS2:
       {
         int s = 2;
         assert(len == 0);
-        assert((ic << (s + s)) == oc);
-        ow = (iw >> s);
-        oh = (ih >> s);
-        assert((ow << s) == iw);
-        assert((oh << s) == ih);
+        if (dim == 1) {
+          assert((ic << s) == oc);
+          ow = (iw >> s);
+          oh = ih;
+          assert((ow << s) == iw);
+          assert(oh == ih);
+        } else {
+          assert((ic << (s + s)) == oc);
+          ow = (iw >> s);
+          oh = (ih >> s);
+          assert((ow << s) == iw);
+          assert((oh << s) == ih);
+        }
         break;
       }
     case TYPE_DNS3:
       {
         int s = 3;
         assert(len == 0);
-        assert((ic << (s + s)) == oc);
-        ow = (iw >> s);
-        oh = (ih >> s);
-        assert((ow << s) == iw);
-        assert((oh << s) == ih);
+        if (dim == 1) {
+          assert((ic << s) == oc);
+          ow = (iw >> s);
+          oh = ih;
+          assert((ow << s) == iw);
+          assert(oh == ih);
+        } else {
+          assert((ic << (s + s)) == oc);
+          ow = (iw >> s);
+          oh = (ih >> s);
+          assert((ow << s) == iw);
+          assert((oh << s) == ih);
+        }
         break;
       }
     case TYPE_DNS4:
       {
         int s = 4;
         assert(len == 0);
-        assert((ic << (s + s)) == oc);
-        ow = (iw >> s);
-        oh = (ih >> s);
-        assert((ow << s) == iw);
-        assert((oh << s) == ih);
+        if (dim == 1) {
+          assert((ic << s) == oc);
+          ow = (iw >> s);
+          oh = ih;
+          assert((ow << s) == iw);
+          assert(oh == ih);
+        } else {
+          assert((ic << (s + s)) == oc);
+          ow = (iw >> s);
+          oh = (ih >> s);
+          assert((ow << s) == iw);
+          assert((oh << s) == ih);
+        }
         break;
       }
     case TYPE_DNS5:
       {
         int s = 5;
         assert(len == 0);
-        assert((ic << (s + s)) == oc);
-        ow = (iw >> s);
-        oh = (ih >> s);
-        assert((ow << s) == iw);
-        assert((oh << s) == ih);
+        if (dim == 1) {
+          assert((ic << s) == oc);
+          ow = (iw >> s);
+          oh = ih;
+          assert((ow << s) == iw);
+          assert(oh == ih);
+        } else {
+          assert((ic << (s + s)) == oc);
+          ow = (iw >> s);
+          oh = (ih >> s);
+          assert((ow << s) == iw);
+          assert((oh << s) == ih);
+        }
         break;
       }
     case TYPE_ABSV:
@@ -386,6 +495,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       break;
     case TYPE_MEAN:
     case TYPE_SUMM:
+    case TYPE_SMAX:
       ow = iw;
       oh = ih;
       assert(oc > 0);
@@ -474,7 +584,7 @@ static double *pipe_synth(
     return ((double *)kbuf);
   assert(basen > 0);
 
-  const double *in = (const double *)kbuf;
+  double *in = (double *)kbuf;
 
   Cortex::Segment hdr;
   assert(sizeof(hdr) <= basen);
@@ -487,7 +597,9 @@ static double *pipe_synth(
   int len, ic, oc;
   int viw, vih, vow, voh;
   double mul;
-  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul);
+  int rad, freeze, relu;
+  int dim;
+  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
   if (viw)
     assert(viw == iw);
@@ -562,56 +674,86 @@ static double *pipe_synth(
       synth_local(in, iw, ih, out, d, ic, oc, wmv);
       break;
     }
+  case TYPE_TRIM:
+    {
+      int d = rad;
+
+      ow = iw - rad * 2;
+      oh = ih - rad * 2;
+      assert(ic == oc);
+      assert(ow > 0);
+      assert(oh > 0);
+
+      synth_trim(in, iw, ih, out, rad, ic);
+      break;
+    }
+  case TYPE_CONV:
+    {
+      int d = rad;
+      int wmvn = size_conv(d, ic, oc, dim);
+      assert(wmvn == len);
+      double *wmv = (double *)kbase;
+
+      ow = iw;
+      oh = ih;
+
+      synth_conv(in, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv);
+      break;
+    }
+  case TYPE_RCN0:
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN0, 0, dim, wmv);
       break;
     }
+  case TYPE_RCN1:
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN1, 0, dim, wmv);
       break;
     }
+  case TYPE_RCN2:
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN2, 0, dim, wmv);
       break;
     }
+  case TYPE_RCN3:
   case TYPE_CON3:
     {
       int d = 3;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
       double *wmv = (double *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, wmv);
+      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN3, 0, dim, wmv);
       break;
     }
   case TYPE_SCAL:
@@ -623,10 +765,10 @@ static double *pipe_synth(
 
       if (s > 0) {
         assert((oc << (s + s)) == ic);
-        synth_upscale(in, iw, ih, out, s, ic, oc);
+        synth_upscale(in, iw, ih, out, s, ic, oc, dim);
       } else if (s < 0) {
         assert((ic << -(s + s)) == oc);
-        synth_downscale(in, iw, ih, out, -s, ic, oc);
+        synth_downscale(in, iw, ih, out, -s, ic, oc, dim);
       } else {
         assert(ic == oc);
         synth_pad(in, iw, ih, out, ic, oc, NULL);
@@ -637,120 +779,195 @@ static double *pipe_synth(
     {
       int s = 1;
 
-      ow = (iw << s);
-      oh = (ih << s);
-      assert((oc << (s + s)) == ic);
+      if (dim == 1) {
+        ow = (iw << s);
+        oh = ih;
+        assert((oc << s) == ic);
+      } else {
+        ow = (iw << s);
+        oh = (ih << s);
+        assert((oc << (s + s)) == ic);
+      }
 
-      synth_upscale(in, iw, ih, out, s, ic, oc);
+
+      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS2:
     {
       int s = 2;
 
-      ow = (iw << s);
-      oh = (ih << s);
-      assert((oc << (s + s)) == ic);
+      if (dim == 1) {
+        ow = (iw << s);
+        oh = ih;
+        assert((oc << s) == ic);
+      } else {
+        ow = (iw << s);
+        oh = (ih << s);
+        assert((oc << (s + s)) == ic);
+      }
 
-      synth_upscale(in, iw, ih, out, s, ic, oc);
+
+      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS3:
     {
       int s = 3;
 
-      ow = (iw << s);
-      oh = (ih << s);
-      assert((oc << (s + s)) == ic);
+      if (dim == 1) {
+        ow = (iw << s);
+        oh = ih;
+        assert((oc << s) == ic);
+      } else {
+        ow = (iw << s);
+        oh = (ih << s);
+        assert((oc << (s + s)) == ic);
+      }
 
-      synth_upscale(in, iw, ih, out, s, ic, oc);
+
+      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS4:
     {
       int s = 4;
 
-      ow = (iw << s);
-      oh = (ih << s);
-      assert((oc << (s + s)) == ic);
+      if (dim == 1) {
+        ow = (iw << s);
+        oh = ih;
+        assert((oc << s) == ic);
+      } else {
+        ow = (iw << s);
+        oh = (ih << s);
+        assert((oc << (s + s)) == ic);
+      }
 
-      synth_upscale(in, iw, ih, out, s, ic, oc);
+
+      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS5:
     {
       int s = 5;
 
-      ow = (iw << s);
-      oh = (ih << s);
-      assert((oc << (s + s)) == ic);
+      if (dim == 1) {
+        ow = (iw << s);
+        oh = ih;
+        assert((oc << s) == ic);
+      } else {
+        ow = (iw << s);
+        oh = (ih << s);
+        assert((oc << (s + s)) == ic);
+      }
 
-      synth_upscale(in, iw, ih, out, s, ic, oc);
+
+      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS1:
     {
       int s = 1;
 
-      ow = (iw >> s);
-      oh = (ih >> s);
-      assert(iw == (ow << s));
-      assert(ih == (oh << s));
-      assert((ic << (s + s)) == oc);
+      if (dim == 1) {
+        ow = (iw >> s);
+        oh = ih;
+        assert(iw == (ow << s));
+        assert(ih == oh);
+        assert((ic << s) == oc);
+      } else {
+        ow = (iw >> s);
+        oh = (ih >> s);
+        assert(iw == (ow << s));
+        assert(ih == (oh << s));
+        assert((ic << (s + s)) == oc);
+      }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc);
+      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS2:
     {
       int s = 2;
 
-      ow = (iw >> s);
-      oh = (ih >> s);
-      assert(iw == (ow << s));
-      assert(ih == (oh << s));
-      assert((ic << (s + s)) == oc);
+      if (dim == 1) {
+        ow = (iw >> s);
+        oh = ih;
+        assert(iw == (ow << s));
+        assert(ih == oh);
+        assert((ic << s) == oc);
+      } else {
+        ow = (iw >> s);
+        oh = (ih >> s);
+        assert(iw == (ow << s));
+        assert(ih == (oh << s));
+        assert((ic << (s + s)) == oc);
+      }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc);
+      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS3:
     {
       int s = 3;
 
-      ow = (iw >> s);
-      oh = (ih >> s);
-      assert(iw == (ow << s));
-      assert(ih == (oh << s));
-      assert((ic << (s + s)) == oc);
+      if (dim == 1) {
+        ow = (iw >> s);
+        oh = ih;
+        assert(iw == (ow << s));
+        assert(ih == oh);
+        assert((ic << s) == oc);
+      } else {
+        ow = (iw >> s);
+        oh = (ih >> s);
+        assert(iw == (ow << s));
+        assert(ih == (oh << s));
+        assert((ic << (s + s)) == oc);
+      }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc);
+      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS4:
     {
       int s = 4;
 
-      ow = (iw >> s);
-      oh = (ih >> s);
-      assert(iw == (ow << s));
-      assert(ih == (oh << s));
-      assert((ic << (s + s)) == oc);
+      if (dim == 1) {
+        ow = (iw >> s);
+        oh = ih;
+        assert(iw == (ow << s));
+        assert(ih == oh);
+        assert((ic << s) == oc);
+      } else {
+        ow = (iw >> s);
+        oh = (ih >> s);
+        assert(iw == (ow << s));
+        assert(ih == (oh << s));
+        assert((ic << (s + s)) == oc);
+      }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc);
+      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS5:
     {
       int s = 5;
 
-      ow = (iw >> s);
-      oh = (ih >> s);
-      assert(iw == (ow << s));
-      assert(ih == (oh << s));
-      assert((ic << (s + s)) == oc);
+      if (dim == 1) {
+        ow = (iw >> s);
+        oh = ih;
+        assert(iw == (ow << s));
+        assert(ih == oh);
+        assert((ic << s) == oc);
+      } else {
+        ow = (iw >> s);
+        oh = (ih >> s);
+        assert(iw == (ow << s));
+        assert(ih == (oh << s));
+        assert((ic << (s + s)) == oc);
+      }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc);
+      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
   case TYPE_SIGM:
@@ -863,6 +1080,15 @@ static double *pipe_synth(
       synth_iden(in, iw, ih, out, ic, oc, NULL);
       break;
     }
+  case TYPE_SMAX:
+    {
+      assert(len == 0);
+      assert(ic % oc == 0);
+      ow = iw;
+      oh = ih;
+      synth_smax(in, iw, ih, out, ic, oc, NULL);
+      break;
+    }
   case TYPE_MEAN:
     {
       assert(len == 0);
@@ -921,7 +1147,10 @@ void pipe_learn(
   uint32_t type;
   int len, ic, oc;
   int viw, vih, vow, voh;
-  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh);
+  int rad, freeze, relu;
+  double mul;
+  int dim;
+  _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
   if (viw)
     assert(viw == iw);
@@ -984,10 +1213,28 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_TRIM:
+    {
+      ow = iw - rad * 2;
+      oh = ih - rad * 2;
+      break;
+    }
+  case TYPE_CONV:
+    {
+      int d = rad;
+      int wmvn = size_conv(d, ic, oc, dim);
+      assert(wmvn == len);
+
+      ow = iw;
+      oh = ih;
+
+      break;
+    }
+  case TYPE_RCN0:
   case TYPE_CON0:
     {
       int d = 0;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
 
       ow = iw;
@@ -995,10 +1242,11 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_RCN1:
   case TYPE_CON1:
     {
       int d = 1;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
 
       ow = iw;
@@ -1006,10 +1254,11 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_RCN2:
   case TYPE_CON2:
     {
       int d = 2;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
 
       ow = iw;
@@ -1017,10 +1266,11 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_RCN3:
   case TYPE_CON3:
     {
       int d = 3;
-      int wmvn = size_conv(d, ic, oc);
+      int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
 
       ow = iw;
@@ -1049,80 +1299,80 @@ void pipe_learn(
     {
       int s = 1;
       ow = (iw << s);
-      oh = (ih << s);
+      oh = (dim == 1) ? ih : (ih << s);
       break;
     }
   case TYPE_UPS2:
     {
       int s = 2;
       ow = (iw << s);
-      oh = (ih << s);
+      oh = (dim == 1) ? ih : (ih << s);
       break;
     }
   case TYPE_UPS3:
     {
       int s = 3;
       ow = (iw << s);
-      oh = (ih << s);
+      oh = (dim == 1) ? ih : (ih << s);
       break;
     }
   case TYPE_UPS4:
     {
       int s = 4;
       ow = (iw << s);
-      oh = (ih << s);
+      oh = (dim == 1) ? ih : (ih << s);
       break;
     }
   case TYPE_UPS5:
     {
       int s = 5;
       ow = (iw << s);
-      oh = (ih << s);
+      oh = (dim == 1) ? ih : (ih << s);
       break;
     }
   case TYPE_DNS1:
     {
       int s = 1;
       ow = (iw >> s);
-      oh = (ih >> s);
       assert(iw == (ow << s));
-      assert(ih == (oh << s));
+      oh = (dim == 1) ? ih : (ih >> s);
+      assert(ih == (dim == 1) ? oh : (oh << s));
       break;
     }
   case TYPE_DNS2:
     {
       int s = 2;
       ow = (iw >> s);
-      oh = (ih >> s);
       assert(iw == (ow << s));
-      assert(ih == (oh << s));
+      oh = (dim == 1) ? ih : (ih >> s);
+      assert(ih == (dim == 1) ? oh : (oh << s));
       break;
     }
   case TYPE_DNS3:
     {
       int s = 3;
       ow = (iw >> s);
-      oh = (ih >> s);
       assert(iw == (ow << s));
-      assert(ih == (oh << s));
+      oh = (dim == 1) ? ih : (ih >> s);
+      assert(ih == (dim == 1) ? oh : (oh << s));
       break;
     }
   case TYPE_DNS4:
     {
       int s = 4;
       ow = (iw >> s);
-      oh = (ih >> s);
       assert(iw == (ow << s));
-      assert(ih == (oh << s));
+      oh = (dim == 1) ? ih : (ih >> s);
+      assert(ih == (dim == 1) ? oh : (oh << s));
       break;
     }
   case TYPE_DNS5:
     {
       int s = 5;
       ow = (iw >> s);
-      oh = (ih >> s);
       assert(iw == (ow << s));
-      assert(ih == (oh << s));
+      oh = (dim == 1) ? ih : (ih >> s);
+      assert(ih == (dim == 1) ? oh : (oh << s));
       break;
     }
   case TYPE_SIGM:
@@ -1157,6 +1407,7 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_SMAX:
   case TYPE_MEAN:
   case TYPE_SUMM:
     assert(oc > 0);
@@ -1205,58 +1456,71 @@ void pipe_learn(
   case TYPE_LOC2:
     learn_local(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
+
+  case TYPE_TRIM:
+    learn_trim(in, iw, ih, fout, rad, ic);
+    break;
+
+  case TYPE_CONV:
+    learn_conv(in, iw, ih, fout, rad, ic, oc, relu, freeze, dim, wmv, nu * mul, b1, b2, eps, clip, (double)rounds);
+    break;
+
   case TYPE_CON0:
-    learn_conv(in, iw, ih, fout, 0, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+  case TYPE_RCN0:
+    learn_conv(in, iw, ih, fout, 0, ic, oc, type == TYPE_RCN0, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON1:
-    learn_conv(in, iw, ih, fout, 1, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+  case TYPE_RCN1:
+    learn_conv(in, iw, ih, fout, 1, ic, oc, type == TYPE_RCN1, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON2:
-    learn_conv(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+  case TYPE_RCN2:
+    learn_conv(in, iw, ih, fout, 2, ic, oc, type == TYPE_RCN2, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON3:
-    learn_conv(in, iw, ih, fout, 3, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+  case TYPE_RCN3:
+    learn_conv(in, iw, ih, fout, 3, ic, oc, type == TYPE_RCN3, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_SCAL:
     {
       int s = _scale_factor(ic, oc);
       if (s > 0)
-        learn_upscale(in, iw, ih, fout, s, ic, oc);
+        learn_upscale(in, iw, ih, fout, s, ic, oc, dim);
       else if (s < 0) 
-        learn_downscale(in, iw, ih, fout, -s, ic, oc);
+        learn_downscale(in, iw, ih, fout, -s, ic, oc, dim);
       else
         learn_pad(in, iw, ih, fout, ic, oc);
     }
     break;
   case TYPE_UPS1:
-    learn_upscale(in, iw, ih, fout, 1, ic, oc);
+    learn_upscale(in, iw, ih, fout, 1, ic, oc, dim);
     break;
   case TYPE_UPS2:
-    learn_upscale(in, iw, ih, fout, 2, ic, oc);
+    learn_upscale(in, iw, ih, fout, 2, ic, oc, dim);
     break;
   case TYPE_UPS3:
-    learn_upscale(in, iw, ih, fout, 3, ic, oc);
+    learn_upscale(in, iw, ih, fout, 3, ic, oc, dim);
     break;
   case TYPE_UPS4:
-    learn_upscale(in, iw, ih, fout, 4, ic, oc);
+    learn_upscale(in, iw, ih, fout, 4, ic, oc, dim);
     break;
   case TYPE_UPS5:
-    learn_upscale(in, iw, ih, fout, 5, ic, oc);
+    learn_upscale(in, iw, ih, fout, 5, ic, oc, dim);
     break;
   case TYPE_DNS1:
-    learn_downscale(in, iw, ih, fout, 1, ic, oc);
+    learn_downscale(in, iw, ih, fout, 1, ic, oc, dim);
     break;
   case TYPE_DNS2:
-    learn_downscale(in, iw, ih, fout, 2, ic, oc);
+    learn_downscale(in, iw, ih, fout, 2, ic, oc, dim);
     break;
   case TYPE_DNS3:
-    learn_downscale(in, iw, ih, fout, 3, ic, oc);
+    learn_downscale(in, iw, ih, fout, 3, ic, oc, dim);
     break;
   case TYPE_DNS4:
-    learn_downscale(in, iw, ih, fout, 4, ic, oc);
+    learn_downscale(in, iw, ih, fout, 4, ic, oc, dim);
     break;
   case TYPE_DNS5:
-    learn_downscale(in, iw, ih, fout, 5, ic, oc);
+    learn_downscale(in, iw, ih, fout, 5, ic, oc, dim);
     break;
   case TYPE_SIGM:
     learn_sigm(in, iw, ih, fout, ic);
@@ -1289,6 +1553,9 @@ void pipe_learn(
     break;
   case TYPE_SUMM:
     learn_sum(in, iw, ih, fout, ic, oc);
+    break;
+  case TYPE_SMAX:
+    learn_smax(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_MEAN:
     learn_mean(in, iw, ih, fout, ic, oc);
@@ -1639,6 +1906,76 @@ void Cortex::create(const std::string &_fn, bool clobber) {
   assert(ret == 0);
 }
 
+void Cortex::unfreeze(int last) {
+  int i = 1;
+  unsigned int basei = 0;
+
+  int got = 0;
+
+  while (basei < basen) {
+    Segment hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(&hdr, base + basei, sizeof(hdr));
+
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, ic, oc;
+    int viw, vih, vow, voh;
+    int rad, freeze, relu;
+    double mul;
+    int dim;
+    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
+
+    if (hdr.freeze) ++got;
+    if (!last && got) {
+      hdr.freeze = 0;
+      memcpy(base + basei - sizeof(hdr), &hdr, sizeof(hdr));
+      return;
+    }
+
+    assert(basei + len * sizeof(double) <= basen);
+    basei += len * sizeof(double);
+
+    ++i;
+  }
+  assert(basei == basen);
+
+  if (!got)
+    return;
+  basei = 0;
+
+  while (basei < basen) {
+    Segment hdr;
+    assert(basei + sizeof(hdr) <= basen);
+    memcpy(&hdr, base + basei, sizeof(hdr));
+    basei += sizeof(hdr);
+
+    uint32_t type;
+    int len, ic, oc;
+    int viw, vih, vow, voh;
+    int rad, freeze, relu;
+    double mul;
+    int dim;
+    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
+
+    if (hdr.freeze) --got;
+    if (got == 0) {
+      hdr.freeze = 0;
+      memcpy(base + basei - sizeof(hdr), &hdr, sizeof(hdr));
+      return;
+    }
+
+
+    assert(basei + len * sizeof(double) <= basen);
+    basei += len * sizeof(double);
+
+    ++i;
+  }
+
+  assert(0);
+}
+
 void Cortex::dump(FILE *outfp) {
   int i = 1;
   unsigned int basei = 0;
@@ -1652,8 +1989,10 @@ void Cortex::dump(FILE *outfp) {
     uint32_t type;
     int len, ic, oc;
     int viw, vih, vow, voh;
+    int rad, freeze, relu;
     double mul;
-    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul);
+    int dim;
+    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
     uint32_t ntype = htonl(type);
     char stype[5];
@@ -1665,8 +2004,18 @@ void Cortex::dump(FILE *outfp) {
     if (vih) fprintf(outfp, " ih=%d", vih);
     if (vow) fprintf(outfp, " ow=%d", vow);
     if (voh) fprintf(outfp, " oh=%d", voh);
-    if (type == TYPE_LRND || type == TYPE_GRND)
+
+    if (type == TYPE_LRND || type == TYPE_GRND) {
       fprintf(outfp, " mul=%g", mul);
+    } else if (type == TYPE_CONV) {
+      fprintf(outfp, " rad=%d", rad);
+      fprintf(outfp, " freeze=%d", freeze);
+      fprintf(outfp, " relu=%d", relu);
+      fprintf(outfp, " dim=%d", dim);
+    } else if (type == TYPE_TRIM) {
+      fprintf(outfp, " rad=%d", rad);
+    }
+
     fprintf(outfp, "\n");
 
     assert(basei + len * sizeof(double) <= basen);
@@ -1947,7 +2296,7 @@ void Cortex::load() {
 
 void Cortex::save() {
   assert(is_open);
-  assert(is_prep);
+//  assert(is_prep);
 
   rounds = ntohll(head->rounds) + new_rounds;
   new_rounds = 0;
@@ -2029,7 +2378,7 @@ void Cortex::scram(double dev) {
   assert(basei == basen);
 }
 
-void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh, double mul) {
+void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh, double mul, int rad, int freeze, int relu, int dim) {
   if (noc <= 0) {
     int ric = nic;
 
@@ -2092,17 +2441,27 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     assert(noh > 0);
     len = size_local(2, nic, now, noh, oc);
     break;
+  case TYPE_TRIM:
+    len = 0;
+    break;
+  case TYPE_CONV:
+    len = size_conv(rad, nic, oc, dim);
+    break;
   case TYPE_CON0:
-    len = size_conv(0, nic, oc);
+  case TYPE_RCN0:
+    len = size_conv(0, nic, oc, dim);
     break;
   case TYPE_CON1:
-    len = size_conv(1, nic, oc);
+  case TYPE_RCN1:
+    len = size_conv(1, nic, oc, dim);
     break;
   case TYPE_CON2:
-    len = size_conv(2, nic, oc);
+  case TYPE_RCN2:
+    len = size_conv(2, nic, oc, dim);
     break;
   case TYPE_CON3:
-    len = size_conv(3, nic, oc);
+  case TYPE_RCN3:
+    len = size_conv(3, nic, oc, dim);
     break;
   case TYPE_SCAL:
   case TYPE_UPS1:
@@ -2127,6 +2486,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_ADDG:
   case TYPE_IDEN:
   case TYPE_MEAN:
+  case TYPE_SMAX:
   case TYPE_SUMM:
     len = 0;
     break;
@@ -2153,7 +2513,6 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   memset(&hdr, 0, sizeof(hdr));
   assert(sizeof(hdr) >= 64);
   memcpy(hdr.magic, "MakeMore", 8);
-  hdr.v = htonl(2);
   hdr.type = htonl(type);
   hdr.len = htonl(len);
   hdr.ic = htonl(nic);
@@ -2163,6 +2522,10 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   hdr.ow = htonl(now);
   hdr.oh = htonl(noh);
   hdr.mul = mul - 1.0;
+  hdr.freeze = htonl(freeze);
+  hdr.rad = htonl(rad);
+  hdr.relu = htonl(relu);
+  hdr.dim = htonl(dim);
 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;

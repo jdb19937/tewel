@@ -201,7 +201,10 @@ void learnstyl(
   double mul,
   bool lossreg,
   long reps,
-  long stoprounds
+  long disreps,
+  long stoprounds,
+  double stablize,
+  double genmul0, double dismul0
 ) {
   Cortex *gen = chn->tail;
 
@@ -217,24 +220,34 @@ void learnstyl(
   double *ktmp;
   kmake(&ktmp, gen->owhc);
 
+  double *ktgt;
+  kmake(&ktgt, gen->owhc);
+
   double *kreal;
   kmake(&kreal, dis->owhc);
-  kfill(kreal, dis->owhc, 0.0);
+  kfill(kreal, dis->owhc, 0.5);
 
   double *kfake;
   kmake(&kfake, dis->owhc);
-  kfill(kfake, dis->owhc, 1.0);
+  kfill(kfake, dis->owhc, -0.5);
+
+  double *kstab;
+  kmake(&kstab, dis->owhc);
 
   double t0 = now();
   int rep = 0;
+  long i = 0;
 
   while (reps < 0 || rep < reps) {
-    double genmul = mul;
-    double dismul = mul;
+    double genmul = genmul0;
+    double dismul = dismul0;
+
+    double genp = 1.0;
+#if 1
     if (lossreg) {
-      genmul *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
-      dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
+      genp *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
     }
+#endif
 
     info(fmt("choosing src rep=%d", rep));
  
@@ -245,29 +258,45 @@ void learnstyl(
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
-    info(fmt("synthing dis rep=%d", rep));
-    dis->synth(ktmp);
-    dis->target(kreal);
+    bool gg = (randrange(0, 1) < genp) && (dis->rounds > 8);
+    if (gg) {
+      info(fmt("synthing dis rep=%d", rep));
+      dis->synth(ktmp);
+      dis->target(kreal);
 
-    kcopy(dis->propback(), gen->owhc, gen->kout); 
-    info(fmt("learning chn rep=%d", rep));
-    chn->learn(genmul);
+      kcopy(dis->propback(), gen->owhc, gen->kout); 
+      info(fmt("learning chn rep=%d", rep));
+      chn->learn(genmul);
+    } else {
+      info(fmt("synthing dis rep=%d", rep));
+      dis->synth(ktmp);
+      dis->target(kfake);
+      info(fmt("learning dis rep=%d", rep));
+      dis->learn(dismul);
 
-    info(fmt("synthing dis rep=%d", rep));
-    dis->synth(ktmp);
-    dis->target(kfake);
-    info(fmt("learning dis rep=%d", rep));
-    dis->learn(dismul);
+      info(fmt("choosing sty rep=%d", rep));
+      assert(sty->pick(dis->kinp));
+      info(fmt("synthing dis rep=%d", rep));
+      dis->synth();
+      dis->target(kreal);
+      info(fmt("learning dis rep=%d", rep));
+      dis->learn(dismul);
+    }
 
-    info(fmt("choosing sty rep=%d", rep));
-    assert(sty->pick(dis->kinp));
-    info(fmt("synthing dis rep=%d", rep));
-    dis->synth();
-    dis->target(kreal);
-    info(fmt("learning dis rep=%d", rep));
-    dis->learn(dismul);
+    if (stablize > 0) {
+      assert(sty->pick(ktgt));
+      double l = randrange(0.0, 1.0);
+      kfill(kstab, dis->owhc, l);
+      ksplice2(ktmp, ktgt, l, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
 
-    if (gen->rounds % repint == 0) {
+      dis->synth();
+      ksubvec(kstab, dis->kout, dis->owhc, dis->kout);
+      kmul(dis->kout, stablize, dis->owhc, dis->kout);
+
+      dis->learn(dismul);
+    }
+
+    if (i % repint == 0) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
@@ -289,6 +318,8 @@ void learnstyl(
 
       ++rep;
     }
+
+    ++i;
   }
 
   kfree(ktmp);
@@ -305,7 +336,11 @@ void learnhans(
   double mul,
   bool lossreg,
   long reps,
-  long stoprounds
+  long disreps,
+  long stoprounds,
+  double stablize,
+  double genmul0, double dismul0,
+  double genpower
 ) {
   Cortex *gen = chn->tail;
 
@@ -324,14 +359,15 @@ void learnhans(
     assert(cnd->iw == iw);
     assert(cnd->ih == ih);
     assert(cnd->ic == ic);
+
+    assert(cnd->ow == gen->ow);
+    assert(cnd->oh == gen->oh);
   }
 
-  assert((cnd ? cnd->ow : iw) == gen->ow);
-  assert((cnd ? cnd->oh : ih) == gen->oh);
   assert(dis->iw == gen->ow);
   assert(dis->ih == gen->oh);
 
-  assert(dis->ic == (cnd ? cnd->oc : ic) + gen->oc);
+  assert(dis->ic == (cnd ? cnd->oc : 0) + gen->oc);
 
   double *ktmp;
   kmake(&ktmp, gen->owhc);
@@ -344,88 +380,89 @@ void learnhans(
 
   double *kreal;
   kmake(&kreal, dis->owhc);
-  kfill(kreal, dis->owhc, 0.0);
+  kfill(kreal, dis->owhc, 0.5);
 
   double *kfake;
   kmake(&kfake, dis->owhc);
-  kfill(kfake, dis->owhc, 1.0);
+  kfill(kfake, dis->owhc, -0.5);
+
+  double *kstab;
+  kmake(&kstab, dis->owhc);
 
   double t0 = now();
   int rep = 0;
+  long i = 0;
+
+  double ds=0;
 
   while (reps < 0 || rep < reps) {
-    double genmul = mul;
-    double dismul = mul;
+    double genmul = genmul0;
+    double dismul = dismul0;
+
+    double genp = 0.5;
+#if 1
     if (lossreg) {
-      genmul *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
-      dismul *= (dis->rms > 0.5 ? 1.0 : 2.0 * dis->rms);
+      genp *= (dis->rms > 0.5 ? 0.0 : 4.0 * (0.5 - dis->rms));
+    }
+#endif
+
+    if (genp < 1.0 && genp > 0.0) {
+      double r = genp / (1.0 - genp);
+      r *= genpower;
+      genp = r / (1.0 + r);
     }
 
-    if (alt) {
-      alt->pick(kinp);
-      kcopy(kinp, iwhc, chn->kinp());
-      chn->synth();
+    bool gg = (randrange(0, 1) < genp) && (dis->rounds > 8);
 
-      kcopy(gen->kout, gen->owhc, ktmp);
-
-      ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-      ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
-
-      dis->synth();
-      dis->target(kreal);
-      dis->propback();
-
-      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
-
-      chn->learn(genmul);
+    if (cnd && !gg) {
+      Kleption::pick_pair(src, kinp, tgt, ktgt);
+    } else {
+      src->pick(kinp);
     }
- 
-    Kleption::pick_pair(src, kinp, tgt, ktgt);
+
     kcopy(kinp, iwhc, chn->kinp());
     chn->synth();
 
     kcopy(gen->kout, gen->owhc, ktmp);
 
-    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
+    if (gg) {
+      ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      if (cnd)
+        ksplice(cnd->synth(kinp), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
 
-    dis->synth();
-    dis->target(kreal);
-    dis->propback();
+      dis->synth();
+      dis->target(kreal);
 
-    ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+      ds *= 0.99;
+      ds += 0.01 * sqrt(ksumsq(dis->kout, dis->owhc) / (double)dis->owhc);
 
-    chn->learn(genmul);
+      dis->propback();
 
+      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
 
-    ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
+      chn->learn(genmul);
+    } else {
+      ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      if (cnd)
+        ksplice(cnd->synth(kinp), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
 
-    dis->synth();
-    dis->target(kfake);
-    dis->learn(dismul);
-    if (cnd) {
-      ksplice(dis->kinp, dis->iw * dis->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
-      cnd->learn(dismul);
+      dis->synth();
+      dis->target(kfake);
+      dis->learn(dismul);
+
+      if (!cnd)
+        tgt->pick(ktgt);
+
+      ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      if (cnd)
+        ksplice(cnd->synth(kinp), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
+
+      dis->synth();
+      dis->target(kreal);
+      dis->learn(dismul);
     }
 
-
-
-    ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-    ksplice(cnd ? cnd->synth(kinp) : kinp, dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
-
-    dis->synth();
-    dis->target(kreal);
-    dis->learn(dismul);
-    if (cnd) {
-      ksplice(dis->kinp, dis->iw * dis->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
-      cnd->learn(dismul);
-    }
-
-
-
-
-    if (gen->rounds % repint == 0) {
+    if (i % repint == 0) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
@@ -433,14 +470,11 @@ void learnhans(
       chn->save();
       dis->save();
 
-      if (cnd)
-        cnd->save();
-
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g fakerms=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms, dis->rms
+        gen->rms, dis->rms, ds
       );
 
       if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
@@ -450,6 +484,8 @@ void learnhans(
 
       ++rep;
     }
+
+    ++i;
   }
 
   kfree(ktmp);
@@ -730,6 +766,7 @@ int main(int argc, char **argv) {
       specopt["b1"] = "1e-1";
       specopt["b2"] = "1e-3";
       specopt["eps"] = "1e-8";
+      specopt["clip"] = "0";
       specopt["rdev"] = "0.1";
 
       int keys = parsekv(specline, &specopt);
@@ -746,6 +783,7 @@ int main(int argc, char **argv) {
       out->head->b1 = strtod(specopt["b1"]);
       out->head->b2 = strtod(specopt["b2"]);
       out->head->eps = strtod(specopt["eps"]);
+      out->head->clip = strtod(specopt["clip"]);
       out->head->rdev = strtod(specopt["rdev"]);
 
       got_header = true;
@@ -765,6 +803,10 @@ int main(int argc, char **argv) {
       specopt["oh"] = "0";
       specopt["oc"] = "0";
       specopt["mul"] = "1.0";
+      specopt["freeze"] = "0";
+      specopt["rad"] = "0";
+      specopt["relu"] = "0";
+      specopt["dim"] = "2";
 
       int keys = parsekv(specline, &specopt);
       if (keys < 0)
@@ -780,7 +822,10 @@ int main(int argc, char **argv) {
       int oh = strtoi(specopt["oh"]);
       int oc = strtoi(specopt["oc"]);
       double mul = strtod(specopt["mul"]);
-
+      int freeze = strtoi(specopt["freeze"]);
+      int rad = strtoi(specopt["rad"]);
+      int relu = strtoi(specopt["relu"]);
+      int dim = strtoi(specopt["dim"]);
 
       if (ic == 0)
         ic = poc;
@@ -789,7 +834,7 @@ int main(int argc, char **argv) {
       if (poc && ic != poc)
         error("input channels don't match output channels of previous layer");
 
-      out->push(type, ic, oc, iw, ih, ow, oh, mul);
+      out->push(type, ic, oc, iw, ih, ow, oh, mul, rad, freeze, relu, dim);
 
       poc = out->oc;
     }
@@ -823,6 +868,7 @@ int main(int argc, char **argv) {
     out->head->b1 = 0;
     out->head->b2 = 0;
     out->head->eps = 0;
+    out->head->clip = 0;
     out->head->rdev = 0;
 
     out->push("con0", dim, dim);
@@ -864,6 +910,8 @@ int main(int argc, char **argv) {
       gen->head->b2 = arg.get("b2");
     if (arg.present("eps"))
       gen->head->eps = arg.get("eps");
+    if (arg.present("clip"))
+      gen->head->clip = arg.get("clip");
     if (arg.present("rdev"))
       gen->head->rdev = arg.get("rdev");
 
@@ -874,11 +922,30 @@ int main(int argc, char **argv) {
     gen = new Cortex(ctx[0]);
 
     printf(
-      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g\n",
+      "rounds=%lu rms=%g max=%g decay=%g nu=%g b1=%g b2=%g eps=%g clip=%g rdev=%g\n",
       gen->rounds, gen->rms, gen->max, gen->decay,
-      gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev
+      gen->nu, gen->b1, gen->b2, gen->eps, gen->clip, gen->head->rdev
     );
 
+    return 0;
+  }
+
+  if (cmd == "unfreeze") {
+    if (ctx.size() != 1)
+      error("unfreeze requires exactly one ctx file arg");
+
+    int last = arg.get("last");
+
+    if (!arg.unused.empty())
+      warning("unrecognized options");
+
+    Cortex *gen = new Cortex(ctx[0], O_RDWR);
+
+    gen->unfreeze(last);
+
+    gen->save();
+
+    delete gen;
     return 0;
   }
 
@@ -890,8 +957,8 @@ int main(int argc, char **argv) {
     Cortex *gen = new Cortex(ctx[0], O_RDONLY);
 
     printf(
-      "v=2 decay=%g nu=%g b1=%g b2=%g eps=%g rdev=%g\n",
-      gen->decay, gen->nu, gen->b1, gen->b2, gen->eps, gen->head->rdev
+      "v=2 decay=%g nu=%g b1=%g b2=%g eps=%g clip=%g rdev=%g\n",
+      gen->decay, gen->nu, gen->b1, gen->b2, gen->eps, gen->clip, gen->head->rdev
     );
 
     gen->dump(stdout);
@@ -1423,11 +1490,15 @@ int main(int argc, char **argv) {
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
     long stoprounds = strtol(arg.get("stoprounds", "-1"));
+    long disreps = strtol(arg.get("disreps", "1"));
+    double stablize = strtod(arg.get("stablize", "0.0"));
+    double genmul = strtod(arg.get("genmul", "1.0"));
+    double dismul = strtod(arg.get("dismul", "1.0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps, stoprounds);
+    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps, disreps, stoprounds, stablize, genmul, dismul);
 
     delete src;
     delete sty;
@@ -1488,12 +1559,12 @@ int main(int argc, char **argv) {
       if (dis->ic != chn->tail->oc + cnd->oc)
         error("gen oc + cnd oc doesn't match dis ic");
     } else {
-      if (iw != chn->tail->ow)
+      if (dis->iw != chn->tail->ow)
         error("gen ow doesn't match dis iw");
-      if (ih != chn->tail->oh)
+      if (dis->ih != chn->tail->oh)
         error("gen oh doesn't match dis ih");
 
-      if (dis->ic != chn->tail->oc + ic)
+      if (dis->ic != chn->tail->oc)
         error("gen oc + gen ic doesn't match dis ic");
     }
 
@@ -1570,13 +1641,18 @@ int main(int argc, char **argv) {
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
     long stoprounds = strtol(arg.get("stoprounds", "-1"));
+    long disreps = strtol(arg.get("disreps", "1"));
+    double stablize = strtod(arg.get("stablize", "0.0"));
+    double genmul = strtod(arg.get("genmul", "1.0"));
+    double dismul = strtod(arg.get("dismul", "1.0"));
+    double genpower = strtod(arg.get("genpower", "1.0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, lossreg, reps, stoprounds);
+    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, lossreg, reps, disreps, stoprounds, stablize, genmul, dismul, genpower);
 
     delete src;
     delete tgt;

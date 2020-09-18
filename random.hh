@@ -9,6 +9,7 @@
 namespace makemore {
 
 extern double randgauss();
+extern double randrange(double, double);
 extern uint32_t randuint();
 extern void seedrand(uint64_t);
 extern void seedrand();
