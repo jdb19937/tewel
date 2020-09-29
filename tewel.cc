@@ -243,7 +243,7 @@ void learnstyl(
     double dismul = dismul0;
 
     double genp = 1.0;
-#if 1
+#if 0
     if (lossreg) {
       genp *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
     }
@@ -335,10 +335,10 @@ void learnhans(
   int repint,
   double mul,
   bool lossreg,
+  double losspin,
   long reps,
   long disreps,
   long stoprounds,
-  double stablize,
   double genmul0, double dismul0,
   double genpower
 ) {
@@ -386,6 +386,9 @@ void learnhans(
   kmake(&kfake, dis->owhc);
   kfill(kfake, dis->owhc, -0.5);
 
+  double *kimpr;
+  kmake(&kimpr, dis->owhc);
+
   double *kstab;
   kmake(&kstab, dis->owhc);
 
@@ -393,75 +396,114 @@ void learnhans(
   int rep = 0;
   long i = 0;
 
+  assert(losspin == 0.0 || lossreg == 0);
+
   double ds=0;
+  double dsa= 0;
+  double dsb= 0;
+  double dss = 0.1;
+  double dst = 0.01;
 
   while (reps < 0 || rep < reps) {
     double genmul = genmul0;
     double dismul = dismul0;
 
-    double genp = 0.5;
-#if 1
+#if 0
+//bool gg = (dsa > 0.15) && (dis->rounds > 2048);
+
+//
+//bool gg = (randrange(0,1) < 0.66);
+
+    double genp = (genpower / (genpower + 1));
     if (lossreg) {
-      genp *= (dis->rms > 0.5 ? 0.0 : 4.0 * (0.5 - dis->rms));
+      genp *= (dsb > 0.5 ? 0.0 : 2.0 * dsb);
     }
 #endif
 
-    if (genp < 1.0 && genp > 0.0) {
-      double r = genp / (1.0 - genp);
-      r *= genpower;
-      genp = r / (1.0 + r);
-    }
+  double genp = 0.5;
+if (losspin > 0) {
+  genp = (dsb < losspin) ? 0.0 : 1.0;
+} else {
+  if (lossreg) {
+    genp *= (dsb < 0 ? 0.0 : 4.0 * dsb);
+  }
+  if (genp < 1.0 && genp > 0.0) {
+    double r = genp / (1.0 - genp);
+    r *= genpower;
+    genp = r / (1.0 + r);
+  }
+}
 
-    bool gg = (randrange(0, 1) < genp) && (dis->rounds > 8);
-
-    if (cnd && !gg) {
-      Kleption::pick_pair(src, kinp, tgt, ktgt);
-    } else {
-      src->pick(kinp);
-    }
-
-    kcopy(kinp, iwhc, chn->kinp());
-    chn->synth();
-
-    kcopy(gen->kout, gen->owhc, ktmp);
+  bool gg = (randrange(0,1) < genp);
 
     if (gg) {
-      ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      src->pick(kinp);
+      kcopy(kinp, iwhc, chn->kinp());
+      chn->synth();
+
+      ksplice(gen->kout, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       if (cnd)
         ksplice(cnd->synth(kinp), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
-
       dis->synth();
-      dis->target(kreal);
 
-      ds *= 0.99;
-      ds += 0.01 * sqrt(ksumsq(dis->kout, dis->owhc) / (double)dis->owhc);
+      ds = -(ksum(dis->kout, dis->owhc) / (double)dis->owhc);
+      dsa *= (1.0 - dss);
+      dsb *= (1.0 - dst);
+      dsa += dss * ds;
+      dsb += dst * ds;
 
-      dis->propback();
+//      if (ds > 0) {
+//        kfill(kimpr, dis->owhc, 0.0);
+//        dis->target(kimpr);
+        dis->target(kreal);
 
-      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+        dis->propback();
 
-      chn->learn(genmul);
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+
+        chn->learn(genmul);
+//      }
+
     } else {
-      ksplice(ktmp, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+
+      if (cnd) {
+        Kleption::pick_pair(src, kinp, tgt, ktgt);
+      } else {
+        src->pick(kinp);
+        tgt->pick(ktgt);
+      }
+      kcopy(kinp, iwhc, chn->kinp());
+      chn->synth();
+
+      ksplice(gen->kout, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       if (cnd)
         ksplice(cnd->synth(kinp), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
-
       dis->synth();
+
+      ds = -(ksum(dis->kout, dis->owhc) / (double)dis->owhc);
+      dsa *= (1.0 - dss);
+      dsb *= (1.0 - dst);
+      dsa += dss * ds;
+      dsb += dst * ds;
+
       dis->target(kfake);
       dis->learn(dismul);
+
       if (cnd) {
         ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
         cnd->learn(dismul);
       }
-
-      if (!cnd)
-        tgt->pick(ktgt);
 
       ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       if (cnd)
         ksplice(cnd->synth(kinp), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
 
       dis->synth();
+
+//      rs = (ksum(dis->kout, dis->owhc) / (double)dis->owhc);
+//      rsa *= (1.0 - rss);
+//      rsa += rss * rs;
+
       dis->target(kreal);
       dis->learn(dismul);
       if (cnd) {
@@ -482,10 +524,10 @@ void learnhans(
         cnd->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g fakerms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g dsb=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms, dis->rms, ds
+        gen->rms, dsb
       );
 
       if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
@@ -1541,7 +1583,8 @@ int main(int argc, char **argv) {
       uerror("input height must be positive");
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
-    int lossreg = arg.get("lossreg", diropt["lossreg"]);
+    bool lossreg = strtoi(arg.get("lossreg", "0"));
+    double losspin = strtod(arg.get("losspin", "0.0"));
 
     int ic;
     chn->prepare(iw, ih);
@@ -1663,7 +1706,7 @@ int main(int argc, char **argv) {
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, lossreg, reps, disreps, stoprounds, stablize, genmul, dismul, genpower);
+    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, lossreg, losspin, reps, disreps, stoprounds, genmul, dismul, genpower);
 
     delete src;
     delete tgt;

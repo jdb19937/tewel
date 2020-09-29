@@ -40,6 +40,7 @@ extern void kaddvec(const double *a, const double *b, unsigned int n, double *c)
 extern void ksubvec(const double *a, const double *b, unsigned int n, double *c);
 extern void kmul(const double *a, const double b, unsigned int n, double *c);
 extern double ksumsq(const double *a, unsigned int n);
+extern double ksum(const double *a, unsigned int n);
 extern double kmaxabs(const double *a, unsigned int n);
 
 

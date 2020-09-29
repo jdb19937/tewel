@@ -35,6 +35,21 @@ DEFN_KERNEL(ksumsq, const double *a, unsigned int n, double *sumsqp) {
   sumsqp[i] = s;
 }
 
+DEFN_KERNEL(ksum, const double *a, unsigned int n, double *sumsqp) {
+  PREF_KERNEL;
+
+  unsigned int j0 = i * 128;
+  if (j0 >= n)
+    return;
+  unsigned int j1 = (j0 + 128 >= n) ? n : (j0 + 128);
+  
+  double s = 0;
+  for (unsigned int j = j0; j < j1; ++j)
+    s += a[j];
+
+  sumsqp[i] = s;
+}
+
 DEFN_KERNEL(kmaxabs, const double *a, unsigned int n, double *maxp) {
   PREF_KERNEL;
 

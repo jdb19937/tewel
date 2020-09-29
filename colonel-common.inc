@@ -10,6 +10,31 @@ void kmul(const double *a, const double b, unsigned int n, double *c) {
   CALL_KERNEL(kmul, n, a, b, n, c);
 }
 
+double ksum(
+  const double *a, unsigned int n
+) {
+  if (n == 0)
+    return 0;
+
+  double *sump = NULL;
+  unsigned int sumn = ((n + 127) / 128);
+  kmake(&sump, sumn);
+
+  CALL_KERNEL(ksum, sumn, a, n, sump);
+
+  double *sumv = new double[sumn];
+  dek(sump, sumn, sumv);
+  kfree(sump);
+
+  double s = 0;
+  for (int i = 0; i < sumn; ++i)
+    s += sumv[i];
+
+  delete[] sumv;
+
+  return s;
+}
+
 double ksumsq(
   const double *a, unsigned int n
 ) {
