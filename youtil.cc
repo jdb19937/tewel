@@ -56,12 +56,15 @@ void spit(const std::string &str, FILE *fp) {
 }
 
 void spit(const std::string &str, const std::string &fn) {
+  assert(fn.length() < 4000);
+  char tmpfn[4096];
+  sprintf(tmpfn, "%s.%u.tmp", fn.c_str(), getpid());
   FILE *fp;
-  assert(fp = ::fopen((fn + ".tmp").c_str(), "w"));
+  assert(fp = ::fopen(tmpfn, "w"));
   spit(str, fp);
   ::fclose(fp);
-  int ret = ::rename((fn + ".tmp").c_str(), fn.c_str());
-  assert(ret == 0 || ret == -1 && errno == ENOENT);
+  int ret = ::rename(tmpfn, fn.c_str());
+  assert(ret == 0);
 }
 
 uint8_t *slurp(const std::string &fn, size_t *np) {
