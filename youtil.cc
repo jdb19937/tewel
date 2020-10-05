@@ -602,7 +602,7 @@ void rgbjpg(
   cinfo.input_components = 3;
   cinfo.in_color_space = JCS_RGB;
   jpeg_set_defaults(&cinfo);
-  jpeg_set_quality(&cinfo, 90, TRUE);
+  jpeg_set_quality(&cinfo, 100, TRUE);
 
   jpeg_start_compress(&cinfo, TRUE);
 
@@ -662,12 +662,97 @@ bool jpgrgb(
   return true;
 }
 
+bool pngrgb(
+  uint8_t *png,
+  unsigned long pngn,
+  unsigned int *wp,
+  unsigned int *hp,
+  uint8_t **rgbp
+) {
+  FILE *fp = fmemopen((void *)png, pngn, "r");
+  assert(fp);
+
+  uint8_t header[8];
+  size_t ret;
+  png_structp png_ptr = NULL;
+  png_infop info_ptr = NULL;
+  png_infop end_ptr = NULL;
+  png_textp text = NULL;
+  png_bytep *row_pointers = NULL;
+
+  ret = fread(header, 1, 8, fp);
+  if (ret != 8)
+    goto fail;
+  if (png_sig_cmp(header, 0, 8))
+    goto fail;
+
+  png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+  if (!png_ptr)
+    goto fail;
+
+  info_ptr = png_create_info_struct(png_ptr);
+  if (!info_ptr)
+    goto fail;
+  end_ptr = png_create_info_struct(png_ptr);
+  if (!end_ptr)
+    goto fail;
+
+  if (setjmp(png_jmpbuf(png_ptr)))
+    goto fail;
+
+  png_init_io(png_ptr, fp);
+  png_set_sig_bytes(png_ptr, 8);
+
+  png_read_info(png_ptr, info_ptr);
+
+  *wp = png_get_image_width(png_ptr, info_ptr);
+  *hp = png_get_image_height(png_ptr, info_ptr);
+
+  if (PNG_COLOR_TYPE_RGB != png_get_color_type(png_ptr, info_ptr))
+    goto fail;
+  if (8 != png_get_bit_depth(png_ptr, info_ptr))
+    goto fail;
+
+  png_set_interlace_handling(png_ptr);
+  png_read_update_info(png_ptr, info_ptr);
+
+  /* read file */
+  assert(!setjmp(png_jmpbuf(png_ptr)));
+
+  *rgbp = new uint8_t[*wp * *hp * 3];
+
+  row_pointers = new png_bytep[*hp];
+  for (unsigned int y = 0; y < *hp; y++)
+    row_pointers[y] = *rgbp + y * *wp * 3;
+
+  png_read_image(png_ptr, row_pointers);
+
+  png_read_end(png_ptr, end_ptr);
+
+  fclose(fp);
+  if (row_pointers)
+    delete[] row_pointers;
+  if (png_ptr)
+    png_destroy_read_struct(&png_ptr, &info_ptr, &end_ptr);
+
+  return true;
+
+fail:
+  fclose(fp);
+  if (row_pointers)
+    delete[] row_pointers;
+  if (png_ptr)
+    png_destroy_read_struct(&png_ptr, &info_ptr, &end_ptr);
+
+  return false;
+}
+
 bool rgbpng(
   const uint8_t *rgb,
   unsigned int w,
   unsigned int h,
   uint8_t **pngp,
-  unsigned int *pngnp,
+  unsigned long *pngnp,
   const std::vector<std::string> *tags,
   const uint8_t *alpha
 ) {

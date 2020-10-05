@@ -99,7 +99,7 @@ bool EGServer::handle(Client *client) {
 
       assert(tail->oc == 3);
       uint8_t *png;
-      unsigned int pngn;
+      unsigned long pngn;
       rgbpng(rgb, tail->ow, tail->oh, &png, &pngn);
 
       delete[] buf;

@@ -123,12 +123,20 @@ inline double clamp(double x, double x0 = 0.0, double x1 = 1.0) {
   return x;
 }
 
+bool pngrgb(
+  uint8_t *png,
+  unsigned long pngn,
+  unsigned int *wp,
+  unsigned int *hp,
+  uint8_t **rgbp
+);
+
 bool rgbpng(
   const uint8_t *rgb,
   unsigned int w,
   unsigned int h,
   uint8_t **pngp,
-  unsigned int *pngnp,
+  unsigned long *pngnp,
   const std::vector<std::string> *tags = NULL,
   const uint8_t *alpha = NULL
 );

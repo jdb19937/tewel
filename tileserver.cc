@@ -26,8 +26,13 @@ namespace makemore {
 
 using namespace std;
 
-TileServer::TileServer(const std::string &_dir, const std::vector<std::string> &_ctx, int _cuda, int _kbs) : Server() {
+TileServer::TileServer(const std::string &_root, const std::string &_dir, const std::vector<std::string> &_ctx, int _cuda, int _kbs) : Server() {
+  root = _root;
+  assert(root.length() < 4000);
+
   dir = _dir;
+  assert(dir.length() < 4000);
+
 
   ctx = _ctx;
 
@@ -65,30 +70,43 @@ static inline uint8_t dtob(double d) {
   return ((uint8_t)(d + 0.5));
 }
 
-void TileServer::put_tile(uint32_t x, uint32_t y, uint32_t z, const uint8_t *rgb) {
+std::string TileServer::tilefn(uint32_t x, uint32_t y, uint32_t z) {
   assert(z < 32);
   x &= (1 << z) - 1;
   y &= (1 << z) - 1;
 
-  char fn[4096];
-  sprintf(fn, "%s/tile.%u.%u.%u.jpg", dir.c_str(), x, y, z);
+  if (z > 0) {
+    char fn[4096];
+    sprintf(fn, "%s/tile.%u.%u.%u.png", dir.c_str(), x, y, z);
+    return fn;
+  } else {
+    return root;
+  }
+}
 
+void TileServer::put_tile(uint32_t x, uint32_t y, uint32_t z, const uint8_t *rgb) {
+  assert(z > 0);
+  assert(z < 32);
+  x &= (1 << z) - 1;
+  y &= (1 << z) - 1;
+
+  std::string fn = tilefn(x, y, z);
   {
-    FILE *fp = fopen(fn, "r");
+    FILE *fp = fopen(fn.c_str(), "r");
     if (fp) {
       fclose(fp);
       return;
     }
   }
 
-  uint8_t *jpg = NULL;
-  unsigned long jpgn;
+  uint8_t *png = NULL;
+  unsigned long pngn;
 
-  rgbjpg(rgb, 256, 256, &jpg, &jpgn);
+  rgbpng(rgb, 256, 256, &png, &pngn);
 
-  spit(jpg, jpgn, fn);
+  spit(png, pngn, fn);
 
-  delete[] jpg;
+  delete[] png;
 }
 
 uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
@@ -97,18 +115,16 @@ uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
   y &= (1 << z) - 1;
 
   if (opt) {
-    char fn[4096];
-    sprintf(fn, "%s/tile.%u.%u.%u.jpg", dir.c_str(), x, y, z);
-    if (FILE *fp = fopen(fn, "r")) {
-      unsigned long jpgn;
-      uint8_t *jpg = slurp(fp, &jpgn);
+    if (FILE *fp = fopen(tilefn(x, y, z).c_str(), "r")) {
+      unsigned long pngn;
+      uint8_t *png = slurp(fp, &pngn);
       fclose(fp);
 
       unsigned int w = 0, h = 0;
       uint8_t *rgb;
-      jpgrgb(jpg, jpgn, &w, &h, &rgb);
+      pngrgb(png, pngn, &w, &h, &rgb);
       assert(w == 256 && h == 256);
-      delete[] jpg;
+      delete[] png;
 
       return rgb;
     }
@@ -172,13 +188,13 @@ uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
 
   uint32_t pxp[4], pyp[4];
   pxp[0] = (px * 2 + 1) & ((1 << z) - 1);
-  pyp[0] = (px * 2 + 1) & ((1 << z) - 1);
+  pyp[0] = (py * 2 + 1) & ((1 << z) - 1);
   pxp[1] = (px * 2 + 2) & ((1 << z) - 1);
-  pyp[1] = (px * 2 + 1) & ((1 << z) - 1);
+  pyp[1] = (py * 2 + 1) & ((1 << z) - 1);
   pxp[2] = (px * 2 + 1) & ((1 << z) - 1);
-  pyp[2] = (px * 2 + 2) & ((1 << z) - 1);
+  pyp[2] = (py * 2 + 2) & ((1 << z) - 1);
   pxp[3] = (px * 2 + 2) & ((1 << z) - 1);
-  pyp[3] = (px * 2 + 2) & ((1 << z) - 1);
+  pyp[3] = (py * 2 + 2) & ((1 << z) - 1);
   
   put_tile(pxp[0], pyp[0], z, prgbp[0]);
   put_tile(pxp[1], pyp[1], z, prgbp[1]);
@@ -213,29 +229,26 @@ uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
   return rgb;
 }
 
-void TileServer::tile_jpeg(uint32_t x, uint32_t y, uint32_t z, uint8_t **jpgp, unsigned long *jpgnp) {
+void TileServer::tile_png(uint32_t x, uint32_t y, uint32_t z, uint8_t **pngp, unsigned long *pngnp) {
   assert(z < 32);
   x &= (1 << z) - 1;
   y &= (1 << z) - 1;
 
   {
-    char fn[4096];
-    sprintf(fn, "%s/tile.%u.%u.%u.jpg", dir.c_str(), x, y, z);
-    if (FILE *fp = fopen(fn, "r")) {
-      *jpgp = slurp(fp, jpgnp);
+    if (FILE *fp = fopen(tilefn(x, y, z).c_str(), "r")) {
+      *pngp = slurp(fp, pngnp);
       fclose(fp);
       return;
     }
   }
+  assert(z > 0);
 
   uint8_t *rgb = tile_rgb(x, y, z, false);
   delete[] rgb;
 
   {
-    char fn[4096];
-    sprintf(fn, "%s/tile.%u.%u.%u.jpg", dir.c_str(), x, y, z);
-    if (FILE *fp = fopen(fn, "r")) {
-      *jpgp = slurp(fp, jpgnp);
+    if (FILE *fp = fopen(tilefn(x, y, z).c_str(), "r")) {
+      *pngp = slurp(fp, pngnp);
       fclose(fp);
       return;
     }
@@ -252,24 +265,24 @@ bool TileServer::handle(Client *client) {
     uint32_t y = ntohl(xyz[1]);
     uint32_t z = ntohl(xyz[2]);
 
-    uint8_t *jpg;
-    unsigned long jpgn;
-    tile_jpeg(x, y, z, &jpg, &jpgn);
+    uint8_t *png;
+    unsigned long pngn;
+    tile_png(x, y, z, &png, &pngn);
 
-    if (!client->can_write(jpgn + 4)) {
-      delete[] jpg;
+    if (!client->can_write(pngn + 4)) {
+      delete[] png;
       return false;
     }
-    uint32_t len = htonl(jpgn);
+    uint32_t len = htonl(pngn);
     if (!client->write((uint8_t *)&len, 4)) {
-      delete[] jpg;
+      delete[] png;
       return false;
     }
-    if (!client->write(jpg, jpgn)) {
-      delete[] jpg;
+    if (!client->write(png, pngn)) {
+      delete[] png;
       return false;
     }
-    delete[] jpg;
+    delete[] png;
   }
 
   return true;
