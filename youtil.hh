@@ -31,7 +31,8 @@ inline bool endswith(const std::string &str, const std::string &suf) {
 }
 
 extern uint8_t *slurp(const std::string &fn, size_t *np);
-
+void spit(const std::string &str, FILE *fp);
+void spit(const std::string &str, const std::string &fn);
 
 inline double strtod(const std::string &str) {
   return ::strtod(str.c_str(), NULL);

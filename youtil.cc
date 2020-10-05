@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 
 #include <png.h>
+#include <jpeglib.h>
 
 #include <string>
 #include <vector>
@@ -48,6 +49,20 @@ void dedub(const double *d, unsigned int n, uint8_t *b) {
     b[i] = dtob(d[i]);
 }
 
+void spit(const std::string &str, FILE *fp) {
+  size_t ret;
+  ret = ::fwrite(str.data(), 1, str.length(), fp);
+  assert(ret == str.length());
+}
+
+void spit(const std::string &str, const std::string &fn) {
+  FILE *fp;
+  assert(fp = ::fopen((fn + ".tmp").c_str(), "w"));
+  spit(str, fp);
+  ::fclose(fp);
+  int ret = ::rename((fn + ".tmp").c_str(), fn.c_str());
+  assert(ret == 0 || ret == -1 && errno == ENOENT);
+}
 
 uint8_t *slurp(const std::string &fn, size_t *np) {
   FILE *fp = fopen(fn.c_str(), "r");
@@ -534,6 +549,88 @@ void *encode_bitfmt(const std::string &bitfmt, const double *x, unsigned int n) 
   }
 
   return ret;
+}
+
+void rgbjpg(
+  const uint8_t *rgb,
+  unsigned int w,
+  unsigned int h,
+  uint8_t **jpgp,
+  unsigned long *jpgnp
+) {
+  struct jpeg_compress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  JSAMPROW row_pointer[1];
+  int row_stride;
+
+  cinfo.err = jpeg_std_error(&jerr);
+  jpeg_create_compress(&cinfo);
+
+  jpeg_mem_dest(&cinfo, jpgp, jpgnp);
+
+  cinfo.image_width = w;
+  cinfo.image_height = h;
+  cinfo.input_components = 3;
+  cinfo.in_color_space = JCS_RGB;
+  jpeg_set_defaults(&cinfo);
+  jpeg_set_quality(&cinfo, 90, TRUE);
+
+  jpeg_start_compress(&cinfo, TRUE);
+
+  row_stride = w * 3;
+  while (cinfo.next_scanline < cinfo.image_height) {
+    row_pointer[0] = (unsigned char *)&rgb[cinfo.next_scanline * row_stride];
+    (void)jpeg_write_scanlines(&cinfo, row_pointer, 1);
+  }
+
+  jpeg_finish_compress(&cinfo);
+  jpeg_destroy_compress(&cinfo);
+}
+
+bool jpgrgb(
+  const std::string &jpeg,
+  unsigned int *wp,
+  unsigned int *hp,
+  uint8_t **rgbp
+) {
+  struct jpeg_decompress_struct cinfo;
+  struct jpeg_error_mgr jerr;
+
+  cinfo.err = jpeg_std_error(&jerr);	
+  jpeg_create_decompress(&cinfo);
+
+  jpeg_mem_src(&cinfo, (uint8_t *)jpeg.data(), jpeg.length());
+  int rc = jpeg_read_header(&cinfo, TRUE);
+  if (rc != 1) {
+    jpeg_abort_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    return false;
+  }
+
+  jpeg_start_decompress(&cinfo);
+	
+  *wp = cinfo.output_width;
+  *hp = cinfo.output_height;
+  if (cinfo.output_components != 3) {
+    jpeg_abort_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+    return false;
+  }
+
+  *rgbp = new uint8_t[*wp * *hp * 3];
+  unsigned long w3 = *wp * 3;
+
+  while (cinfo.output_scanline < cinfo.output_height) {
+    unsigned char *buffer_array[1];
+    buffer_array[0] = *rgbp + cinfo.output_scanline * w3;
+    jpeg_read_scanlines(&cinfo, buffer_array, 1);
+  }
+
+  jpeg_finish_decompress(&cinfo);
+  jpeg_destroy_decompress(&cinfo);
+
+  return true;
 }
 
 bool rgbpng(
