@@ -710,7 +710,11 @@ int main(int argc, char **argv) {
       error("argument dir required");
     std::string dir = arg.get("dir");
 
-    TileServer *server = new TileServer(dir, ctx, cuda, kbs);
+    if (!arg.present("root"))
+      error("argument root required");
+    std::string root = arg.get("root");
+
+    TileServer *server = new TileServer(root, dir, ctx, cuda, kbs);
 
     server->open();
     server->bind((uint16_t)port);

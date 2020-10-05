@@ -18,6 +18,7 @@
 #include <list>
 
 #include "tileserver.hh"
+#include "random.hh"
 #include "youtil.hh"
 #include "chain.hh"
 #include "colonel.hh"
@@ -59,15 +60,6 @@ void TileServer::prepare() {
   assert(chn->tail->oc == 3);
 
   Server::prepare();
-}
-
-static inline uint8_t dtob(double d) {
-  d *= 256.0;
-  if (d > 255.0)
-    d = 255.0;
-  if (d < 0.0)
-    d = 0.0;
-  return ((uint8_t)(d + 0.5));
 }
 
 std::string TileServer::tilefn(uint32_t x, uint32_t y, uint32_t z) {
@@ -138,21 +130,38 @@ uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
   px &= (1 << pz) - 1;
   py &= (1 << pz) - 1;
 
-  uint8_t *prgbp[4];
-  prgbp[0] = tile_rgb(px, py, pz, true);
-  prgbp[1] = tile_rgb(px + 1, py, pz, true);
-  prgbp[2] = tile_rgb(px, py + 1, pz, true);
-  prgbp[3] = tile_rgb(px + 1, py + 1, pz, true);
+  uint32_t pxp[4], pyp[4];
+  pxp[0] = px;
+  pyp[0] = py;
+  pxp[1] = px + 1;
+  pyp[1] = py;
+  pxp[2] = px;
+  pyp[2] = py + 1;
+  pxp[3] = px + 1;
+  pyp[3] = py + 1;
 
+  int ord[4] = {0, 1, 2, 3};
+  if (int k = randuint() % 4)
+    std::swap(ord[0], ord[k]);
+  if (int k = randuint() % 3)
+    std::swap(ord[1], ord[k + 1]);
+  if (randuint() % 2)
+    std::swap(ord[2], ord[3]);
+
+  uint8_t *prgbp[4];
+  for (int i = 0; i < 4; ++i) {
+    int j = ord[i];
+    prgbp[j] = tile_rgb(pxp[j], pyp[j], pz, true);
+  }
 
   double *qrgb = new double[512 * 512 * 3];
   for (int y = 0; y < 256; ++y) {
     for (int x = 0; x < 256; ++x) {
       for (int c = 0; c < 3; ++c) {
-        qrgb[c + 3 * (x + 512 * y)] = (double)prgbp[0][c + 3 * (x + 256 * y)] / 256.0;
-        qrgb[c + 3 * (256 + x + 512 * y)] = (double)prgbp[1][c + 3 * (x + 256 * y)] / 256.0;
-        qrgb[c + 3 * (x + 512 * (256 + y))] = (double)prgbp[2][c + 3 * (x + 256 * y)] / 256.0;
-        qrgb[c + 3 * (256 + x + 512 * (256 + y))] = (double)prgbp[3][c + 3 * (x + 256 * y)] / 256.0;
+        qrgb[c + 3 * (x + 512 * y)] = btod(prgbp[0][c + 3 * (x + 256 * y)]);
+        qrgb[c + 3 * (256 + x + 512 * y)] = btod(prgbp[1][c + 3 * (x + 256 * y)]);
+        qrgb[c + 3 * (x + 512 * (256 + y))] = btod(prgbp[2][c + 3 * (x + 256 * y)]);
+        qrgb[c + 3 * (256 + x + 512 * (256 + y))] = btod(prgbp[3][c + 3 * (x + 256 * y)]);
       }
     }
   }
@@ -185,8 +194,6 @@ uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
 
   delete[] qrgb;
 
-
-  uint32_t pxp[4], pyp[4];
   pxp[0] = (px * 2 + 1) & ((1 << z) - 1);
   pyp[0] = (py * 2 + 1) & ((1 << z) - 1);
   pxp[1] = (px * 2 + 2) & ((1 << z) - 1);
