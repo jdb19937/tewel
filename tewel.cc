@@ -706,7 +706,11 @@ int main(int argc, char **argv) {
     int port = arg.get("port", "9999");
     info(fmt("starting server on port %d", port));
 
-    TileServer *server = new TileServer(ctx, cuda, kbs);
+    if (!arg.present("dir"))
+      error("argument dir required");
+    std::string dir = arg.get("dir");
+
+    TileServer *server = new TileServer(dir, ctx, cuda, kbs);
 
     server->open();
     server->bind((uint16_t)port);

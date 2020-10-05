@@ -26,7 +26,9 @@ namespace makemore {
 
 using namespace std;
 
-TileServer::TileServer(const std::vector<std::string> &_ctx, int _cuda, int _kbs) : Server() {
+TileServer::TileServer(const std::string &_dir, const std::vector<std::string> &_ctx, int _cuda, int _kbs) : Server() {
+  dir = _dir;
+
   ctx = _ctx;
 
   chn = NULL;

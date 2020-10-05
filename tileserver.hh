@@ -7,6 +7,8 @@
 namespace makemore {
 
 struct TileServer : Server {
+  std::string dir;
+
   class Chain *chn;
   int pw, ph;
   std::vector<std::string> ctx;
@@ -14,7 +16,7 @@ struct TileServer : Server {
   int cuda;
   int kbs;
 
-  TileServer(const std::vector<std::string> &_cx, int _cuda, int _kbs);
+  TileServer(const std::string &_dir, const std::vector<std::string> &_cx, int _cuda, int _kbs);
 
   bool handle(class Client *);
   void prepare();
