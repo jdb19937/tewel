@@ -26,35 +26,26 @@ struct Server {
 
   std::vector<pid_t> pids;
 
-  class Chain *chn;
-  int pw, ph;
-  std::vector<std::string> ctx;
-
-
   fd_set fdsets[3];
   std::list<Client*> clients;
 
-  int cuda;
-  int kbs;
-  double reload;
-  double last_reload;
-  bool pngout;
+  Server();
+  virtual ~Server();
 
-  Server(const std::vector<std::string> &_cx, int _pw, int _ph, int _cuda, int _kbs, double _reload = 0.0, bool _pngout = false);
-  ~Server();
+  virtual void open();
+  virtual void close();
+  virtual void bind(uint16_t _port);
+  virtual void listen(int backlog = 256);
+  virtual void select();
 
-  void open();
-  void close();
-  void bind(uint16_t _port);
-  void listen(int backlog = 256);
-  void select();
-
-  void start(unsigned int kids = 1);
-  bool accept();
-  bool handle(class Client *);
-  void wait();
-  void stop();
-  void main();
+  virtual void start(unsigned int kids = 1);
+  virtual bool accept();
+  virtual bool handle(class Client *);
+  virtual void wait();
+  virtual void stop();
+  virtual void main();
+  virtual void prepare();
+  virtual void extend();
 };
 
 }

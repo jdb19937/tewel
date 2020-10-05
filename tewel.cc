@@ -19,6 +19,8 @@
 #include "camera.hh"
 #include "picpipes.hh"
 #include "server.hh"
+#include "egserver.hh"
+#include "tileserver.hh"
 #include "chain.hh"
 
 using namespace makemore;
@@ -685,7 +687,7 @@ int main(int argc, char **argv) {
     int port = arg.get("port", "4444");
     info(fmt("starting server on port %d", port));
 
-    Server *server = new Server(ctx, pw, ph, cuda, kbs, reload, pngout);
+    EGServer *server = new EGServer(ctx, pw, ph, cuda, kbs, reload, pngout);
 
     server->open();
     server->bind((uint16_t)port);
@@ -697,6 +699,28 @@ int main(int argc, char **argv) {
     delete server;
     return 0;
   }
+
+  if (cmd == "tileserver") {
+    int kids = arg.get("kids", "1");
+
+    int port = arg.get("port", "9999");
+    info(fmt("starting server on port %d", port));
+
+    TileServer *server = new TileServer(ctx, cuda, kbs);
+
+    server->open();
+    server->bind((uint16_t)port);
+    server->listen(1);
+    server->start(kids);
+    server->wait();
+    info("all done");
+
+    delete server;
+    return 0;
+  }
+
+  setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? 1 : 0);
+  setkbs(kbs);
 
   setkdev(cuda >= 0 ? cuda : kndevs() > 1 ? 1 : 0);
   setkbs(kbs);
