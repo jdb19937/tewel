@@ -30,9 +30,12 @@ inline bool endswith(const std::string &str, const std::string &suf) {
   );
 }
 
+extern uint8_t *slurp(FILE *fp, size_t *np);
 extern uint8_t *slurp(const std::string &fn, size_t *np);
-void spit(const std::string &str, FILE *fp);
-void spit(const std::string &str, const std::string &fn);
+extern void spit(const uint8_t *x, size_t n, FILE *fp);
+extern void spit(const std::string &str, FILE *fp);
+extern void spit(const std::string &str, const std::string &fn);
+extern void spit(const uint8_t *x, size_t n, const std::string &fn);
 
 inline double strtod(const std::string &str) {
   return ::strtod(str.c_str(), NULL);
@@ -128,6 +131,22 @@ bool rgbpng(
   unsigned int *pngnp,
   const std::vector<std::string> *tags = NULL,
   const uint8_t *alpha = NULL
+);
+
+void rgbjpg(
+  const uint8_t *rgb,
+  unsigned int w,
+  unsigned int h,
+  uint8_t **jpgp,
+  unsigned long *jpgnp
+);
+
+bool jpgrgb(
+  const uint8_t *jpg,
+  unsigned long jpgn,
+  unsigned int *wp,
+  unsigned int *hp,
+  uint8_t **rgbp
 );
 
 }

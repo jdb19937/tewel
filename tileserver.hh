@@ -20,6 +20,11 @@ struct TileServer : Server {
 
   bool handle(class Client *);
   void prepare();
+
+  void put_tile(uint32_t x, uint32_t y, uint32_t z, const uint8_t *rgb);
+
+  uint8_t *tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt);
+  void tile_jpeg(uint32_t x, uint32_t y, uint32_t z, uint8_t **jpgp, unsigned long *jpgnp);
 };
 
 }

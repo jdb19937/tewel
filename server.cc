@@ -109,6 +109,8 @@ void Server::extend() {
 }
 
 void Server::main() {
+  this->prepare();
+
   while (1) {
     this->select();
 

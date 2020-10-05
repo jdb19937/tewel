@@ -49,6 +49,12 @@ void dedub(const double *d, unsigned int n, uint8_t *b) {
     b[i] = dtob(d[i]);
 }
 
+void spit(const uint8_t *x, size_t n, FILE *fp) {
+  size_t ret;
+  ret = ::fwrite(x, 1, n, fp);
+  assert(ret == n);
+}
+
 void spit(const std::string &str, FILE *fp) {
   size_t ret;
   ret = ::fwrite(str.data(), 1, str.length(), fp);
@@ -67,9 +73,27 @@ void spit(const std::string &str, const std::string &fn) {
   assert(ret == 0);
 }
 
+void spit(const uint8_t *x, size_t n, const std::string &fn) {
+  assert(fn.length() < 4000);
+  char tmpfn[4096];
+  sprintf(tmpfn, "%s.%u.tmp", fn.c_str(), getpid());
+  FILE *fp;
+  assert(fp = ::fopen(tmpfn, "w"));
+  spit(x, n, fp);
+  ::fclose(fp);
+  int ret = ::rename(tmpfn, fn.c_str());
+  assert(ret == 0);
+}
+
 uint8_t *slurp(const std::string &fn, size_t *np) {
   FILE *fp = fopen(fn.c_str(), "r");
   assert(fp);
+  uint8_t *ret = slurp(fp, np);
+  fclose(fp);
+  return ret;
+}
+
+uint8_t *slurp(FILE *fp, size_t *np) {
   int ret = fseek(fp, 0, SEEK_END);
   assert(ret == 0);
   long n = ftell(fp);
@@ -87,7 +111,6 @@ uint8_t *slurp(const std::string &fn, size_t *np) {
 
   if (np)
     *np = n;
-  fclose(fp);
 
   return x;
 }
@@ -570,6 +593,8 @@ void rgbjpg(
   cinfo.err = jpeg_std_error(&jerr);
   jpeg_create_compress(&cinfo);
 
+  *jpgp = NULL;
+  *jpgnp = 0;
   jpeg_mem_dest(&cinfo, jpgp, jpgnp);
 
   cinfo.image_width = w;
@@ -592,7 +617,8 @@ void rgbjpg(
 }
 
 bool jpgrgb(
-  const std::string &jpeg,
+  const uint8_t *jpg,
+  unsigned long jpgn,
   unsigned int *wp,
   unsigned int *hp,
   uint8_t **rgbp
@@ -603,7 +629,7 @@ bool jpgrgb(
   cinfo.err = jpeg_std_error(&jerr);	
   jpeg_create_decompress(&cinfo);
 
-  jpeg_mem_src(&cinfo, (uint8_t *)jpeg.data(), jpeg.length());
+  jpeg_mem_src(&cinfo, jpg, jpgn);
   int rc = jpeg_read_header(&cinfo, TRUE);
   if (rc != 1) {
     jpeg_abort_decompress(&cinfo);
