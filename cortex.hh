@@ -8,6 +8,7 @@
 #include <sys/types.h>
 
 #include <string>
+#include <list>
 
 namespace makemore {
 
@@ -52,9 +53,11 @@ struct Cortex {
   int ow, oh, oc, owhc;
 
   uint8_t *kbuf;
+  unsigned long kbufn;
   double nu, b1, b2, eps, clip;
 
-  double *kfakebuf;
+  double *kdw;
+  unsigned long dwn;
 
   double *kinp, *kout;
 
@@ -64,6 +67,14 @@ struct Cortex {
   uint64_t rounds;
 
   uint64_t new_rounds;
+
+
+  std::list<uint8_t*> bufstack;
+  void pushbuf();
+  void popbuf();
+
+
+
 
   Cortex();
   Cortex(const std::string &_fn, int flags = O_RDWR);
@@ -93,6 +104,7 @@ struct Cortex {
   double *synth();
   void stats();
   double *propback();
+  double *accumulate();
   double *learn(double mul);
   double *learn(const double *_kout, double mul);
 
@@ -100,6 +112,7 @@ struct Cortex {
   void _put_head_op(const double *vec, const double *mat, int w, int h);
   void _get_tail_op(double **vecp, double **matp, int *wp, int *hp);
   void _put_tail_op(const double *vec, const double *mat, int w, int h);
+
 };
 
 }

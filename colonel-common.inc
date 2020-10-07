@@ -138,16 +138,16 @@ void learn_norm(
 
   int ic, int oc,
 
-  double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double *wmv, double *dwv,
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   int outn = iw * ih * oc;
   int wn = outn * 2;
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_norm1, wn, fin, iw, ih, fout, ic, oc, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_norm1, wn, fin, iw, ih, fout, ic, oc, dwv, nu, b1, b2);
   CALL_KERNEL(learn_norm2, inn, fin, iw, ih, fout, ic, oc, wmv);
-  CALL_KERNEL(learn_norm3, wn, iw, ih, ic, oc, wmv, nu, b1, b2, eps, rounds);
+  CALL_KERNEL(learn_norm3, wn, iw, ih, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds);
 }
 
 int size_bias(
@@ -178,16 +178,16 @@ void learn_bias(
 
   int ic, int oc,
 
-  double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double *wmv, double *dwv,
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   int outn = iw * ih * oc;
   int wn = outn;
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_bias1, wn, fin, iw, ih, fout, ic, oc, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_bias1, wn, fin, iw, ih, fout, ic, oc, dwv, nu, b1, b2);
   CALL_KERNEL(learn_bias2, inn, fin, iw, ih, fout, ic, oc, wmv);
-  CALL_KERNEL(learn_bias3, wn, iw, ih, ic, oc, wmv, nu, b1, b2, eps, rounds);
+  CALL_KERNEL(learn_bias3, wn, iw, ih, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds);
 }
 
 int size_local(
@@ -219,7 +219,7 @@ void learn_local(
 
   int d, int ic, int oc,
 
-  double *wmv,
+  double *wmv, double *dwv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   int f = d * 2 + 1;
@@ -227,9 +227,9 @@ void learn_local(
   int wn = (outn + ic * f * f * outn);
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, dwv, nu, b1, b2);
   CALL_KERNEL(learn_local2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
-  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, nu, b1, b2, eps, clip, rounds);
+  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds);
 }
 
 
@@ -297,16 +297,16 @@ void learn_conv(
   int d, int ic, int oc,
   bool relu, int freeze, int dim,
 
-  double *wmv,
+  double *wmv, double *dwv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   int f = d * 2 + 1;
   int wn = (oc + ic * f * f * oc);
   int inn = iw * ih * ic;
 
-  CALL_KERNEL(learn_conv1, wn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv, nu, b1, b2);
+  CALL_KERNEL(learn_conv1, wn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, dwv, nu, b1, b2);
   CALL_KERNEL(learn_conv2, inn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv);
-  CALL_KERNEL(learn_conv3, wn, d, ic, oc, dim, wmv, nu, b1, b2, eps, clip, rounds);
+  CALL_KERNEL(learn_conv3, wn, d, ic, oc, dim, wmv, dwv, nu, b1, b2, eps, clip, rounds);
 }
 
 void synth_addgeo(

@@ -385,6 +385,9 @@ void learnhans(
   kmake(&kfake, dis->owhc);
   kfill(kfake, dis->owhc, -0.5);
 
+  double *kloss;
+  kmake(&kloss, dis->owhc);
+
   double *kimpr;
   kmake(&kimpr, dis->owhc);
 
@@ -406,29 +409,77 @@ void learnhans(
       tgt->pick(ktgt);
     }
 
-{
+if (1) {
       if (cnd)
         ksplice(cnd->synth(chn->kinp()), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
       chn->synth();
       ksplice(gen->kout, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       kcopy(dis->kinp, dis->iwhc, ktmp);
+
       dis->synth();
+
+      dis->pushbuf();
       dis->target(kreal);
       dis->propback();
       ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
       chn->learn(genmul);
 
-      kcopy(ktmp, dis->iwhc, dis->kinp);
-      dis->synth();
+      dis->popbuf();
       dis->target(kfake);
-      dis->learn(dismul);
+      dis->accumulate();
 
       kcopy(ktmp, dis->iwhc, dis->kinp);
       ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       dis->synth();
       dis->target(kreal);
       dis->learn(dismul);
-    }
+}
+
+if (0) {
+      if (cnd)
+        ksplice(cnd->synth(chn->kinp()), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
+        ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+        dis->synth();
+        kcopy(dis->kout, dis->owhc, kreal);
+        dis->pushbuf();
+
+
+        chn->synth();
+        ksplice(gen->kout, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+        dis->synth();
+        kcopy(dis->kout, dis->owhc, kfake);
+
+        dis->pushbuf();
+
+        if (0) {
+          double *loss = new double[dis->owhc];
+          ksubvec(kreal, kfake, dis->owhc, kloss);
+          dek(kloss, dis->owhc, loss);
+          for (int j = 0; j < dis->owhc; ++j) {
+            loss[j] = 1.0;
+          }
+          enk(loss, dis->owhc, kloss);
+          delete[] loss;
+        }
+        kfill(kloss, dis->owhc, 0.55);
+
+        dis->setloss(kloss);
+        dis->propback();
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+        chn->learn(genmul);
+
+        dis->popbuf();
+        // kmul(kloss, -1, dis->owhc, kloss);
+        kfill(kloss, dis->owhc, -0.45);
+        dis->setloss(kloss);
+        dis->accumulate();
+
+        dis->popbuf();
+        // kmul(kloss, -1, dis->owhc, kloss);
+        kfill(kloss, dis->owhc, 0.45);
+        dis->setloss(kloss);
+        dis->learn(dismul);
+}
 
     ++i;
 

@@ -141,12 +141,12 @@ DEFN_KERNEL(learn_norm1,
 
   int ic, int oc,
 
-  double *wmv,
+  double *dwv,
   double nu, double b1, double b2
 ) {
   PREF_KERNEL;
 
-  if (!(nu > 0))
+  if (!dwv)
     return;
 
   int ow = iw;
@@ -164,18 +164,14 @@ DEFN_KERNEL(learn_norm1,
     int outi = wi;
     dw += fout[outi];
   } else {
+#if 0
     int outi = wi - outn;
     dw += fout[outi] * (1.0 + wmv[wi * 3]);
+#endif
+    dw = 0;
   }
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
-
-  m = (1.0 - b1) * m + b1 * dw;
-  v = (1.0 - b2) * v + b2 * dw * dw;
-
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  dwv[wi] += dw;
 }
 
 
@@ -201,8 +197,8 @@ DEFN_KERNEL(learn_norm2,
 DEFN_KERNEL(learn_norm3,
   int iw, int ih,
   int ic, int oc,
-  double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double *wmv, double *dwv,
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   PREF_KERNEL;
 
@@ -216,9 +212,16 @@ DEFN_KERNEL(learn_norm3,
   if (wi >= wn)
     return;
 
-  double w = wmv[wi * 3 + 0];
+  double dw = dwv[wi];
+
   double m = wmv[wi * 3 + 1];
   double v = wmv[wi * 3 + 2];
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+  wmv[wi * 3 + 1] = m;
+  wmv[wi * 3 + 2] = v;
+
+  double w = wmv[wi * 3 + 0];
 
   if (rounds < 1024.0) {
     m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
@@ -227,7 +230,15 @@ DEFN_KERNEL(learn_norm3,
 
   w += nu * m / (sqrt(v) + eps);
 
+  if (clip > 0 && wi >= oc) {
+    if (w > clip)
+      w = clip;
+    else if (w < -clip)
+      w = -clip;
+  }
+
   wmv[wi * 3 + 0] = w;
+  dwv[wi] = 0;
 }
 
 
@@ -265,12 +276,12 @@ DEFN_KERNEL(learn_bias1,
 
   int ic, int oc,
 
-  double *wmv,
+  double *dwv,
   double nu, double b1, double b2
 ) {
   PREF_KERNEL;
 
-  if (!(nu > 0))
+  if (!dwv)
     return;
 
   int ow = iw;
@@ -289,14 +300,7 @@ DEFN_KERNEL(learn_bias1,
     dw += fout[outi];
   }
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
-
-  m = (1.0 - b1) * m + b1 * dw;
-  v = (1.0 - b2) * v + b2 * dw * dw;
-
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  dwv[wi] += dw;
 }
 
 
@@ -305,7 +309,6 @@ DEFN_KERNEL(learn_bias2,
   const double *fout,
 
   int ic, int oc,
-
   const double *wmv
 ) {
   PREF_KERNEL;
@@ -322,8 +325,8 @@ DEFN_KERNEL(learn_bias2,
 DEFN_KERNEL(learn_bias3,
   int iw, int ih,
   int ic, int oc,
-  double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double *wmv, double *dwv,
+  double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   PREF_KERNEL;
 
@@ -337,9 +340,16 @@ DEFN_KERNEL(learn_bias3,
   if (wi >= wn)
     return;
 
-  double w = wmv[wi * 3 + 0];
+  double dw = dwv[wi];
+
   double m = wmv[wi * 3 + 1];
   double v = wmv[wi * 3 + 2];
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+  wmv[wi * 3 + 1] = m;
+  wmv[wi * 3 + 2] = v;
+
+  double w = wmv[wi * 3 + 0];
 
   if (rounds < 1024.0) {
     m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
@@ -348,7 +358,15 @@ DEFN_KERNEL(learn_bias3,
 
   w += nu * m / (sqrt(v) + eps);
 
+  if (clip > 0 && wi >= oc) {
+    if (w > clip)
+      w = clip;
+    else if (w < -clip)
+      w = -clip;
+  }
+
   wmv[wi * 3 + 0] = w;
+  dwv[wi] = 0;
 }
 
 DEFN_KERNEL(synth_local,
@@ -414,12 +432,12 @@ DEFN_KERNEL(learn_local1,
 
   int d, int ic, int oc,
 
-  double *wmv,
+  double *dwv,
   double nu, double b1, double b2
 ) {
   PREF_KERNEL;
 
-  if (!(nu > 0))
+  if (!dwv)
     return;
 
   int ow = iw;
@@ -457,14 +475,7 @@ DEFN_KERNEL(learn_local1,
     dw += fout[outi] * in[ini];
   }
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
-
-  m = (1.0 - b1) * m + b1 * dw;
-  v = (1.0 - b2) * v + b2 * dw * dw;
-
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  dwv[wi] += dw;
 }
 
 
@@ -527,7 +538,7 @@ DEFN_KERNEL(learn_local2,
 DEFN_KERNEL(learn_local3,
   int iw, int ih,
   int d, int ic, int oc,
-  double *wmv,
+  double *wmv, double *dwv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   PREF_KERNEL;
@@ -543,9 +554,16 @@ DEFN_KERNEL(learn_local3,
   if (wi >= wn)
     return;
 
-  double w = wmv[wi * 3 + 0];
+  double dw = dwv[wi];
+
   double m = wmv[wi * 3 + 1];
   double v = wmv[wi * 3 + 2];
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+  wmv[wi * 3 + 1] = m;
+  wmv[wi * 3 + 2] = v;
+
+  double w = wmv[wi * 3 + 0];
 
   if (rounds < 1024.0) {
     m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
@@ -554,15 +572,15 @@ DEFN_KERNEL(learn_local3,
 
   w += nu * m / (sqrt(v) + eps);
 
-  if (clip > 0 && wi >= outn) {
+  if (clip > 0 && wi >= oc) {
     if (w > clip)
       w = clip;
     else if (w < -clip)
       w = -clip;
   }
 
-
   wmv[wi * 3 + 0] = w;
+  dwv[wi] = 0;
 }
 
 DEFN_KERNEL(synth_trim,
@@ -737,12 +755,12 @@ DEFN_KERNEL(learn_conv1,
 
   int freeze,
   int dim,
-  double *wmv,
+  double *dwv,
   double nu, double b1, double b2
 ) {
   PREF_KERNEL;
 
-  if (!(nu > 0))
+  if (!dwv)
     return;
 
   int f = d * 2 + 1;
@@ -766,8 +784,7 @@ DEFN_KERNEL(learn_conv1,
     int oz = wi;
 
     if (oz < freeze) {
-      dw = -wmv[wi * 3 + 0];
-      wmv[3 * wi + 2] = 1.0;
+      dw = 0;
     } else {
       for (int oy = 0; oy < oh; ++oy) {
         for (int ox = 0; ox < ow; ++ox) {
@@ -784,9 +801,7 @@ DEFN_KERNEL(learn_conv1,
       int oz = tmp % oc;
 
       if (oz < freeze) {
-        double q = (dx == d && iz == oz) ? 1.0 : 0.0;
-        dw = q - wmv[3 * wi + 0];
-        wmv[3 * wi + 2] = 1.0;
+        dw = 0;
       } else {
         for (int oy = 0; oy < oh; ++oy) {
           for (int ox = 0; ox < ow; ++ox) {
@@ -810,9 +825,7 @@ DEFN_KERNEL(learn_conv1,
       int oz = tmp % oc;
 
       if (oz < freeze) {
-        double q = (dx == d && dy == d && iz == oz) ? 1.0 : 0.0;
-        dw = q - wmv[3 * wi + 0];
-        wmv[3 * wi + 2] = 1.0;
+        dw = 0;
       } else {
         for (int oy = 0; oy < oh; ++oy) {
           for (int ox = 0; ox < ow; ++ox) {
@@ -831,14 +844,7 @@ DEFN_KERNEL(learn_conv1,
     }
   }
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
-
-  m = (1.0 - b1) * m + b1 * dw;
-  v = (1.0 - b2) * v + b2 * dw * dw;
-
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  dwv[wi] += dw;
 }
 
 
@@ -943,7 +949,7 @@ DEFN_KERNEL(learn_conv2,
 
 DEFN_KERNEL(learn_conv3,
   int d, int ic, int oc, int dim,
-  double *wmv,
+  double *wmv, double *dwv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 ) {
   PREF_KERNEL;
@@ -963,9 +969,16 @@ DEFN_KERNEL(learn_conv3,
   if (wi >= wn)
     return;
 
-  double w = wmv[wi * 3 + 0];
+  double dw = dwv[wi];
+
   double m = wmv[wi * 3 + 1];
   double v = wmv[wi * 3 + 2];
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+  wmv[wi * 3 + 1] = m;
+  wmv[wi * 3 + 2] = v;
+
+  double w = wmv[wi * 3 + 0];
 
   if (rounds < 1024.0) {
     m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
@@ -982,6 +995,7 @@ DEFN_KERNEL(learn_conv3,
   }
 
   wmv[wi * 3 + 0] = w;
+  dwv[wi] = 0;
 }
 
 DEFN_KERNEL(synth_addgeo,

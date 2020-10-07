@@ -74,8 +74,8 @@ extern void learn_norm(
 
   int ic, int oc,
 
-  double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double *wmv, double *dwv,
+  double nu, double b1, double b2, double eps, double clip, double rounds
 );
 
 extern int size_bias(
@@ -95,8 +95,8 @@ extern void learn_bias(
 
   int ic, int oc,
 
-  double *wmv,
-  double nu, double b1, double b2, double eps, double rounds
+  double *wmv, double *dwv,
+  double nu, double b1, double b2, double eps, double clip, double rounds
 );
 
 extern int size_local(
@@ -116,7 +116,7 @@ extern void learn_local(
 
   int d, int ic, int oc,
 
-  double *wmv,
+  double *wmv, double *dwv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 );
 
@@ -149,7 +149,7 @@ extern void learn_conv(
   const double *fout,
   int d, int ic, int oc,
   bool relu, int freeze, int dim,
-  double *wmv,
+  double *wmv, double *dwv,
   double nu, double b1, double b2, double eps, double clip, double rounds
 );
 

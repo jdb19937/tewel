@@ -125,7 +125,7 @@ static void _parse_header(
 }
 
 
-static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp) {
+static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp, unsigned long *dwnp) {
   int i = 0;
   size_t kbufn = 0;
   unsigned int basei = 0;
@@ -134,6 +134,8 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
   if (basei == basen)
     return 0;
   assert(basei < basen);
+
+  *dwnp = 0;
 
   while (basei < basen) {
     Cortex::Segment hdr;
@@ -517,6 +519,9 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     basei += len * sizeof(double);
 
     kbufn += (size_t)ow * (size_t)oh * (size_t)oc * sizeof(double);
+
+    assert(len % 3 == 0);
+    *dwnp += len / 3;
 
     iw = ow;
     ih = oh;
@@ -1131,7 +1136,7 @@ static double *pipe_synth(
 
 void pipe_learn(
   uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf,
-  double nu, double b1, double b2, double eps, double clip, uint64_t rounds
+  double nu, double b1, double b2, double eps, double clip, uint64_t rounds, double *kdw
 ) {
   if (basen == 0)
     return;
@@ -1437,24 +1442,25 @@ void pipe_learn(
   pipe_learn(
     base, basen, kbase,
     ow, oh, kbuf,
-    nu, b1, b2, eps, clip, rounds
+    nu, b1, b2, eps, clip, rounds,
+    kdw ? (kdw + len / 3) : kdw
   );
 
   switch (type) {
   case TYPE_NORM:
-    learn_norm(in, iw, ih, fout, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_norm(in, iw, ih, fout, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_BIAS:
-    learn_bias(in, iw, ih, fout, ic, oc, wmv, nu, b1, b2, eps, (double)rounds);
+    learn_bias(in, iw, ih, fout, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_LOC0:
-    learn_local(in, iw, ih, fout, 0, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_local(in, iw, ih, fout, 0, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_LOC1:
-    learn_local(in, iw, ih, fout, 1, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_local(in, iw, ih, fout, 1, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_LOC2:
-    learn_local(in, iw, ih, fout, 2, ic, oc, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_local(in, iw, ih, fout, 2, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
 
   case TYPE_TRIM:
@@ -1462,24 +1468,24 @@ void pipe_learn(
     break;
 
   case TYPE_CONV:
-    learn_conv(in, iw, ih, fout, rad, ic, oc, relu, freeze, dim, wmv, nu * mul, b1, b2, eps, clip, (double)rounds);
+    learn_conv(in, iw, ih, fout, rad, ic, oc, relu, freeze, dim, wmv, kdw, nu * mul, b1, b2, eps, clip, (double)rounds);
     break;
 
   case TYPE_CON0:
   case TYPE_RCN0:
-    learn_conv(in, iw, ih, fout, 0, ic, oc, type == TYPE_RCN0, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_conv(in, iw, ih, fout, 0, ic, oc, type == TYPE_RCN0, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON1:
   case TYPE_RCN1:
-    learn_conv(in, iw, ih, fout, 1, ic, oc, type == TYPE_RCN1, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_conv(in, iw, ih, fout, 1, ic, oc, type == TYPE_RCN1, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON2:
   case TYPE_RCN2:
-    learn_conv(in, iw, ih, fout, 2, ic, oc, type == TYPE_RCN2, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_conv(in, iw, ih, fout, 2, ic, oc, type == TYPE_RCN2, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_CON3:
   case TYPE_RCN3:
-    learn_conv(in, iw, ih, fout, 3, ic, oc, type == TYPE_RCN3, 0, dim, wmv, nu, b1, b2, eps, clip, (double)rounds);
+    learn_conv(in, iw, ih, fout, 3, ic, oc, type == TYPE_RCN3, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
   case TYPE_SCAL:
     {
@@ -1598,8 +1604,8 @@ void Cortex::_clear() {
   ow = oh = oc = 0;
   iwhc = owhc = 0;
 
+  kbufn = 0;
   kbuf = NULL;
-  kfakebuf = NULL;
   kinp = NULL;
   kout = NULL;
 
@@ -1850,6 +1856,7 @@ void Cortex::close() {
   if (kbuf)
     kfree(kbuf);
   kbuf = NULL;
+  kbufn = 0;
 
   assert(fd != -1);
   ::close(fd);
@@ -2072,17 +2079,13 @@ void Cortex::unprepare() {
   assert(kbuf);
   kfree(kbuf);
   kbuf = NULL;
+  kbufn = 0;
   kinp = NULL;
   kout = NULL;
 
   assert(kbase);
   kfree(kbase);
   kbase = NULL;
-
-  if (kfakebuf) {
-    kfree(kfakebuf);
-    kfakebuf = NULL;
-  }
 
   iw = ih = ic = 0;
   ow = oh = oc = 0;
@@ -2109,7 +2112,9 @@ bool Cortex::prepare(int _iw, int _ih) {
   assert(ic > 0);
   assert(oc > 0);
 
-  size_t kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc);
+  dwn = 0;
+
+  kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc, &dwn);
   if (kbufn == 0)
     return false;
   assert(kbufn > 0);
@@ -2134,6 +2139,11 @@ bool Cortex::prepare(int _iw, int _ih) {
   assert(!kbase);
   kmake(&kbase, basen);
   enk(base, basen, kbase);
+
+  if (dwn > 0) {
+    kmake(&kdw, dwn);
+    kfill(kdw, dwn, 0);
+  }
 
   is_prep = true;
   return true;
@@ -2191,7 +2201,15 @@ void Cortex::setloss(const double *ktgt) {
 double *Cortex::propback() {
   assert(is_open);
   assert(is_prep);
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds);
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds, NULL);
+  return kinp;
+}
+
+double *Cortex::accumulate() {
+  assert(is_open);
+  assert(is_prep);
+  stats();
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds, kdw);
   return kinp;
 }
 
@@ -2199,7 +2217,7 @@ double *Cortex::learn(double mul) {
   assert(is_open);
   assert(is_prep);
   stats();
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, clip, rounds);
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, clip, rounds, kdw);
   return kinp;
 }
 
@@ -2210,83 +2228,6 @@ double *Cortex::learn(const double *_kout, double mul) {
   kcopy(_kout, owhc, kout);
   return learn(mul);
 }
-
-#if 0
-void Cortex::learnauto(const double *kintgt, double mul) {
-  assert(is_open);
-  assert(is_prep);
-  learnfunc(kintgt, kintgt, mul);
-}
-
-void Cortex::learnfunc(const double *kin, const double *ktgt, double mul) {
-  assert(is_open);
-  assert(is_prep);
-
-  double *kout = _synth(kin);
-  ksubvec(ktgt, kout, owhc, kout);
-  _stats(kout);
-  _learn(mul);
-}
-
-
-void Cortex::_target_fake(double *kfakeout) {
-  double *kfaketgt;
-  kmake(&kfaketgt, owhc);
-  kunit(kfaketgt, owhc);
-  ksubvec(kfaketgt, kfakeout, iwhc, kfakeout);
-  kfree(kfaketgt);
-
-  _stats(kfakeout);
-}
-
-void Cortex::_target_real(double *krealout) {
-  double *krealtgt;
-  kmake(&krealtgt, owhc);
-  kzero(krealtgt, owhc);
-  ksubvec(krealtgt, krealout, iwhc, krealout);
-  kfree(krealtgt);
-
-  _stats(krealout);
-}
-
-void Cortex::learnreal(const double *kfake, const double *kreal, double mul) {
-  _target_fake(_synth(kfake));
-  _learn(mul);
-  _target_real(_synth(kreal));
-  _learn(mul);
-}
-
-double *Cortex::helpfake(const double *kfake) {
-  _target_real(_synth(kfake));
-  return _learn(0);
-}
-
-void Cortex::learnstyl(const double *kin, const double *kreal, Cortex *dis, double mul, double dismul) {
-  if (!kfakebuf)
-    kmake(&kfakebuf, owhc);
-
-  double *kout = _synth(kin);
-  kcopy(kout, owhc, kfakebuf);
-  kcopy(dis->helpfake(kfakebuf), owhc, kout);
-  _learn(mul);
-
-  learnreal(kfakebuf, kreal, dismul);
-}
-
-void Cortex::learnhans(const double *kin, const double *ktgt, Cortex *dis, double nz, double mul, double dismul) {
-#if 0
-  if (!kfakebuf)
-    kmake(&kfakebuf, owhc);
-
-  double *kout = _synth(kin);
-  kcopy(kout, owhc, kfakebuf);
-  kcopy(dis->helpfake(kfakebuf +++ kin), owhc, kout);
-  _learn(mul);
-
-  learnreal(kfakebuf +++ kin, ktgt +++ kin, dismul);
-#endif
-}
-#endif
 
 void Cortex::load() {
   assert(is_open);
@@ -2530,5 +2471,27 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   memcpy(base + basen, &hdr, sizeof(hdr));
   basen = new_basen;
 }
+
+void Cortex::pushbuf() {
+  assert(kbufn > 0);
+
+  uint8_t *lbuf;
+  kmake(&lbuf, kbufn);
+  kcopy(kbuf, kbufn, lbuf);
+
+  bufstack.push_front(lbuf);
+}
+
+void Cortex::popbuf() {
+  assert(kbufn > 0);
+
+  assert(bufstack.begin() != bufstack.end());
+  uint8_t *lbuf = bufstack.front();
+  bufstack.pop_front();
+
+  kcopy(lbuf, kbufn, kbuf);
+  kfree(lbuf);
+}
+
 
 }
