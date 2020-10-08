@@ -583,7 +583,7 @@ static double *_kpadone(int bufn) {
 }
 
 static double *pipe_synth(
-  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf
+  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf, double rmul
 ) {
   if (basen == 0)
     return ((double *)kbuf);
@@ -1036,7 +1036,7 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _klnoise((oc - ic) * ow * oh, mul);
+      double *knz = _klnoise((oc - ic) * ow * oh, mul * rmul);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
@@ -1048,7 +1048,7 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _kgnoise((oc - ic) * ow * oh, oc - ic, mul);
+      double *knz = _kgnoise((oc - ic) * ow * oh, oc - ic, mul * rmul);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
@@ -1127,7 +1127,7 @@ static double *pipe_synth(
 
   return pipe_synth(
     base, basen, kbase,
-    ow, oh, kbuf
+    ow, oh, kbuf, rmul
   );
 }
 
@@ -1621,6 +1621,8 @@ void Cortex::_clear() {
   rounds = 0;
 
   new_rounds = 0;
+
+  rmul = 1.0;
 }
 
 void Cortex::open(const std::string &_fn, int flags) {
@@ -2152,7 +2154,7 @@ bool Cortex::prepare(int _iw, int _ih) {
 double *Cortex::synth() {
   assert(is_open);
   assert(is_prep);
-  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf);
+  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, rmul);
   return kout;
 }
 

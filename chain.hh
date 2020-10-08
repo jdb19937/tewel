@@ -14,6 +14,7 @@ struct Chain {
   Cortex *head;
   Cortex *tail;
   bool prepared;
+  double rmul;
 
   std::vector<Cortex*> ctxv;
   void prepare(int iw, int ih);

@@ -1057,6 +1057,10 @@ int main(int argc, char **argv) {
 
   if (cmd == "synth") {
     Chain *chn = new Chain;
+
+    if (arg.present("rmul"))
+      chn->rmul = strtod(arg.get("rmul"));
+
     for (auto ctxfn : ctx)
       chn->push(ctxfn, O_RDONLY);
 

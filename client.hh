@@ -35,7 +35,7 @@ struct Client {
     outbufk = 0;
     outbuf = new uint8_t[outbufn];
 
-    inpbufn = (1 << 20);
+    inpbufn = (10 << 20);
     inpbufk = 0;
     inpbuf = new uint8_t[inpbufn];
   }

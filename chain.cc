@@ -16,6 +16,7 @@ Chain::Chain() {
   head = NULL;
   tail = NULL;
   prepared = false;
+  rmul = 1.0;
 }
 
 Chain::~Chain() {
@@ -32,6 +33,8 @@ void Chain::push(const std::string &fn, int mode) {
     assert(!head);
     head = ctx;
   }
+
+  ctx->rmul = rmul;
 
   ctxv.push_back(ctx);
   tail = ctx;

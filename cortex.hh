@@ -68,6 +68,8 @@ struct Cortex {
 
   uint64_t new_rounds;
 
+  double rmul;
+
 
   std::list<uint8_t*> bufstack;
   void pushbuf();
