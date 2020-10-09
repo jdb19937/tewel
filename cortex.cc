@@ -51,6 +51,7 @@ const uint32_t TYPE_DNS4 = CC4('d','n','s','4');
 const uint32_t TYPE_DNS5 = CC4('d','n','s','5');
 const uint32_t TYPE_TRIM = CC4('t','r','i','m');
 const uint32_t TYPE_PADD = CC4('p','a','d','d');
+const uint32_t TYPE_CROP = CC4('c','r','o','p');
 const uint32_t TYPE_SIGM = CC4('s','i','g','m');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
 const uint32_t TYPE_CLMP = CC4('c','l','m','p');
@@ -224,6 +225,16 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         assert(ic == oc);
         ow = iw + rad * 2;
         oh = ih + rad * 2;
+        break;
+      }
+    case TYPE_CROP:
+      {
+        assert(len == 0);
+        assert(ic == oc);
+        assert(iw > rad);
+        assert(ih > rad);
+        ow = rad;
+        oh = rad;
         break;
       }
     case TYPE_TRIM:
@@ -686,6 +697,24 @@ static double *pipe_synth(
       oh = ih;
 
       synth_local(in, iw, ih, out, d, ic, oc, wmv);
+      break;
+    }
+  case TYPE_CROP:
+    {
+      int d = rad;
+
+      ow = rad;
+      oh = rad;
+      assert(ic == oc);
+      assert(ow > 0);
+      assert(oh > 0);
+      assert(iw >= ow);
+      assert(ih >= oh);
+
+      int ix0 = randuint() % (iw - ow + 1);
+      int iy0 = randuint() % (ih - oh + 1);
+
+      synth_crop(in, iw, ih, out, rad, ic, ix0, iy0);
       break;
     }
   case TYPE_TRIM:
@@ -1238,6 +1267,12 @@ void pipe_learn(
 
       break;
     }
+  case TYPE_CROP:
+    {
+      ow = rad;
+      oh = rad;
+      break;
+    }
   case TYPE_TRIM:
     {
       ow = iw - rad * 2;
@@ -1489,6 +1524,9 @@ void pipe_learn(
     learn_local(in, iw, ih, fout, 2, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
     break;
 
+  case TYPE_CROP:
+    learn_crop(in, iw, ih, fout, rad, ic);
+    break;
   case TYPE_TRIM:
     learn_trim(in, iw, ih, fout, rad, ic);
     break;
@@ -2051,7 +2089,7 @@ void Cortex::dump(FILE *outfp) {
       fprintf(outfp, " freeze=%d", freeze);
       fprintf(outfp, " relu=%d", relu);
       fprintf(outfp, " dim=%d", dim);
-    } else if (type == TYPE_TRIM || type == TYPE_PADD) {
+    } else if (type == TYPE_TRIM || type == TYPE_PADD || type == TYPE_CROP) {
       fprintf(outfp, " rad=%d", rad);
     }
 
@@ -2414,6 +2452,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     assert(noh > 0);
     len = size_local(2, nic, now, noh, oc);
     break;
+  case TYPE_CROP:
   case TYPE_TRIM:
   case TYPE_PADD:
     len = 0;

@@ -618,6 +618,37 @@ DEFN_KERNEL(synth_padd,
   out[outi] = in[ini];
 }
 
+DEFN_KERNEL(synth_crop,
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic,
+  int ix0, int iy0
+) {
+  PREF_KERNEL;
+
+  int ow = d;
+  int oh = d;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int iz = oz;
+  int ix = ix0 + ox;
+  int iy = iy0 + oy;
+
+  int ini = iz + ic * (ix + iw * iy);
+
+  out[outi] = in[ini];
+}
+
 DEFN_KERNEL(synth_trim,
   const double *in, int iw, int ih,
   double *out,
@@ -755,7 +786,7 @@ DEFN_KERNEL(learn_padd,
     return;
 
   int ow = iw + 2 * d;
-  int oh = ih + 2 * d;
+  // int oh = ih + 2 * d;
   int oc = ic;
 
   int tmp = ini;

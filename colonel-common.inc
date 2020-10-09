@@ -246,6 +246,22 @@ int size_conv(
   }
 }
 
+void synth_crop(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic,
+  int ix0, int iy0
+) {
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_crop, outn,
+    in, iw, ih, out, d, ic, ix0, iy0
+  );
+}
+
 void synth_padd(
   const double *in, int iw, int ih,
   double *out,
@@ -291,6 +307,15 @@ void synth_conv(
   CALL_KERNEL(synth_conv, outn,
     in, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv
   );
+}
+
+void learn_crop(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic
+) {
+  assert(0);
 }
 
 void learn_padd(
