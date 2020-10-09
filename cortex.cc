@@ -50,6 +50,7 @@ const uint32_t TYPE_DNS3 = CC4('d','n','s','3');
 const uint32_t TYPE_DNS4 = CC4('d','n','s','4');
 const uint32_t TYPE_DNS5 = CC4('d','n','s','5');
 const uint32_t TYPE_TRIM = CC4('t','r','i','m');
+const uint32_t TYPE_PADD = CC4('p','a','d','d');
 const uint32_t TYPE_SIGM = CC4('s','i','g','m');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
 const uint32_t TYPE_CLMP = CC4('c','l','m','p');
@@ -215,6 +216,14 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         assert(wmvn == len);
         ow = iw;
         oh = ih;
+        break;
+      }
+    case TYPE_PADD:
+      {
+        assert(len == 0);
+        assert(ic == oc);
+        ow = iw + rad * 2;
+        oh = ih + rad * 2;
         break;
       }
     case TYPE_TRIM:
@@ -690,6 +699,17 @@ static double *pipe_synth(
       assert(oh > 0);
 
       synth_trim(in, iw, ih, out, rad, ic);
+      break;
+    }
+  case TYPE_PADD:
+    {
+      int d = rad;
+
+      ow = iw + rad * 2;
+      oh = ih + rad * 2;
+      assert(ic == oc);
+
+      synth_padd(in, iw, ih, out, rad, ic);
       break;
     }
   case TYPE_CONV:
@@ -1224,6 +1244,12 @@ void pipe_learn(
       oh = ih - rad * 2;
       break;
     }
+  case TYPE_PADD:
+    {
+      ow = iw + rad * 2;
+      oh = ih + rad * 2;
+      break;
+    }
   case TYPE_CONV:
     {
       int d = rad;
@@ -1465,6 +1491,10 @@ void pipe_learn(
 
   case TYPE_TRIM:
     learn_trim(in, iw, ih, fout, rad, ic);
+    break;
+
+  case TYPE_PADD:
+    learn_padd(in, iw, ih, fout, rad, ic);
     break;
 
   case TYPE_CONV:
@@ -2021,7 +2051,7 @@ void Cortex::dump(FILE *outfp) {
       fprintf(outfp, " freeze=%d", freeze);
       fprintf(outfp, " relu=%d", relu);
       fprintf(outfp, " dim=%d", dim);
-    } else if (type == TYPE_TRIM) {
+    } else if (type == TYPE_TRIM || type == TYPE_PADD) {
       fprintf(outfp, " rad=%d", rad);
     }
 
@@ -2385,6 +2415,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     len = size_local(2, nic, now, noh, oc);
     break;
   case TYPE_TRIM:
+  case TYPE_PADD:
     len = 0;
     break;
   case TYPE_CONV:

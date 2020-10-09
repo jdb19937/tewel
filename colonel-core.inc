@@ -583,6 +583,41 @@ DEFN_KERNEL(learn_local3,
   dwv[wi] = 0;
 }
 
+DEFN_KERNEL(synth_padd,
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic
+) {
+  PREF_KERNEL;
+
+  int ow = iw + 2 * d;
+  int oh = ih + 2 * d;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int iz = oz;
+  int ix = ox - d;
+  int iy = oy - d;
+
+  if (ix < 0 || ix >= iw || iy < 0 || iy >= ih) {
+    out[outi] = 0;
+    return;
+  }
+
+  int ini = iz + ic * (ix + iw * iy);
+
+  out[outi] = in[ini];
+}
+
 DEFN_KERNEL(synth_trim,
   const double *in, int iw, int ih,
   double *out,
@@ -704,6 +739,36 @@ DEFN_KERNEL(synth_conv,
   outv += wmv[oz * 3];
 
   out[outi] = outv;
+}
+
+DEFN_KERNEL(learn_padd,
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int ow = iw + 2 * d;
+  int oh = ih + 2 * d;
+  int oc = ic;
+
+  int tmp = ini;
+  int iz = tmp % ic; tmp /= ic;
+  int ix = tmp % iw; tmp /= iw;
+  int iy = tmp;
+
+  int oz = iz;
+  int ox = ix + d;
+  int oy = iy + d;
+  int outi = oz + oc * (ox + ow * oy);
+
+  fin[ini] = fout[outi];
 }
 
 DEFN_KERNEL(learn_trim,

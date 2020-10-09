@@ -246,6 +246,21 @@ int size_conv(
   }
 }
 
+void synth_padd(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic
+) {
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+  int outn = ow * oh * oc;
+
+  CALL_KERNEL(synth_padd, outn,
+    in, iw, ih, out, d, ic
+  );
+}
+
 void synth_trim(
   const double *in, int iw, int ih,
   double *out,
@@ -276,6 +291,17 @@ void synth_conv(
   CALL_KERNEL(synth_conv, outn,
     in, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv
   );
+}
+
+void learn_padd(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int d, int ic
+) {
+  int inn = iw * ih * ic;
+
+  CALL_KERNEL(learn_padd, inn, fin, iw, ih, fout, d, ic);
 }
 
 void learn_trim(

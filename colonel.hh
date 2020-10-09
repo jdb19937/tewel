@@ -132,6 +132,18 @@ extern void learn_trim(
   int d, int ic
 );
 
+extern void synth_padd(
+  const double *in, int iw, int ih,
+  double *out,
+  int d, int ic
+);
+
+extern void learn_padd(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int d, int ic
+);
+
 
 
 extern int size_conv(int d, int ic, int oc, int dim);
