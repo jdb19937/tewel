@@ -1253,7 +1253,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   case KIND_U8:
     {
       if (!datwriter) {
-        datwriter = fopen(fn.c_str(), "w");
+        datwriter = fopen(fn.c_str(), (flags & FLAG_APPEND) ? "a" : "w");
         if (!datwriter)
           error(std::string("failed to open ") + fn + ": " + strerror(errno));
       }
@@ -1274,7 +1274,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
   case KIND_F64LE:
     {
       if (!datwriter) {
-        datwriter = fopen(fn.c_str(), "w");
+        datwriter = fopen(fn.c_str(), (flags & FLAG_APPEND) ? "a" : "w");
         if (!datwriter)
           error(std::string("failed to open ") + fn + ": " + strerror(errno));
       }
@@ -1385,7 +1385,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
 
   case KIND_REF:
     if (!refwriter) {
-      refwriter = fopen(fn.c_str(), "w");
+      refwriter = fopen(fn.c_str(), (flags & FLAG_APPEND) ? "a" : "w");
       if (!refwriter)
         error(std::string("failed to open ") + fn + ": " + strerror(errno));
       setbuf(refwriter, NULL);

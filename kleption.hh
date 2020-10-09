@@ -73,6 +73,7 @@ struct Kleption {
   const static Flags FLAG_REPEAT = (1 << 2);
   const static Flags FLAG_WRITER = (1 << 4);
   const static Flags FLAG_CENTER = (1 << 5);
+  const static Flags FLAG_APPEND = (1 << 6);
 
   typedef enum {
     TRAV_NONE = 0,

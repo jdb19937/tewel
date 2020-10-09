@@ -1145,6 +1145,10 @@ int main(int argc, char **argv) {
     if (lowmem)
       outflags |= Kleption::FLAG_LOWMEM;
 
+    int append = strtoi(arg.get("append", "0"));
+    if (append)
+      outflags |= Kleption::FLAG_APPEND;
+
     Kleption *out = new Kleption(
       arg.get("out", ""),
       chn->tail->ow, chn->tail->oh, chn->tail->oc,
