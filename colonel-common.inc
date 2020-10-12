@@ -252,8 +252,10 @@ void synth_crop(
   int d, int ic,
   int ix0, int iy0
 ) {
-  int ow = iw;
-  int oh = ih;
+  assert(d > 0);
+
+  int ow = d;
+  int oh = d;
   int oc = ic;
   int outn = ow * oh * oc;
 
@@ -267,8 +269,8 @@ void synth_padd(
   double *out,
   int d, int ic
 ) {
-  int ow = iw;
-  int oh = ih;
+  int ow = iw + 2 * d;
+  int oh = ih + 2 * d;
   int oc = ic;
   int outn = ow * oh * oc;
 
@@ -282,10 +284,12 @@ void synth_trim(
   double *out,
   int d, int ic
 ) {
-  int ow = iw;
-  int oh = ih;
+  int ow = iw - 2 * d;
+  int oh = ih - 2 * d;
   int oc = ic;
   int outn = ow * oh * oc;
+
+  assert(ow > 0 && oh > 0 && oc > 0);
 
   CALL_KERNEL(synth_trim, outn,
     in, iw, ih, out, d, ic
