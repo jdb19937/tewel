@@ -1409,6 +1409,52 @@ DEFN_KERNEL(learn_mean,
   fin[ini] = fout[outi] * (double)oc / (double)ic;
 }
 
+DEFN_KERNEL(synth_blur,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int ix0 = ox - 1;
+  int iy0 = oy - 1;
+  int ix1 = ox + 1;
+  int iy1 = oy + 1;
+  int iz = oz;
+
+  double v = 0;
+
+  for (int iyt = iy0; iyt <= iy1; ++iyt) {
+    int iy = (iyt + ih) % ih;
+    for (int ixt = ix0; ixt <= ix1; ++ixt) { 
+      int ix = (ixt + iw) % iw;
+
+      double w = 0.25;
+      if (ix != ox) 
+        w *= 0.5;
+      if (iy != oy) 
+        w *= 0.5;
+
+      int ini = iz + ic * (ix + iw * iy);
+      v += in[ini] * w;
+    }
+  }
+
+  out[outi] = v;
+}
+
 DEFN_KERNEL(synth_sum,
   const double *in, int iw, int ih,
   double *out,
