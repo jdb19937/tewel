@@ -1409,6 +1409,82 @@ DEFN_KERNEL(learn_mean,
   fin[ini] = fout[outi] * (double)oc / (double)ic;
 }
 
+DEFN_KERNEL(synth_median,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int ix0 = ox - 1;
+  int iy0 = oy - 1;
+  int ix1 = ox + 1;
+  int iy1 = oy + 1;
+  int iz = oz;
+
+  double ar[9];
+  int k = 0;
+
+  for (int iyt = iy0; iyt <= iy1; ++iyt) {
+    int iy = (iyt + ih) % ih;
+    for (int ixt = ix0; ixt <= ix1; ++ixt) { 
+      int ix = (ixt + iw) % iw;
+
+      int ini = iz + ic * (ix + iw * iy);
+      double q = in[ini];
+
+      ar[k++] = q;
+    }
+  }
+
+  int sw;
+  do {
+    sw = 0;
+    for (k = 1; k < 9; ++k) {
+      if (ar[k - 1] > ar[k]) {
+        double q = ar[k - 1];
+        ar[k - 1] = ar[k];
+        ar[k] = q;
+        ++sw;
+      }
+    }
+  } while (sw > 0);
+
+  out[outi] = ar[4];
+}
+
+DEFN_KERNEL(learn_median,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+) {
+  PREF_KERNEL;
+
+#if 0
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int tmp = ini;
+  int iz = tmp % ic; tmp /= ic;
+  int ix = tmp % iw; tmp /= iw;
+  int iy = tmp;
+#endif
+}
+
 DEFN_KERNEL(synth_blur,
   const double *in, int iw, int ih,
   double *out,
