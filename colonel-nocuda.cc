@@ -32,8 +32,6 @@ int kndevs() {
 }
 
 
-
-
 // MIT License
 // 
 // Copyright (c) 2017-2019 Lakshay Garg <lakshayg@outlook.in>
@@ -165,6 +163,8 @@ static long double erfinv(long double x, int nr_iter) {
 #define PREF_KERNEL \
   if (i >= __n) \
     return;
+
+#define __syncthreads() assert(!"no syncthreads in cpu mode")
 
 #include "colonel-core.inc"
 

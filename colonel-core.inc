@@ -1472,7 +1472,6 @@ DEFN_KERNEL(learn_median,
 ) {
   PREF_KERNEL;
 
-#if 0
   int inn = iw * ih * ic;
   int ini = i;
   if (ini >= inn)
@@ -1482,7 +1481,67 @@ DEFN_KERNEL(learn_median,
   int iz = tmp % ic; tmp /= ic;
   int ix = tmp % iw; tmp /= iw;
   int iy = tmp;
-#endif
+
+  int ow = iw;
+  int oh = ih;
+
+  int ox0 = ix - 1;
+  int oy0 = iy - 1;
+  int ox1 = ix + 1;
+  int oy1 = iy + 1;
+  int oz = iz;
+
+  double dv = 0;
+
+  for (int oyt = oy0; oyt <= oy1; ++oyt) {
+    int oy = (oyt + oh) % oh;
+    for (int oxt = ox0; oxt <= ox1; ++oxt) { 
+      int ox = (oxt + ow) % iw;
+
+
+      int ix0 = ox - 1;
+      int iy0 = oy - 1;
+      int ix1 = ox + 1;
+      int iy1 = oy + 1;
+
+      double ar[9];
+      int k = 0;
+
+      for (int iyt = iy0; iyt <= iy1; ++iyt) {
+        int jy = (iyt + ih) % ih;
+        for (int ixt = ix0; ixt <= ix1; ++ixt) { 
+          int jx = (ixt + iw) % iw;
+
+          int ini = iz + ic * (jx + iw * jy);
+          double q = fin[ini];
+
+          ar[k++] = q;
+        }
+      }
+
+      int sw;
+      do {
+        sw = 0;
+        for (k = 1; k < 9; ++k) {
+          if (ar[k - 1] > ar[k]) {
+            double q = ar[k - 1];
+            ar[k - 1] = ar[k];
+            ar[k] = q;
+            ++sw;
+          }
+        }
+      } while (sw > 0);
+
+      if (fin[ini] == ar[4]) {
+        int outi = oz + oc * (ox + ow * oy);
+        dv += fout[outi];
+      }
+    }
+  }
+
+  __syncthreads();
+
+  fin[ini] = dv;
 }
 
 DEFN_KERNEL(synth_blur,
