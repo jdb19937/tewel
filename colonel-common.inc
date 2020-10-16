@@ -558,12 +558,11 @@ void learn_median(
 
   int ic, int oc
 ) {
-  assert(0);
-//  int inn = iw * ih * ic;
+  int inn = iw * ih * ic;
 
-//  CALL_KERNEL(learn_median, inn,
-//    fin, iw, ih, fout, ic, oc
-//  );
+  CALL_KERNEL(learn_median, inn,
+    fin, iw, ih, fout, ic, oc
+  );
 }
 
 void synth_sum(
