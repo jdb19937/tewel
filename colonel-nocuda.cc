@@ -164,7 +164,8 @@ static long double erfinv(long double x, int nr_iter) {
   if (i >= __n) \
     return;
 
-#define __syncthreads() assert(!"no syncthreads in cpu mode")
+#undef syncthreads
+#define syncthreads() assert(!"no syncthreads in cpu mode")
 
 #include "colonel-core.inc"
 

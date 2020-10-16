@@ -35,6 +35,8 @@ int kndevs() {
 }
 
 
+#undef syncthreads
+#define syncthreads() __syncthreads()
 
 #undef DEFN_KERNEL
 #define DEFN_KERNEL(f, args...) \
@@ -48,7 +50,8 @@ int kndevs() {
 #include "colonel-core.inc"
 
 
-#define __syncthreads() assert(!"no syncthreads in cpu mode")
+#undef syncthreads
+#define syncthreads() assert(!"no syncthreads in cpu mode")
 
 
 #undef DEFN_KERNEL
