@@ -1222,6 +1222,39 @@ DEFN_KERNEL(learn_pad,
   fin[ini] = fout[outi];
 }
 
+DEFN_KERNEL(synth_zero,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  out[outi] = 0;
+}
+
+DEFN_KERNEL(learn_zero,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  fin[ini] = 0;
+}
+
 DEFN_KERNEL(synth_iden,
   const double *in, int iw, int ih,
   double *out,

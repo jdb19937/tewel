@@ -235,6 +235,7 @@ void learnstyl(
 
   double *kstab;
   kmake(&kstab, dis->owhc);
+  kfill(kstab, dis->owhc, 0.0);
 
   double t0 = now();
   int rep = 0;
@@ -393,6 +394,7 @@ void learnhans(
 
   double *kstab;
   kmake(&kstab, dis->owhc);
+  kfill(kstab, dis->owhc, 0.0);
 
   double t0 = now();
   int rep = 0;
@@ -418,11 +420,25 @@ if (1) {
 
       dis->synth();
 
+#if 0
+      if (cnd) {
+        cnd->pushbuf();
+        dis->pushbuf();
+        dis->target(kfake);
+        dis->propback();
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+        cnd->accumulate();
+        dis->popbuf();
+      }
+#endif
+
       dis->pushbuf();
       dis->target(kreal);
       dis->propback();
       ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
       chn->learn(genmul);
+
+
 
       dis->popbuf();
       dis->target(kfake);
@@ -431,6 +447,19 @@ if (1) {
       kcopy(ktmp, dis->iwhc, dis->kinp);
       ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       dis->synth();
+
+#if 0
+      if (cnd) {
+        cnd->popbuf();
+        dis->pushbuf();
+        dis->target(kfake);
+        dis->propback();
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+        cnd->learn(genmul);
+        dis->popbuf();
+      }
+#endif
+
       dis->target(kreal);
       dis->learn(dismul);
 }
@@ -490,12 +519,16 @@ if (0) {
 
       chn->save();
       dis->save();
+#if 0
+      if (cnd)
+        cnd->save();
+#endif
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g cndrms=%g\n",
          gen->fn.c_str(), gen->rounds,
          dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms, dis->rms
+        gen->rms, dis->rms, cnd->rms
       );
 
       if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
