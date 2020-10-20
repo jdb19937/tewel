@@ -203,6 +203,7 @@ void learnhans(
 
   double *kstab;
   kmake(&kstab, dis->owhc);
+  kfill(kstab, dis->owhc, 0.0);
 
   double t0 = now();
   int rep = 0;
@@ -339,6 +340,7 @@ void learn(
 
   double *kstab;
   kmake(&kstab, dis->owhc);
+  kfill(kstab, dis->owhc, 0.0);
 
   double t0 = now();
   int rep = 0;

@@ -179,6 +179,18 @@ extern void learn_conv(
 );
 
 
+extern void synth_zero(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+);
+
+extern void learn_zero(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+);
+
 extern void synth_iden(
   const double *in, int iw, int ih,
   double *out,
