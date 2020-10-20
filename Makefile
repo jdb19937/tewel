@@ -11,14 +11,14 @@ TGT = tewel tewel-cuda-sdl tewel-nocuda-sdl \
   tewel-cuda-nosdl tewel-nocuda-nosdl \
   tewel.pdf
 
-OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o chain.o server.o client.o egserver.o tileserver.o
+OBJ = cortex.o tewel.o random.o youtil.o kleption.o cmdline.o camera.o picpipes.o rando.o chain.o server.o client.o egserver.o tileserver.o paracortex.o
 EXTRA_OBJ = colonel-cuda.o colonel-nocuda.o display-nosdl.o display-sdl.o 
-HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh chain.hh server.hh client.hh egserver.hh tileserver.hh
+HDR = colonel.hh cortex.hh random.hh youtil.hh kleption.hh cmdline.hh display.hh camera.hh picpipes.hh rando.hh chain.hh server.hh client.hh egserver.hh tileserver.hh paracortex.hh
 
 SRC = \
   cortex.cc tewel.cc random.cc youtil.cc kleption.cc cmdline.cc camera.cc picpipes.cc rando.cc \
   colonel-cuda.cu colonel-nocuda.cc colonel-core.inc colonel-common.inc display-sdl.cc display-nosdl.cc \
-  chain.cc server.cc client.cc \
+  chain.cc tileserver.cc egserver.cc client.cc paracortex.cc \
   $(HDR) Makefile README LICENSE \
   picreader.pl picwriter.pl vidreader.pl vidwriter.pl decolorize.sh \
   zoom2x.sh zoom4x.sh zoom8x.sh zoom16x.sh shrink2x.sh shrink4x.sh shrink8x.sh shrink16x.sh degrade2x.sh degrade4x.sh degrade8x.sh degrade16x.sh \

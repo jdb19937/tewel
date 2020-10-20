@@ -3,7 +3,7 @@
 
 #include <vector>
 
-#include "cortex.hh"
+#include "paracortex.hh"
 
 namespace makemore {
 
@@ -11,12 +11,16 @@ struct Chain {
   Chain();
   ~Chain();
 
-  Cortex *head;
-  Cortex *tail;
+  Paracortex *head;
+  Paracortex *tail;
   bool prepared;
   double rmul;
 
-  std::vector<Cortex*> ctxv;
+  Paracortex *brak;
+  void enbrak();
+  void debrak();
+
+  std::vector<Paracortex*> ctxv;
   void prepare(int iw, int ih);
   void push(const std::string &fn, int mode);
 
@@ -29,6 +33,9 @@ struct Chain {
 
   void load();
   void save();
+
+  unsigned long rounds();
+  double rms();
 };
 
 }

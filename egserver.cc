@@ -77,7 +77,7 @@ bool EGServer::handle(Client *client) {
     if (stop > 0 || stop < -4)
       return false;
 
-    Cortex *tail = chn->ctxv[chn->ctxv.size() + stop - 1];
+    Paracortex *tail = chn->ctxv[chn->ctxv.size() + stop - 1];
     int outn = tail->ow * tail->oh * tail->oc;
     assert(outn > 0);
     double *buf = new double[outn];
@@ -92,7 +92,7 @@ bool EGServer::handle(Client *client) {
     chn->synth(stop);
     info("done with synth");
 
-    dek(tail->kout, outn, buf);
+    dek(tail->kout(), outn, buf);
     if (pngout) {
       for (int i = 0; i < outn; ++i)
         rgb[i] = (uint8_t)clamp(buf[i] * 256.0, 0, 255);

@@ -10,6 +10,7 @@
 
 #include "colonel.hh"
 #include "cortex.hh"
+#include "paracortex.hh"
 #include "youtil.hh"
 #include "random.hh"
 #include "rando.hh"
@@ -51,8 +52,6 @@ static void usage() {
     "                train generator on sample paired with self\n"
     "        tewel learnfunc gen.ctx src=... tgt=...\n"
     "                train generator on paired samples\n"
-    "        tewel learnstyl gen.ctx src=... sty=... dis=dis.ctx\n"
-    "                train generator on paired samples versus discriminator\n"
     "        tewel learnhans gen.ctx src=... tgt=... dis=dis.ctx\n"
     "                train generator on paired samples versus discriminator\n"
   );
@@ -76,63 +75,6 @@ static double calceta(double dt, int rep, int reps, int _round, int rounds, int 
   return eta;
 }
 
-void learnauto(
-  Kleption *src,
-  Chain *chn,
-  int repint,
-  double mul,
-  long reps,
-  double stoploss,
-  long stoprounds
-) {
-  assert(chn->head->iw == chn->tail->ow);
-  assert(chn->head->ih == chn->tail->oh);
-  assert(chn->head->ic == chn->tail->oc);
-
-  Cortex *gen = chn->tail;
-
-  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
-    warning("genrounds reached stoprounds value, all done");
-    return;
-  }
-
-  double t0 = now();
-  int rep = 0;
-  while (reps < 0 || rep < reps) {
-    assert(src->pick(chn->kinp()));
-    chn->synth();
-    chn->target(chn->kinp());
-    chn->learn(mul);
-
-    if (chn->tail->rounds % repint == 0) {
-      double t1 = now();
-      double dt = t1 - t0;
-      t0 = t1;
-
-      chn->save();
-
-      printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
-         gen->fn.c_str(), gen->rounds,
-         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms
-      );
-
-      if (chn->tail->rms < stoploss) {
-        warning("genrms reached stoploss value, all done");
-        break;
-      }
-
-      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
-        warning("genrounds reached stoprounds value, all done");
-        break;
-      }
-
-
-      ++rep;
-    }
-  }
-}
 
 void learnfunc(
   Kleption *src,
@@ -144,9 +86,9 @@ void learnfunc(
   double stoploss,
   long stoprounds
 ) {
-  Cortex *gen = chn->tail;
+  Paracortex *gen = chn->tail;
 
-  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+  if (chn->rounds() >= stoprounds && stoprounds >= 0) {
     warning("genrounds reached stoprounds value, all done");
     return;
   }
@@ -163,7 +105,7 @@ void learnfunc(
     chn->target(ktgt);
     chn->learn(mul);
 
-    if (gen->rounds % repint == 0) {
+    if (gen->rounds() % repint == 0) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
@@ -172,17 +114,17 @@ void learnfunc(
 
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
-         gen->fn.c_str(), gen->rounds,
-         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms
+         gen->fn().c_str(), gen->rounds(),
+         dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
+        gen->rms()
       );
 
-      if (chn->tail->rms < stoploss) {
+      if (chn->rms() < stoploss) {
         warning("genrms reached stoploss value, all done");
         break;
       }
 
-      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+      if (chn->rounds() >= stoprounds && stoprounds >= 0) {
         warning("genrounds reached stoprounds value, all done");
         break;
       }
@@ -194,138 +136,6 @@ void learnfunc(
   kfree(ktgt);
 }
 
-void learnstyl(
-  Kleption *src,
-  Kleption *sty,
-  Chain *chn,
-  Cortex *dis,
-  int repint,
-  double mul,
-  bool lossreg,
-  long reps,
-  long disreps,
-  long stoprounds,
-  double stablize,
-  double genmul0, double dismul0
-) {
-  Cortex *gen = chn->tail;
-
-  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
-    warning("genrounds reached stoprounds value, all done");
-    return;
-  }
-
-  assert(gen->ow == dis->iw);
-  assert(gen->oh == dis->ih);
-  assert(gen->oc == dis->ic);
-
-  double *ktmp;
-  kmake(&ktmp, gen->owhc);
-
-  double *ktgt;
-  kmake(&ktgt, gen->owhc);
-
-  double *kreal;
-  kmake(&kreal, dis->owhc);
-  kfill(kreal, dis->owhc, 0.5);
-
-  double *kfake;
-  kmake(&kfake, dis->owhc);
-  kfill(kfake, dis->owhc, -0.5);
-
-  double *kstab;
-  kmake(&kstab, dis->owhc);
-
-  double t0 = now();
-  int rep = 0;
-  long i = 0;
-
-  while (reps < 0 || rep < reps) {
-    double genmul = genmul0;
-    double dismul = dismul0;
-
-    double genp = 1.0;
-#if 0
-    if (lossreg) {
-      genp *= (dis->rms > 0.5 ? 0.0 : 2.0 * (0.5 - dis->rms));
-    }
-#endif
-
-    info(fmt("choosing src rep=%d", rep));
- 
-    assert(src->pick(chn->kinp()));
-
-    info(fmt("synthing chn rep=%d", rep));
-    chn->synth();
-
-    kcopy(gen->kout, gen->owhc, ktmp);
-
-    bool gg = (randrange(0, 1) < genp) && (dis->rounds > 8);
-    if (gg) {
-      info(fmt("synthing dis rep=%d", rep));
-      dis->synth(ktmp);
-      dis->target(kreal);
-
-      kcopy(dis->propback(), gen->owhc, gen->kout); 
-      info(fmt("learning chn rep=%d", rep));
-      chn->learn(genmul);
-    } else {
-      info(fmt("synthing dis rep=%d", rep));
-      dis->synth(ktmp);
-      dis->target(kfake);
-      info(fmt("learning dis rep=%d", rep));
-      dis->learn(dismul);
-
-      info(fmt("choosing sty rep=%d", rep));
-      assert(sty->pick(dis->kinp));
-      info(fmt("synthing dis rep=%d", rep));
-      dis->synth();
-      dis->target(kreal);
-      info(fmt("learning dis rep=%d", rep));
-      dis->learn(dismul);
-    }
-
-    if (stablize > 0) {
-      assert(sty->pick(ktgt));
-      double l = randrange(0.0, 1.0);
-      kfill(kstab, dis->owhc, l);
-      ksplice2(ktmp, ktgt, l, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-
-      dis->synth();
-      ksubvec(kstab, dis->kout, dis->owhc, dis->kout);
-      kmul(dis->kout, stablize, dis->owhc, dis->kout);
-
-      dis->learn(dismul);
-    }
-
-    if (i % repint == 0) {
-      double t1 = now();
-      double dt = t1 - t0;
-      t0 = t1;
-
-      chn->save();
-      dis->save();
-
-      printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
-         gen->fn.c_str(), gen->rounds,
-         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms, dis->rms
-      );
-
-      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
-        warning("genrounds reached stoprounds value, all done");
-        break;
-      }
-
-      ++rep;
-    }
-
-    ++i;
-  }
-
-  kfree(ktmp);
-}
 
 void learnhans(
   Kleption *src,
@@ -341,9 +151,9 @@ void learnhans(
   long stoprounds,
   double genmul0, double dismul0
 ) {
-  Cortex *gen = chn->tail;
+  Paracortex *gen = chn->tail;
 
-  if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+  if (chn->rounds() >= stoprounds && stoprounds >= 0) {
     warning("genrounds reached stoprounds value, all done");
     return;
   }
@@ -409,11 +219,10 @@ void learnhans(
       tgt->pick(ktgt);
     }
 
-if (1) {
       if (cnd)
         ksplice(cnd->synth(chn->kinp()), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
       chn->synth();
-      ksplice(gen->kout, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      ksplice(gen->kout(), gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       kcopy(dis->kinp, dis->iwhc, ktmp);
 
       dis->synth();
@@ -421,7 +230,7 @@ if (1) {
       dis->pushbuf();
       dis->target(kreal);
       dis->propback();
-      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
+      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout(), gen->oc, 0);
       chn->learn(genmul);
 
       dis->popbuf();
@@ -433,53 +242,7 @@ if (1) {
       dis->synth();
       dis->target(kreal);
       dis->learn(dismul);
-}
 
-if (0) {
-      if (cnd)
-        ksplice(cnd->synth(chn->kinp()), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
-        ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-        dis->synth();
-        kcopy(dis->kout, dis->owhc, kreal);
-        dis->pushbuf();
-
-
-        chn->synth();
-        ksplice(gen->kout, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-        dis->synth();
-        kcopy(dis->kout, dis->owhc, kfake);
-
-        dis->pushbuf();
-
-        if (0) {
-          double *loss = new double[dis->owhc];
-          ksubvec(kreal, kfake, dis->owhc, kloss);
-          dek(kloss, dis->owhc, loss);
-          for (int j = 0; j < dis->owhc; ++j) {
-            loss[j] = 1.0;
-          }
-          enk(loss, dis->owhc, kloss);
-          delete[] loss;
-        }
-        kfill(kloss, dis->owhc, 0.55);
-
-        dis->setloss(kloss);
-        dis->propback();
-        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout, gen->oc, 0);
-        chn->learn(genmul);
-
-        dis->popbuf();
-        // kmul(kloss, -1, dis->owhc, kloss);
-        kfill(kloss, dis->owhc, -0.45);
-        dis->setloss(kloss);
-        dis->accumulate();
-
-        dis->popbuf();
-        // kmul(kloss, -1, dis->owhc, kloss);
-        kfill(kloss, dis->owhc, 0.45);
-        dis->setloss(kloss);
-        dis->learn(dismul);
-}
 
     ++i;
 
@@ -493,12 +256,153 @@ if (0) {
 
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
-         gen->fn.c_str(), gen->rounds,
-         dt, calceta(dt, rep, reps, gen->rounds, stoprounds, repint),
-        gen->rms, dis->rms
+         gen->fn().c_str(), gen->rounds(),
+         dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
+        gen->rms(), dis->rms
       );
 
-      if (chn->tail->rounds >= stoprounds && stoprounds >= 0) {
+      if (chn->rounds() >= stoprounds && stoprounds >= 0) {
+        warning("genrounds reached stoprounds value, all done");
+        break;
+      }
+
+      ++rep;
+    }
+  }
+
+  kfree(ktmp);
+  kfree(ktgt);
+  kfree(kinp);
+}
+
+void learn(
+  Kleption *src,
+  Kleption *tgt,
+  Chain *chn,
+  Cortex *dis,
+  Cortex *cnd,
+  Cortex *enc,
+  Cortex *inf,
+  int repint,
+  double mul,
+  long reps,
+  long stoprounds
+) {
+  if (chn->rounds() >= stoprounds && stoprounds >= 0) {
+    warning("genrounds reached stoprounds value, all done");
+    return;
+  }
+
+  assert(enc->ow == chn->head->iw);
+  assert(enc->oh == chn->head->ih);
+
+  assert(inf->iw == enc->iw);
+  assert(inf->ih == enc->ih);
+  assert(inf->ic == enc->ic);
+  assert(inf->ow == chn->head->iw);
+  assert(inf->oh == chn->head->ih);
+
+  assert(enc->oc + inf->oc == chn->head->ic);
+
+  assert(cnd->iw == inf->ow);
+  assert(cnd->ih == inf->oh);
+  assert(cnd->ic == inf->oc);
+  assert(cnd->ow == chn->tail->ow);
+  assert(cnd->oh == chn->tail->oh);
+
+  assert(dis->iw == chn->tail->ow);
+  assert(dis->ih == chn->tail->oh);
+  assert(dis->ic == cnd->oc + chn->tail->oc);
+
+  double *ktmp;
+  kmake(&ktmp, dis->iwhc);
+
+  double *kinp;
+  kmake(&kinp, enc->iwhc);
+
+  double *ktgt;
+  kmake(&ktgt, chn->tail->owhc);
+
+  double *kreal;
+  kmake(&kreal, dis->owhc);
+  kfill(kreal, dis->owhc, 0.5);
+
+  double *kfake;
+  kmake(&kfake, dis->owhc);
+  kfill(kfake, dis->owhc, -0.5);
+
+  double *kloss;
+  kmake(&kloss, dis->owhc);
+
+  double *kimpr;
+  kmake(&kimpr, dis->owhc);
+
+  double *kstab;
+  kmake(&kstab, dis->owhc);
+
+  double t0 = now();
+  int rep = 0;
+  long i = 0;
+
+  while (reps < 0 || rep < reps) {
+    Kleption::pick_pair(src, enc->kinp, tgt, ktgt);
+    enc->synth();
+
+    kcopy(enc->kinp, enc->iwhc, inf->kinp);
+    inf->synth();
+      
+    kcopy(inf->kout, cnd->iwhc, cnd->kinp);
+    cnd->synth();
+
+    ksplice(enc->kout, enc->ow * enc->oh, enc->oc, 0, enc->oc, chn->kinp(), chn->head->ic, 0);
+    ksplice(inf->kout, inf->ow * inf->oh, inf->oc, 0, inf->oc, chn->kinp(), chn->head->ic, enc->oc);
+    chn->synth();
+
+    ksplice(chn->kout(), chn->tail->ow * chn->tail->oh, chn->tail->oc, 0, chn->tail->oc, dis->kinp, dis->ic, 0);
+    ksplice(cnd->kout, cnd->ow * cnd->oh, cnd->oc, 0, cnd->oc, dis->kinp, dis->ic, chn->tail->oc);
+    kcopy(dis->kinp, dis->iwhc, ktmp);
+    dis->synth();
+
+
+    dis->pushbuf();
+    dis->target(kreal);
+    dis->propback();
+    ksplice(dis->kinp, dis->iw * dis->ih, dis->ic, 0, chn->tail->oc, chn->kout(), chn->tail->oc, 0);
+    chn->learn(mul);
+
+    ksplice(chn->kinp(), chn->head->iw * chn->head->ih, chn->head->ic, 0, enc->oc, enc->kout, enc->oc, 0);
+    enc->learn(mul);
+
+
+    dis->popbuf();
+    dis->target(kfake);
+    dis->accumulate();
+
+    kcopy(ktmp, dis->iwhc, dis->kinp);
+    ksplice(ktgt, chn->tail->ow * chn->tail->oh, chn->tail->oc, 0, chn->tail->oc, dis->kinp, dis->ic, 0);
+    dis->synth();
+    dis->target(kreal);
+    dis->learn(mul);
+
+    ++i;
+
+    if (i % repint == 0) {
+      double t1 = now();
+      double dt = t1 - t0;
+      t0 = t1;
+
+      chn->save();
+      dis->save();
+      enc->save();
+
+      printf(
+        "gen=%s genrounds=%lu dt=%g eta=%g encrms=%g genrms=%g disrms=%g\n",
+         chn->tail->fn().c_str(), chn->rounds(),
+         dt, calceta(dt, rep, reps, chn->rounds(), stoprounds, repint),
+        enc->rms, chn->rms(), dis->rms
+      );
+
+      if (chn->rounds() >= stoprounds && stoprounds >= 0) {
         warning("genrounds reached stoprounds value, all done");
         break;
       }
@@ -1131,9 +1035,9 @@ int main(int argc, char **argv) {
     assert(src->pw > 0);
     assert(src->ph > 0);
 
+    chn->prepare(src->pw, src->ph);
     int ic = chn->head->ic;
     assert(ic == src->pc);
-    chn->prepare(src->pw, src->ph);
     
     Kleption::Kind outkind = Kleption::get_kind(arg.get("outkind", ""));
     if (outkind == Kleption::KIND_UNK)
@@ -1286,78 +1190,6 @@ int main(int argc, char **argv) {
   diropt["tgtkind"] = "";
   diropt["stykind"] = "";
   
-  if (cmd == "learnauto") {
-    Chain *chn = new Chain;
-    for (auto ctxfn : ctx)
-      chn->push(ctxfn, O_RDWR);
-
-    int iw, ih;
-    if (arg.present("dim")) {
-      if (!parsedim2(arg.get("dim"), &iw, &ih))
-        error("dim must be like 256 or like 256x256");
-    } else if (diropt.count("dim")) {
-      if (!parsedim2(diropt["dim"], &iw, &ih))
-        error("dim must be like 256 or like 256x256");
-    }
-
-    int repint = arg.get("repint", diropt["repint"]);
-    double mul = arg.get("mul", diropt["mul"]);
-
-    int ic;
-    chn->prepare(iw, ih);
-    ic = chn->head->ic;
-
-    if (iw != chn->tail->ow)
-      error("input and output width don't match");
-    if (ih != chn->tail->oh)
-      error("input and output height don't match");
-    if (ic != chn->tail->oc)
-      error("input and output channels don't match");
-
-    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
-    int sw = 0, sh = 0, sc = 0;
-    if (!parsedim(srcdim, &sw, &sh, &sc))
-      error("bad srcdim format");
-
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
-    if (srckind == Kleption::KIND_UNK)
-      error("unknown srckind");
-
-    std::string srcfn;
-    if (arg.present("src")) {
-      srcfn = (std::string)arg.get("src");
-    } else if (diropt.count("src")) {
-      srcfn = diropt["src"];
-    } else {
-      arg.get("src");
-      assert(0);
-    }
-
-    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
-    if (lowmem)
-      srcflags |= Kleption::FLAG_LOWMEM;
-
-    Kleption *src = new Kleption(
-      srcfn, iw, ih, ic,
-      srcflags, Kleption::TRAV_RAND, srckind,
-      sw, sh, sc
-    );
-
-    long reps = strtol(arg.get("reps", diropt["reps"]));
-    double stoploss = arg.get("stoploss", "0.0");
-    long stoprounds = strtol(arg.get("stoprounds", "-1"));
-
-    if (!arg.unused.empty())
-      error("unrecognized options");
-
-    learnauto(src, chn, repint, mul, reps, stoploss, stoprounds);
-
-    delete src;
-    delete chn;
-    return 0;
-  }
-
-
   if (cmd == "learnfunc") {
     Chain *chn = new Chain;
     for (auto ctxfn : ctx)
@@ -1450,121 +1282,6 @@ int main(int argc, char **argv) {
     delete chn;
     return 0;
   }
-
-  if (cmd == "learnstyl") {
-    Chain *chn = new Chain;
-    for (auto ctxfn : ctx)
-      chn->push(ctxfn, O_RDWR);
-
-    int iw, ih;
-    if (arg.present("dim")) {
-      if (!parsedim2(arg.get("dim"), &iw, &ih))
-        error("dim must be like 256 or like 256x256");
-    } else if (diropt.count("dim")) {
-      std::string dim = diropt["dim"];
-      if (!parsedim2(dim, &iw, &ih))
-        error("dim must be like 256 or like 256x256");
-    }
-
-    if (iw <= 0)
-      uerror("input width must be positive");
-    if (ih <= 0)
-      uerror("input height must be positive");
-    int repint = arg.get("repint", diropt["repint"]);
-    double mul = arg.get("mul", diropt["mul"]);
-    int lossreg = arg.get("lossreg", diropt["lossreg"]);
-
-    int ic;
-    chn->prepare(iw, ih);
-    ic = chn->head->ic;
-
-    Cortex *dis = NULL;
-    if (arg.present("dis")) {
-      dis = new Cortex(arg.get("dis"));
-    } else {
-      error("dis argument required");
-    }
-
-    dis->prepare(chn->tail->ow, chn->tail->oh);
-    if (dis->ic != chn->tail->oc)
-      error("gen oc doesn't match dis ic");
-
-    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
-    int sw = 0, sh = 0, sc = 0;
-    if (!parsedim(srcdim, &sw, &sh, &sc))
-      error("bad srcdim format");
-
-    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
-    if (srckind == Kleption::KIND_UNK)
-      error("unknown srckind");
-
-    std::string srcfn;
-    if (arg.present("src")) {
-      srcfn = (std::string) arg.get("src");
-    } else if (diropt.count("src")) {
-      srcfn = diropt["src"];
-    } else {
-      arg.get("src");
-      assert(0);
-    }
-
-    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
-    if (lowmem)
-      srcflags |= Kleption::FLAG_LOWMEM;
-
-    Kleption *src = new Kleption(
-      srcfn, iw, ih, ic,
-      srcflags, Kleption::TRAV_RAND, srckind,
-      sw, sh, sc
-    );
-
-    std::string stydim = arg.get("stydim", diropt["stydim"]);
-    int tw = 0, th = 0, tc = 0;
-    if (!parsedim(stydim, &tw, &th, &tc))
-      error("bad stydim format");
-
-    Kleption::Kind stykind = Kleption::get_kind(arg.get("stykind", diropt["stykind"]));
-
-    std::string styfn;
-    if (arg.present("sty")) {
-      styfn = (std::string)arg.get("sty");
-    } else if (diropt.count("sty")) {
-      styfn = diropt["sty"];
-    } else {
-      arg.get("sty");
-      assert(0);
-    }
-
-    Kleption::Flags styflags = Kleption::FLAG_REPEAT;
-    if (lowmem)
-      styflags |= Kleption::FLAG_LOWMEM;
-
-    Kleption *sty = new Kleption(
-      styfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
-      styflags, Kleption::TRAV_RAND, stykind,
-      tw, th, tc
-    );
-
-    long reps = strtol(arg.get("reps", diropt["reps"]));
-    long stoprounds = strtol(arg.get("stoprounds", "-1"));
-    long disreps = strtol(arg.get("disreps", "1"));
-    double stablize = strtod(arg.get("stablize", "0.0"));
-    double genmul = strtod(arg.get("genmul", "1.0"));
-    double dismul = strtod(arg.get("dismul", "1.0"));
-
-    if (!arg.unused.empty())
-      error("unrecognized options");
-
-    learnstyl(src, sty, chn, dis, repint, mul, lossreg, reps, disreps, stoprounds, stablize, genmul, dismul);
-
-    delete src;
-    delete sty;
-    delete chn;
-    delete dis;
-    return 0;
-  }
-
-
 
   if (cmd == "learnhans") {
     Chain *chn = new Chain;
@@ -1710,6 +1427,139 @@ int main(int argc, char **argv) {
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
     learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul);
+
+    delete src;
+    delete tgt;
+    delete chn;
+    delete dis;
+    return 0;
+  }
+
+  if (cmd == "learn") {
+    int iw, ih;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &iw, &ih))
+        error("dim must be like 256 or like 256x256");
+    } else if (diropt.count("dim")) {
+      std::string dim = diropt["dim"];
+      if (!parsedim2(dim, &iw, &ih))
+        error("dim must be like 256 or like 256x256");
+    }
+
+    if (iw <= 0)
+      uerror("input width must be positive");
+    if (ih <= 0)
+      uerror("input height must be positive");
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
+    bool lossreg = strtoi(arg.get("lossreg", "0"));
+    double losspin = strtod(arg.get("losspin", "0.0"));
+
+    if (!arg.present("enc"))
+      error("enc argument required");
+    Cortex *enc = new Cortex(arg.get("enc"));
+    int ic = enc->ic;
+    enc->prepare(iw, ih);
+
+    if (!arg.present("inf"))
+      error("inf argument required");
+    Cortex *inf = new Cortex(arg.get("inf"));
+
+    inf->prepare(iw, ih);
+
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDWR);
+    chn->prepare(enc->ow, enc->oh);
+
+    if (!arg.present("dis"))
+      error("dis argument required");
+    Cortex *dis = new Cortex(arg.get("dis"));
+    dis->prepare(chn->tail->ow, chn->tail->oh);
+
+    if (!arg.present("cnd"))
+      error("cnd argument required");
+    Cortex *cnd = new Cortex(arg.get("cnd"));
+    cnd->prepare(inf->ow, inf->oh);
+
+    if (cnd->ow != dis->iw)
+      error("cnd ow doesn't match dis iw");
+    if (cnd->oh != dis->ih)
+      error("cnd oh doesn't match dis ih");
+    if (dis->ic != chn->tail->oc + cnd->oc)
+      error("gen oc + cnd oc doesn't match dis ic");
+
+
+
+    std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
+    int sw = 0, sh = 0, sc = 0;
+    if (!parsedim(srcdim, &sw, &sh, &sc))
+      error("bad srcdim format");
+
+    Kleption::Kind srckind = Kleption::get_kind(arg.get("srckind", diropt["srckind"]));
+    if (srckind == Kleption::KIND_UNK)
+      error("unknown srckind");
+
+    std::string srcfn;
+    if (arg.present("src")) {
+      srcfn = (std::string)arg.get("src");
+    } else if (diropt.count("src")) {
+      srcfn = diropt["src"];
+    } else {
+      arg.get("src");
+      assert(0);
+    }
+
+    Kleption::Flags srcflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      srcflags |= Kleption::FLAG_LOWMEM;
+
+    Kleption *src = new Kleption(
+      srcfn, iw, ih, ic,
+      srcflags, Kleption::TRAV_RAND, srckind,
+      sw, sh, sc
+    );
+
+
+
+    std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
+    int tw = 0, th = 0, tc = 0;
+    if (!parsedim(tgtdim, &tw, &th, &tc))
+      error("bad tgtdim format");
+
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", diropt["tgtkind"]));
+
+    std::string tgtfn;
+    if (arg.present("tgt")) {
+      tgtfn = (std::string)arg.get("tgt");
+    } else if (diropt.count("tgt")) {
+      tgtfn = diropt["tgt"];
+    } else {
+      arg.get("tgt");
+      assert(0);
+    }
+
+    Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      tgtflags |= Kleption::FLAG_LOWMEM;
+
+    Kleption *tgt = new Kleption(
+      tgtfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
+      tgtflags, Kleption::TRAV_RAND, tgtkind,
+      tw, th, tc
+    );
+
+
+
+    long reps = strtol(arg.get("reps", diropt["reps"]));
+    long stoprounds = strtol(arg.get("stoprounds", "-1"));
+
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
+
+    learn(src, tgt, chn, dis, cnd, enc, inf, repint, mul, reps, stoprounds);
 
     delete src;
     delete tgt;
