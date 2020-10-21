@@ -179,7 +179,7 @@ void Paracortex::learn(double mul) {
     ksplice(_kout, ow * oh, oc, off, ctxv[i]->oc, ctxv[i]->kout, ctxv[i]->oc, 0);
     off += ctxv[i]->oc;
 
-    ctxv[0]->learn(mul);
+    ctxv[i]->learn(mul);
   }
   assert(off == oc);
 
