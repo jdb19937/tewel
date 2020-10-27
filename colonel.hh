@@ -251,6 +251,18 @@ extern void learn_blur(
   int ic, int oc
 );
 
+extern void synth_diff(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+);
+
+extern void learn_diff(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+);
+
 extern void synth_sum(
   const double *in, int iw, int ih,
   double *out,

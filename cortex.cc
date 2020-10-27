@@ -64,6 +64,7 @@ const uint32_t TYPE_IDEN = CC4('i','d','e','n');
 const uint32_t TYPE_MEAN = CC4('m','e','a','n');
 const uint32_t TYPE_SMAX = CC4('s','m','a','x');
 const uint32_t TYPE_SUMM = CC4('s','u','m','m');
+const uint32_t TYPE_DIFF = CC4('d','i','f','f');
 const uint32_t TYPE_BLUR = CC4('b','l','u','r');
 const uint32_t TYPE_MEDI = CC4('m','e','d','i');
 const uint32_t TYPE_NERF = CC4('n','e','r','f');
@@ -530,6 +531,12 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       ow = iw;
       oh = ih;
       assert(oc == ic);
+      assert(len == 0);
+      break;
+    case TYPE_DIFF:
+      ow = iw;
+      oh = ih;
+      assert(oc * 2 == ic);
       assert(len == 0);
       break;
     case TYPE_MEAN:
@@ -1179,6 +1186,14 @@ static double *pipe_synth(
       synth_mean(in, iw, ih, out, ic, oc, NULL);
       break;
     }
+  case TYPE_DIFF:
+    {
+      assert(len == 0);
+      ow = iw;
+      oh = ih;
+      synth_diff(in, iw, ih, out, ic, oc, NULL);
+      break;
+    }
   case TYPE_SUMM:
     {
       assert(len == 0);
@@ -1540,6 +1555,12 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_DIFF:
+    assert(oc * 2 == ic);
+    assert(len == 0);
+    ow = iw;
+    oh = ih;
+    break;
   default:
     assert(0);
   }
@@ -1692,6 +1713,9 @@ void pipe_learn(
     break;
   case TYPE_BLUR:
     learn_blur(in, iw, ih, fout, ic, oc);
+    break;
+  case TYPE_DIFF:
+    learn_diff(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_SUMM:
     learn_sum(in, iw, ih, fout, ic, oc);
@@ -2570,6 +2594,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_MEAN:
   case TYPE_SMAX:
   case TYPE_SUMM:
+  case TYPE_DIFF:
   case TYPE_BLUR:
   case TYPE_MEDI:
     len = 0;

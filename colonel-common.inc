@@ -593,6 +593,38 @@ void learn_median(
   );
 }
 
+void synth_diff(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+ 
+  assert(oc * 2 == ic);
+
+  CALL_KERNEL(synth_diff, outn,
+    in, iw, ih, out, ic, oc, kbuf
+  );
+}
+
+
+void learn_diff(
+  double *fin, int iw, int ih,
+  const double *fout,
+
+  int ic, int oc
+) {
+  int inn = iw * ih * ic;
+
+  assert(oc * 2 == ic);
+
+  CALL_KERNEL(learn_diff, inn,
+    fin, iw, ih, fout, ic, oc
+  );
+}
+
 void synth_sum(
   const double *in, int iw, int ih,
   double *out,
