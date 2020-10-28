@@ -189,11 +189,11 @@ void learnhans(
 
   double *kreal;
   kmake(&kreal, dis->owhc);
-  kfill(kreal, dis->owhc, 0.5);
+  kfill(kreal, dis->owhc, 0.0);
 
   double *kfake;
   kmake(&kfake, dis->owhc);
-  kfill(kfake, dis->owhc, -0.5);
+  kfill(kfake, dis->owhc, 1.0);
 
   double *kloss;
   kmake(&kloss, dis->owhc);

@@ -58,6 +58,7 @@ const uint32_t TYPE_CLMP = CC4('c','l','m','p');
 const uint32_t TYPE_ABSV = CC4('a','b','s','v');
 const uint32_t TYPE_GRND = CC4('g','r','n','d');
 const uint32_t TYPE_LRND = CC4('l','r','n','d');
+const uint32_t TYPE_DRND = CC4('d','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_ADDG = CC4('a','d','d','g');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
@@ -500,6 +501,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       break;
     case TYPE_GRND:
     case TYPE_LRND:
+    case TYPE_DRND:
     case TYPE_PAD1:
       ow = iw;
       oh = ih;
@@ -627,7 +629,7 @@ static double *_kpadone(int bufn) {
 }
 
 static double *pipe_synth(
-  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf, double rmul
+  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf, double rmul, double rounds
 ) {
   if (basen == 0)
     return ((double *)kbuf);
@@ -1102,6 +1104,21 @@ static double *pipe_synth(
       synth_abs(in, iw, ih, out, ic);
       break;
     }
+  case TYPE_DRND:
+    {
+      assert(len == 0);
+      assert(ic <= oc);
+      ow = iw;
+      oh = ih;
+
+      double k = 65536.0;
+      double z = mul * k / ((double)rounds + k);
+
+      double *knz = _klnoise((oc - ic) * ow * oh, z);
+      synth_pad(in, iw, ih, out, ic, oc, knz);
+      kfree(knz);
+      break;
+    }
   case TYPE_LRND:
     {
       assert(len == 0);
@@ -1236,7 +1253,7 @@ static double *pipe_synth(
 
   return pipe_synth(
     base, basen, kbase,
-    ow, oh, kbuf, rmul
+    ow, oh, kbuf, rmul, rounds
   );
 }
 
@@ -1512,6 +1529,7 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_DRND:
   case TYPE_LRND:
   case TYPE_GRND:
   case TYPE_PAD1:
@@ -1694,6 +1712,7 @@ void pipe_learn(
   case TYPE_ABSV:
     learn_abs(in, iw, ih, fout, ic);
     break;
+  case TYPE_DRND:
   case TYPE_LRND:
   case TYPE_GRND:
   case TYPE_PAD1:
@@ -2174,7 +2193,7 @@ void Cortex::dump(FILE *outfp) {
     if (vow) fprintf(outfp, " ow=%d", vow);
     if (voh) fprintf(outfp, " oh=%d", voh);
 
-    if (type == TYPE_LRND || type == TYPE_GRND) {
+    if (type == TYPE_LRND || type == TYPE_GRND || type == TYPE_DRND) {
       fprintf(outfp, " mul=%g", mul);
     } else if (type == TYPE_CONV) {
       fprintf(outfp, " rad=%d", rad);
@@ -2314,7 +2333,7 @@ bool Cortex::prepare(int _iw, int _ih) {
 double *Cortex::synth() {
   assert(is_open);
   assert(is_prep);
-  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, rmul);
+  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, rmul, rounds);
   return kout;
 }
 
@@ -2587,6 +2606,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_ABSV:
   case TYPE_GRND:
   case TYPE_LRND:
+  case TYPE_DRND:
   case TYPE_PAD1:
   case TYPE_ADDG:
   case TYPE_IDEN:
