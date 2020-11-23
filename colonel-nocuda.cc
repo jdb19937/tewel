@@ -167,6 +167,12 @@ static long double erfinv(long double x, int nr_iter) {
 #undef syncthreads
 #define syncthreads() assert(!"no syncthreads in cpu mode")
 
+#undef __device__
+#define __device__
+
+#undef PRE
+#define PRE(x) _cpu_ ## x
+
 #include "colonel-core.inc"
 
 

@@ -191,6 +191,17 @@ extern void learn_zero(
   int ic, int oc
 );
 
+extern void synth_tlab(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+);
+extern void synth_flab(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+);
+
 extern void synth_iden(
   const double *in, int iw, int ih,
   double *out,

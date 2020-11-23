@@ -2205,3 +2205,167 @@ DEFN_KERNEL(learn_downscale,
   }
 }
 
+
+
+static inline __device__ double PRE(f)(double n) {
+   return (n > 0.04045 ? pow((n + 0.055) / 1.055, 2.4) : n / 12.92) * 100.0;
+}
+
+static inline __device__ void PRE(rgbtoxyz)(unsigned char r, unsigned char g, unsigned char b, double *xp, double *yp, double *zp) {
+  double dr = PRE(f)((double)r / 255.0);
+  double dg = PRE(f)((double)g / 255.0);
+  double db = PRE(f)((double)b / 255.0);
+
+  *xp = dr * 0.4124 + dg * 0.3576 + db * 0.1805;
+  *yp = dr * 0.2126 + dg * 0.7152 + db * 0.0722;
+  *zp = dr * 0.0193 + dg * 0.1192 + db * 0.9505;
+}
+
+static inline __device__ void PRE(xyztorgb)(double x, double y, double z, unsigned char *rp, unsigned char *gp, unsigned char *bp) {
+  double dx = x / 100.0;
+  double dy = y / 100.0;
+  double dz = z / 100.0;
+
+  double pr = dx * 3.2404542 + dy * -1.5371385 + dz * -0.4985314;
+  double pg = dx * -0.9692660 + dy * 1.8760108 + dz * 0.0415560;
+  double pb = dx * 0.0556434 + dy * -0.2040259 + dz * 1.0572252;
+
+  double qr = (((pr > 0.0031308) ? (1.055*pow(pr, 1 / 2.4) - 0.055) : (12.92*pr)) * 255.0);
+  double qg = (((pg > 0.0031308) ? (1.055*pow(pg, 1 / 2.4) - 0.055) : (12.92*pg)) * 255.0);
+  double qb = (((pb > 0.0031308) ? (1.055*pow(pb, 1 / 2.4) - 0.055) : (12.92*pb)) * 255.0);
+
+  if (qr < 0) qr = 0; if (qr > 255.0) qr = 255.0;
+  if (qg < 0) qg = 0; if (qg > 255.0) qg = 255.0;
+  if (qb < 0) qb = 0; if (qb > 255.0) qb = 255.0;
+
+  *rp = qr;
+  *gp = qg;
+  *bp = qb;
+}
+
+		
+
+static inline __device__ double PRE(g)(double n) {
+  const double EPS = 0.008856;
+  const double KAPPA = 903.3;
+  return n > EPS ? pow(n, 1.0/3.0) : (KAPPA * n + 16.0) / 116.0;
+}
+
+static inline __device__ void PRE(xyztolab)(double x, double y, double z, double *lp, double *ap, double *bp) {
+  double dx = PRE(g)(x / 95.047);
+  double dy = PRE(g)(y / 100.0);
+  double dz = PRE(g)(z / 108.883);
+
+  *lp = 116.0 * dy - 16.0;
+  if (*lp < 0)
+    *lp = 0;
+  *ap = 500.0 * (dx - dy);
+  *bp = 200.0 * (dy - dz);
+
+  *lp /= 100.0;
+  *ap /= 100.0;
+  *bp /= 100.0;
+}
+
+static inline __device__ void PRE(labtoxyz)(double l, double a, double b, double *xp, double *yp, double *zp) {
+  l *= 100.0;
+  a *= 100.0;
+  b *= 100.0;
+
+  double py = (l + 16.0) / 116.0;
+  double px = a / 500.0 + py;
+  double pz = py - b / 200.0;
+
+  double x3 = px*px*px;
+  double y3 = py*py*py;
+  double z3 = pz*pz*pz;
+
+  *xp = ((x3 > 0.008856) ? x3 : ((px - 16.0 / 116.0) / 7.787)) * 95.047;
+  *yp = ((y3 > 0.008856) ? y3 : ((py - 16.0 / 116.0) / 7.787)) * 100.0;
+  *zp = ((z3 > 0.008856) ? z3 : ((pz - 16.0 / 116.0) / 7.787)) * 108.883;
+}
+
+static inline __device__ unsigned char PRE(dtob)(double d) {
+  d *= 256.0;
+  if (d > 255.0)
+    d = 255.0;
+  if (d < 0.0)
+    d = 0.0;
+  return ((unsigned char)(d + 0.5));
+}
+
+static inline __device__ void PRE(rgbtolab)(double r, double g, double b, double *lp, double *ap, double *bp) {
+  double x, y, z;
+  PRE(rgbtoxyz)(PRE(dtob)(r), PRE(dtob)(g), PRE(dtob)(b), &x, &y, &z);
+  PRE(xyztolab)(x, y, z, lp, ap, bp);
+}
+
+static inline __device__ void PRE(labtorgb)(double l, double a, double b, double *rp, double *gp, double *bp) {
+  double x, y, z;
+  PRE(labtoxyz)(l, a, b, &x, &y, &z);
+  unsigned char rip, gip, bip;
+  PRE(xyztorgb)(x, y, z, &rip, &gip, &bip);
+  *rp = (double)rip / 255.0;
+  *gp = (double)gip / 255.0;
+  *bp = (double)bip / 255.0;
+}
+
+
+
+
+
+DEFN_KERNEL(synth_tlab,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int ix = ox;
+  int iy = oy;
+
+  int rgbi = 0 + ic * (ix + iw * iy);
+  double lab[3] = {0,0,0};
+  PRE(rgbtolab)(in[rgbi], in[rgbi+1], in[rgbi+2], lab, lab+1, lab+2);
+  out[outi] = lab[oz];
+}
+
+DEFN_KERNEL(synth_flab,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+  int tmp = outi;
+  int oz = tmp % oc; tmp /= oc;
+  int ox = tmp % ow; tmp /= ow;
+  int oy = tmp;
+
+  int ix = ox;
+  int iy = oy;
+
+  int labi = 0 + ic * (ix + iw * iy);
+  double rgb[3] = {0,0,0};
+  PRE(labtorgb)(in[labi], in[labi+1], in[labi+2], rgb, rgb+1, rgb+2);
+  out[outi] = rgb[oz];
+}

@@ -47,11 +47,21 @@ int kndevs() {
   if (i >= __n) \
     return;
 
+#undef PRE
+#define PRE(x) _gpu_ ## x
+
 #include "colonel-core.inc"
+
 
 
 #undef syncthreads
 #define syncthreads() assert(!"no syncthreads in cpu mode")
+
+#undef __device__
+#define __device__ 
+
+#undef PRE
+#define PRE(x) _cpu_ ## x
 
 
 #undef DEFN_KERNEL

@@ -234,6 +234,14 @@ void learnhans(
       ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout(), gen->oc, 0);
       chn->learn(genmul);
 
+#if 0
+      if (cnd) {
+        cnd->pushbuf();
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+        cnd->accumulate();
+      }
+#endif
+
       dis->popbuf();
       dis->target(kfake);
       dis->accumulate();
@@ -243,6 +251,14 @@ void learnhans(
       dis->synth();
       dis->target(kreal);
       dis->learn(dismul);
+
+#if 0
+      if (cnd) {
+        cnd->popbuf();
+        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
+        cnd->learn(genmul);
+      }
+#endif
 
 
     ++i;
@@ -254,6 +270,11 @@ void learnhans(
 
       chn->save();
       dis->save();
+
+#if 0
+      if (cnd)
+        cnd->save();
+#endif
 
       printf(
         "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",

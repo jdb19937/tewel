@@ -450,6 +450,41 @@ void learn_zero(
   );
 }
 
+void synth_tlab(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+
+  assert(ic == 3);
+  assert(oc == 3);
+
+  CALL_KERNEL(synth_tlab, outn,
+    in, iw, ih, out, ic, oc, kbuf
+  );
+}
+
+void synth_flab(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+) {
+  int ow = iw;
+  int oh = ih;
+  int outn = ow * oh * oc;
+ 
+  assert(ic == 3);
+  assert(oc == 3);
+
+  CALL_KERNEL(synth_flab, outn,
+    in, iw, ih, out, ic, oc, kbuf
+  );
+}
+
+
 void synth_iden(
   const double *in, int iw, int ih,
   double *out,
