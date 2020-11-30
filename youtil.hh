@@ -7,11 +7,15 @@
 #include <sys/time.h>
 #include <netinet/in.h>
 
+#include <math.h>
+
 #include <string>
 #include <map>
 #include <vector>
 
 namespace makemore {
+
+inline double sigmoid(double x) { return 1.0 / (1.0 + exp(-x)); }
 
 inline double btod(uint8_t b) {
   return ((double)b / 256.0);
@@ -43,6 +47,8 @@ inline bool endswith(const std::string &str, const std::string &suf) {
   );
 }
 
+extern uint8_t *mapfp(FILE *fp, size_t *np);
+extern void unmapfp(uint8_t *p, size_t n);
 extern uint8_t *slurp(FILE *fp, size_t *np);
 extern uint8_t *slurp(const std::string &fn, size_t *np);
 extern void spit(const uint8_t *x, size_t n, FILE *fp);

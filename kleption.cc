@@ -63,6 +63,8 @@ Kleption::Kleption(
 
   vidreader = NULL;
   vidwriter = NULL;
+  datreader = NULL;
+  datn = 0;
   datwriter = NULL;
   refwriter = NULL;
 
@@ -251,6 +253,8 @@ Kleption::~Kleption() {
     delete dsp;
   if (vidwriter)
     delete vidwriter;
+  if (datreader)
+    fclose(datreader);
   if (datwriter)
     fclose(datwriter);
   if (refreader)
@@ -308,10 +312,19 @@ void Kleption::unload() {
     idi = 0;
     break;
   case KIND_PIC:
+    assert(dat);
+    delete[] dat;
+    dat = NULL;
+    b = 0;
+    idi = 0;
+    break;
   case KIND_U8:
   case KIND_F64LE:
     assert(dat);
-    delete[] dat;
+    unmapfp(dat, datn);
+    if (datreader)
+      fclose(datreader);
+    datreader = NULL;
     dat = NULL;
     b = 0;
     idi = 0;
@@ -572,8 +585,12 @@ void Kleption::load() {
       if (pc == 0)
         pc = sc;
 
-      size_t datn;
-      dat = slurp(fn, &datn);
+      datn = 0;
+      assert(!datreader);
+      if (!(datreader = ::fopen(fn.c_str(), "r")))
+        error("can't open " + fn);
+      // dat = slurp(fn, &datn);
+      dat = mapfp(datreader, &datn);
       unsigned int swhc = sw * sh * sc;
       assert(datn % swhc == 0);
 
@@ -607,8 +624,12 @@ void Kleption::load() {
       if (pc == 0)
         pc = sc;
 
-      size_t datn;
-      dat = slurp(fn, &datn);
+      datn = 0;
+      assert(!datreader);
+      if (!(datreader = ::fopen(fn.c_str(), "r")))
+        error("can't open " + fn);
+      // dat = slurp(fn, &datn);
+      dat = mapfp(datreader, &datn);
       unsigned int swhc = sw * sh * sc;
       assert(datn % (8 * swhc) == 0);
 

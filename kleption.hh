@@ -102,7 +102,9 @@ struct Kleption {
 
   // pic, dat
   uint8_t *dat;
+  size_t datn;
   unsigned int b;
+  FILE *datreader;
   FILE *datwriter;
 
   // ref

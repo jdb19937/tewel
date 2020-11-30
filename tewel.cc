@@ -205,6 +205,8 @@ void learnhans(
   kmake(&kstab, dis->owhc);
   kfill(kstab, dis->owhc, 0.0);
 
+  double *loss = new double[dis->owhc];
+
   double t0 = now();
   int rep = 0;
   long i = 0;
@@ -229,7 +231,16 @@ void learnhans(
       dis->synth();
 
       dis->pushbuf();
+#if 1
+  dek(dis->kout, dis->owhc, loss);
+  for (int i = 0; i < dis->owhc; ++i) {
+    // loss[i] = std::max(-16.0, -1.0 / (1.0 - loss[i]));
+    loss[i] = -sigmoid(loss[i]);
+  }
+  enk(loss, dis->owhc, dis->kout);
+#else
       dis->target(kreal);
+#endif
       dis->propback();
       ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout(), gen->oc, 0);
       chn->learn(genmul);
@@ -243,13 +254,31 @@ void learnhans(
 #endif
 
       dis->popbuf();
+#if 1
+  dek(dis->kout, dis->owhc, loss);
+  for (int i = 0; i < dis->owhc; ++i) {
+    // loss[i] = std::min(16.0, 1.0 / loss[i]);
+    loss[i] = 1.0 - sigmoid(loss[i]);
+  }
+  enk(loss, dis->owhc, dis->kout);
+#else
       dis->target(kfake);
+#endif
       dis->accumulate();
 
       kcopy(ktmp, dis->iwhc, dis->kinp);
       ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       dis->synth();
+#if 1
+  dek(dis->kout, dis->owhc, loss);
+  for (int i = 0; i < dis->owhc; ++i) {
+    // loss[i] = std::max(-16.0, -1.0 / (1.0 - loss[i]));
+    loss[i] = -sigmoid(loss[i]);
+  }
+  enk(loss, dis->owhc, dis->kout);
+#else
       dis->target(kreal);
+#endif
       dis->learn(dismul);
 
 #if 0
@@ -295,6 +324,7 @@ void learnhans(
   kfree(ktmp);
   kfree(ktgt);
   kfree(kinp);
+  delete[] loss;
 }
 
 void learn(

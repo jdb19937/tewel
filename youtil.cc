@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 
 #include <png.h>
 #include <jpeglib.h>
@@ -70,6 +71,31 @@ void spit(const uint8_t *x, size_t n, const std::string &fn) {
   ::fclose(fp);
   int ret = ::rename(tmpfn, fn.c_str());
   assert(ret == 0);
+}
+
+uint8_t *mapfp(FILE *fp, size_t *np) {
+  int fd = fileno(fp);
+
+  int ret = fseek(fp, 0, SEEK_END);
+  assert(ret == 0);
+  long n = ftell(fp);
+  ret = fseek(fp, 0, SEEK_SET);
+  assert(ret == 0);
+
+  void *vbase = ::mmap(
+    NULL, (n + 4095) & ~4095,
+    PROT_READ, MAP_SHARED,
+    fd, 0
+  );
+
+  *np = n;
+
+  return ((uint8_t *)vbase);
+}
+
+void unmapfp(uint8_t *p, size_t n) {
+  n = (n + 4095) & ~4095;
+  ::munmap(p, n);
 }
 
 uint8_t *slurp(const std::string &fn, size_t *np) {
