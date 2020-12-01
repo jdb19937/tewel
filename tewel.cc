@@ -231,7 +231,7 @@ void learnhans(
       dis->synth();
 
       dis->pushbuf();
-#if 1
+#if 0
   dek(dis->kout, dis->owhc, loss);
   for (int i = 0; i < dis->owhc; ++i) {
     // loss[i] = std::max(-16.0, -1.0 / (1.0 - loss[i]));
@@ -254,7 +254,7 @@ void learnhans(
 #endif
 
       dis->popbuf();
-#if 1
+#if 0
   dek(dis->kout, dis->owhc, loss);
   for (int i = 0; i < dis->owhc; ++i) {
     // loss[i] = std::min(16.0, 1.0 / loss[i]);
@@ -269,7 +269,7 @@ void learnhans(
       kcopy(ktmp, dis->iwhc, dis->kinp);
       ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       dis->synth();
-#if 1
+#if 0
   dek(dis->kout, dis->owhc, loss);
   for (int i = 0; i < dis->owhc; ++i) {
     // loss[i] = std::max(-16.0, -1.0 / (1.0 - loss[i]));
