@@ -1739,6 +1739,42 @@ DEFN_KERNEL(learn_sum,
   fin[ini] = fout[outi];
 }
 
+DEFN_KERNEL(synth_cent,
+  const double *in, int iw, int ih,
+  double *out,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int ow = iw;
+  int oh = ih;
+  int oc = ic;
+
+  int outn = ow * oh * oc;
+  int outi = i;
+  if (outi >= outn)
+    return;
+
+  int ini = outi;
+  out[outi] = 1.0 / (1.0 + exp(-in[ini]));
+}
+
+DEFN_KERNEL(learn_cent,
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic
+) {
+  PREF_KERNEL;
+
+  int inn = iw * ih * ic;
+  int ini = i;
+  if (ini >= inn)
+    return;
+
+  int outi = ini;
+  fin[ini] = fout[outi];
+}
+
 DEFN_KERNEL(synth_sigm,
   const double *in, int iw, int ih,
   double *out,

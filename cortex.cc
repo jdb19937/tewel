@@ -53,6 +53,7 @@ const uint32_t TYPE_TRIM = CC4('t','r','i','m');
 const uint32_t TYPE_PADD = CC4('p','a','d','d');
 const uint32_t TYPE_CROP = CC4('c','r','o','p');
 const uint32_t TYPE_SIGM = CC4('s','i','g','m');
+const uint32_t TYPE_CENT = CC4('c','e','n','t');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
 const uint32_t TYPE_CLMP = CC4('c','l','m','p');
 const uint32_t TYPE_ABSV = CC4('a','b','s','v');
@@ -494,6 +495,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     case TYPE_RELU:
     case TYPE_CLMP:
     case TYPE_SIGM:
+    case TYPE_CENT:
     case TYPE_NERF:
     case TYPE_INRF:
       ow = iw;
@@ -1060,6 +1062,15 @@ static double *pipe_synth(
       synth_downscale(in, iw, ih, out, s, ic, oc, dim);
       break;
     }
+  case TYPE_CENT:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      synth_cent(in, iw, ih, out, ic);
+      break;
+    }
   case TYPE_SIGM:
     {
       assert(len == 0);
@@ -1548,6 +1559,7 @@ void pipe_learn(
       assert(ih == (dim == 1) ? oh : (oh << s));
       break;
     }
+  case TYPE_CENT:
   case TYPE_SIGM:
   case TYPE_RELU:
   case TYPE_CLMP:
@@ -1731,6 +1743,9 @@ void pipe_learn(
     break;
   case TYPE_DNS5:
     learn_downscale(in, iw, ih, fout, 5, ic, oc, dim);
+    break;
+  case TYPE_CENT:
+    learn_cent(in, iw, ih, fout, ic);
     break;
   case TYPE_SIGM:
     learn_sigm(in, iw, ih, fout, ic);
@@ -2641,6 +2656,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_DNS4:
   case TYPE_DNS5:
   case TYPE_SIGM:
+  case TYPE_CENT:
   case TYPE_RELU:
   case TYPE_CLMP:
   case TYPE_NERF:

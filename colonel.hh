@@ -310,6 +310,18 @@ extern void learn_pad(
   int ic, int oc
 );
 
+extern void synth_cent(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic
+);
+
+extern void learn_cent(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic
+);
+
 extern void synth_sigm(
   const double *in, int iw, int ih,
   double *out,
