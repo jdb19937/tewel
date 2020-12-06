@@ -202,6 +202,18 @@ extern void synth_flab(
   int ic, int oc, const double *kbuf
 );
 
+extern void synth_popp(
+  const double *in, int iw, int ih,
+  double *out,
+  int ic, int oc, const double *kbuf
+);
+
+extern void learn_popp(
+  double *fin, int iw, int ih,
+  const double *fout,
+  int ic, int oc
+);
+
 extern void synth_iden(
   const double *in, int iw, int ih,
   double *out,

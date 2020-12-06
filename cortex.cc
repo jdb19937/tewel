@@ -63,6 +63,7 @@ const uint32_t TYPE_DRND = CC4('d','r','n','d');
 const uint32_t TYPE_PAD1 = CC4('p','a','d','1');
 const uint32_t TYPE_ADDG = CC4('a','d','d','g');
 const uint32_t TYPE_IDEN = CC4('i','d','e','n');
+const uint32_t TYPE_POPP = CC4('p','o','p','p');
 const uint32_t TYPE_TLAB = CC4('t','l','a','b');
 const uint32_t TYPE_FLAB = CC4('f','l','a','b');
 const uint32_t TYPE_MEAN = CC4('m','e','a','n');
@@ -526,6 +527,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       assert(oc == 3);
       assert(len == 0);
       break;
+    case TYPE_POPP:
     case TYPE_IDEN:
       ow = iw;
       oh = ih;
@@ -1216,6 +1218,16 @@ static double *pipe_synth(
       synth_flab(in, iw, ih, out, ic, oc, NULL);
       break;
     }
+  case TYPE_POPP:
+    {
+      assert(len == 0);
+      assert(ic > 0);
+      assert(oc > 0);
+      ow = iw;
+      oh = ih;
+      synth_popp(in, iw, ih, out, ic, oc, NULL);
+      break;
+    }
   case TYPE_IDEN:
     {
       assert(len == 0);
@@ -1601,6 +1613,7 @@ void pipe_learn(
     ow = iw;
     oh = ih;
     break;
+  case TYPE_POPP:
   case TYPE_IDEN:
     assert(ic > 0);
     assert(oc > 0);
@@ -1780,6 +1793,9 @@ void pipe_learn(
   case TYPE_TLAB:
   case TYPE_FLAB:
     assert(0);
+    break;
+  case TYPE_POPP:
+    learn_popp(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_IDEN:
     learn_iden(in, iw, ih, fout, ic, oc);
@@ -2668,6 +2684,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_PAD1:
   case TYPE_ADDG:
   case TYPE_IDEN:
+  case TYPE_POPP:
   case TYPE_TLAB:
   case TYPE_FLAB:
   case TYPE_ZERO:
