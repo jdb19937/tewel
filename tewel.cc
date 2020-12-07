@@ -149,7 +149,7 @@ void learnhans(
   long reps,
   long disreps,
   long stoprounds,
-  double genmul0, double dismul0
+  double genmul0, double dismul0, double nzmul
 ) {
   Paracortex *gen = chn->tail;
 
@@ -215,6 +215,12 @@ void learnhans(
     double genmul = genmul0;
     double dismul = dismul0;
 
+    double nz = 0.0;
+    if (dis->rms < 0.5 && dis->rms > 0) {
+      nz = 0.5 / dis->rms - 1.0;
+      nz *= nzmul;
+    }
+
     if (cnd) {
       Kleption::pick_pair(src, chn->kinp(), tgt, ktgt);
     } else {
@@ -228,6 +234,7 @@ void learnhans(
       ksplice(gen->kout(), gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       kcopy(dis->kinp, dis->iwhc, ktmp);
 
+kaddnoise(dis->kinp, dis->iwhc, nz);
       dis->synth();
 
       dis->pushbuf();
@@ -268,6 +275,7 @@ void learnhans(
 
       kcopy(ktmp, dis->iwhc, dis->kinp);
       ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+kaddnoise(dis->kinp, dis->iwhc, nz);
       dis->synth();
 #if 0
   dek(dis->kout, dis->owhc, loss);
@@ -1473,13 +1481,14 @@ int main(int argc, char **argv) {
     double stablize = strtod(arg.get("stablize", "0.0"));
     double genmul = strtod(arg.get("genmul", "1.0"));
     double dismul = strtod(arg.get("dismul", "1.0"));
+    double noise = strtod(arg.get("noise", "0.0"));
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
     info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
 
-    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul);
+    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul, noise);
 
     delete src;
     delete tgt;
