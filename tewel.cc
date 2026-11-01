@@ -54,6 +54,10 @@ static void usage() {
     "                train generator on paired samples\n"
     "        tewel learnhans gen.ctx src=... tgt=... dis=dis.ctx\n"
     "                train generator on paired samples versus discriminator\n"
+    "        tewel learngan gen.ctx tgt=... dis=dis.ctx [ema=gen-ema.ctx]\n"
+    "                train generator from gaussian latents versus discriminator\n"
+    "                options: replay=N replayfrac=f (discriminator replays past fakes),\n"
+    "                disema=file disemabeta=b (generator plays against an EMA discriminator)\n"
   );
 }
 
@@ -84,28 +88,51 @@ void learnfunc(
   double mul,
   long reps,
   double stoploss,
-  long stoprounds
+  long stoprounds,
+  bool lossl1,
+  double lossdelta,
+  double latnoise,
+  double latreg
 ) {
   Paracortex *gen = chn->tail;
+  int bn = chn->bn;
+  int sin = chn->head->iwhc / bn;   // per-sample sizes
+  int sout = gen->owhc / bn;
 
   if (chn->rounds() >= stoprounds && stoprounds >= 0) {
     warning("genrounds reached stoprounds value, all done");
     return;
   }
 
-  double *ktgt;
+  float *ktgt;
   kmake(&ktgt, gen->owhc);
+  float *kerr;
+  kmake(&kerr, gen->owhc);
 
   double t0 = now();
   int rep = 0;
+  long it = 0;
+  double pixrms = 0;
 
   while (reps < 0 || rep < reps) {
-    Kleption::pick_pair(src, chn->kinp(), tgt, ktgt);
-    chn->synth();
-    chn->target(ktgt);
-    chn->learn(mul);
+    bool report = ((it + 1) % repint == 0);
 
-    if (gen->rounds() % repint == 0) {
+    for (int b = 0; b < bn; ++b)
+      Kleption::pick_pair(src, chn->kinp() + b * sin, tgt, ktgt + b * sout);
+    chn->synth(0, latnoise);
+
+    if (report) {
+      ksubvec(ktgt, chn->kout(), gen->owhc, kerr);
+      pixrms = sqrt(ksumsq(kerr, gen->owhc) / (double)gen->owhc);
+    }
+
+    chn->target(ktgt);
+    if (lossl1)
+      kcharb(chn->kout(), gen->owhc, lossdelta);
+    chn->learn(mul, latreg);
+
+    ++it;
+    if (report) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
@@ -113,14 +140,14 @@ void learnfunc(
       chn->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g pixrms=%g\n",
          gen->fn().c_str(), gen->rounds(),
          dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
-        gen->rms()
+        gen->rms(), pixrms
       );
 
-      if (chn->rms() < stoploss) {
-        warning("genrms reached stoploss value, all done");
+      if (pixrms < stoploss) {
+        warning("pixrms reached stoploss value, all done");
         break;
       }
 
@@ -134,12 +161,19 @@ void learnfunc(
   }
 
   kfree(ktgt);
+  kfree(kerr);
 }
 
 
+// Conditional (optionally tethered) GAN training, batched.
+//
+// Per iteration: `disreps` discriminator updates, each on a batch of
+// (fake, real) pairs, then one generator update on a batch of samples.
+// The generator gradient is the discriminator's gradient (target "real")
+// plus `tether` times the pixel-loss gradient.
+// Discriminator targets: real = 0, fake = 1 (least-squares GAN).
 void learnhans(
   Kleption *src,
-  Kleption *alt,
   Kleption *tgt,
   Chain *chn,
   Cortex *dis,
@@ -149,158 +183,125 @@ void learnhans(
   long reps,
   long disreps,
   long stoprounds,
-  double genmul0, double dismul0, double nzmul
+  double genmul0, double dismul0, double nzmul,
+  double tether,
+  bool lossl1,
+  double lossdelta,
+  double latnoise,
+  double latreg
 ) {
   Paracortex *gen = chn->tail;
+  int bn = chn->bn;
+  int sin = chn->head->iwhc / bn;
+  int sout = gen->owhc / bn;
 
   if (chn->rounds() >= stoprounds && stoprounds >= 0) {
     warning("genrounds reached stoprounds value, all done");
     return;
   }
 
-  int iw, ih, ic, iwhc;
-  iw = chn->head->iw;
-  ih = chn->head->ih;
-  ic = chn->head->ic;
-  iwhc = iw * ih * ic;
-
+  assert(dis->bn == bn);
   if (cnd) {
-    assert(cnd->iw == iw);
-    assert(cnd->ih == ih);
-    assert(cnd->ic == ic);
-
+    assert(cnd->bn == bn);
+    assert(cnd->iw == chn->head->iw);
+    assert(cnd->ih == chn->head->ih);
+    assert(cnd->ic == chn->head->ic);
     assert(cnd->ow == gen->ow);
     assert(cnd->oh == gen->oh);
   }
 
   assert(dis->iw == gen->ow);
   assert(dis->ih == gen->oh);
-
   assert(dis->ic == (cnd ? cnd->oc : 0) + gen->oc);
 
-  double *ktmp;
-  kmake(&ktmp, dis->iwhc);
+  int disin = dis->iwhc * bn, disout = dis->owhc * bn;
+  int pix = bn * gen->ow * gen->oh;   // pixels across the batch
 
-  double *kinp;
-  kmake(&kinp, iwhc);
-
-  double *ktgt;
+  float *ktmp;
+  kmake(&ktmp, disin);
+  float *ktgt;
   kmake(&ktgt, gen->owhc);
+  float *kgen;
+  kmake(&kgen, gen->owhc);
+  float *kerr;
+  kmake(&kerr, gen->owhc);
 
-  double *kreal;
-  kmake(&kreal, dis->owhc);
-  kfill(kreal, dis->owhc, 0.0);
+  float *kreal;
+  kmake(&kreal, disout);
+  kfill(kreal, disout, 0.0);
 
-  double *kfake;
-  kmake(&kfake, dis->owhc);
-  kfill(kfake, dis->owhc, 1.0);
-
-  double *kloss;
-  kmake(&kloss, dis->owhc);
-
-  double *kimpr;
-  kmake(&kimpr, dis->owhc);
-
-  double *kstab;
-  kmake(&kstab, dis->owhc);
-  kfill(kstab, dis->owhc, 0.0);
-
-  double *loss = new double[dis->owhc];
+  float *kfake;
+  kmake(&kfake, disout);
+  kfill(kfake, disout, 1.0);
 
   double t0 = now();
   int rep = 0;
-  long i = 0;
+  long it = 0;
+  double pixrms = 0, advrms = 0;
+
+  // pick a batch, run cnd and gen, fill dis->kinp = [gen out | cnd out],
+  // keep a clean copy in ktmp and the gen output in kgen
+  auto feed = [&](double nz) {
+    for (int b = 0; b < bn; ++b)
+      Kleption::pick_pair(src, chn->kinp() + b * sin, tgt, ktgt + b * sout);
+    if (cnd)
+      ksplice(cnd->synth(chn->kinp()), pix, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
+    chn->synth(0, latnoise);
+    kcopy(gen->kout(), gen->owhc, kgen);
+    ksplice(gen->kout(), pix, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+    kcopy(dis->kinp, disin, ktmp);
+    if (nz > 0)
+      kaddnoise(dis->kinp, disin, nz);
+  };
 
   while (reps < 0 || rep < reps) {
-    double genmul = genmul0;
-    double dismul = dismul0;
+    bool report = ((it + 1) % repint == 0);
 
     double nz = 0.0;
-    if (dis->rms < 0.5 && dis->rms > 0) {
-      nz = 0.5 / dis->rms - 1.0;
-      nz *= nzmul;
-    }
+    if (nzmul > 0 && dis->rms < 0.5 && dis->rms > 0)
+      nz = (0.5 / dis->rms - 1.0) * nzmul;
 
-    if (cnd) {
-      Kleption::pick_pair(src, chn->kinp(), tgt, ktgt);
-    } else {
-      src->pick(chn->kinp());
-      tgt->pick(ktgt);
-    }
-
-      if (cnd)
-        ksplice(cnd->synth(chn->kinp()), dis->iw * dis->ih, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
-      chn->synth();
-      ksplice(gen->kout(), gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-      kcopy(dis->kinp, dis->iwhc, ktmp);
-
-kaddnoise(dis->kinp, dis->iwhc, nz);
+    // discriminator phase
+    for (long r = 0; r < disreps; ++r) {
+      feed(nz);
       dis->synth();
-
-      dis->pushbuf();
-#if 0
-  dek(dis->kout, dis->owhc, loss);
-  for (int i = 0; i < dis->owhc; ++i) {
-    // loss[i] = std::max(-16.0, -1.0 / (1.0 - loss[i]));
-    loss[i] = -sigmoid(loss[i]);
-  }
-  enk(loss, dis->owhc, dis->kout);
-#else
-      dis->target(kreal);
-#endif
-      dis->propback();
-      ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, 0, gen->oc, gen->kout(), gen->oc, 0);
-      chn->learn(genmul);
-
-#if 0
-      if (cnd) {
-        cnd->pushbuf();
-        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
-        cnd->accumulate();
-      }
-#endif
-
-      dis->popbuf();
-#if 0
-  dek(dis->kout, dis->owhc, loss);
-  for (int i = 0; i < dis->owhc; ++i) {
-    // loss[i] = std::min(16.0, 1.0 / loss[i]);
-    loss[i] = 1.0 - sigmoid(loss[i]);
-  }
-  enk(loss, dis->owhc, dis->kout);
-#else
       dis->target(kfake);
-#endif
       dis->accumulate();
 
-      kcopy(ktmp, dis->iwhc, dis->kinp);
-      ksplice(ktgt, gen->ow * gen->oh, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
-kaddnoise(dis->kinp, dis->iwhc, nz);
+      kcopy(ktmp, disin, dis->kinp);
+      ksplice(ktgt, pix, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
+      if (nz > 0)
+        kaddnoise(dis->kinp, disin, nz);
       dis->synth();
-#if 0
-  dek(dis->kout, dis->owhc, loss);
-  for (int i = 0; i < dis->owhc; ++i) {
-    // loss[i] = std::max(-16.0, -1.0 / (1.0 - loss[i]));
-    loss[i] = -sigmoid(loss[i]);
-  }
-  enk(loss, dis->owhc, dis->kout);
-#else
       dis->target(kreal);
-#endif
-      dis->learn(dismul);
+      dis->learn(dismul0 * mul);
+    }
 
-#if 0
-      if (cnd) {
-        cnd->popbuf();
-        ksplice(dis->kinp, gen->ow * gen->oh, dis->ic, gen->oc, cnd->oc, cnd->kout, cnd->oc, 0);
-        cnd->learn(genmul);
-      }
-#endif
+    // generator phase
+    feed(nz);
+    dis->synth();
+    dis->target(kreal);
+    dis->propback();
+    ksplice(dis->kinp, pix, dis->ic, 0, gen->oc, gen->kout(), gen->oc, 0);
 
+    if (report)
+      advrms = sqrt(ksumsq(gen->kout(), gen->owhc) / (double)gen->owhc);
 
-    ++i;
+    ksubvec(ktgt, kgen, gen->owhc, kerr);
+    if (report)
+      pixrms = sqrt(ksumsq(kerr, gen->owhc) / (double)gen->owhc);
 
-    if (i % repint == 0) {
+    if (tether > 0) {
+      if (lossl1)
+        kcharb(kerr, gen->owhc, lossdelta);
+      kmul(kerr, tether, gen->owhc, kerr);
+      kaddvec(gen->kout(), kerr, gen->owhc, gen->kout());
+    }
+
+    chn->learn(genmul0 * mul, latreg);
+
+    ++it;
+    if (report) {
       double t1 = now();
       double dt = t1 - t0;
       t0 = t1;
@@ -308,16 +309,11 @@ kaddnoise(dis->kinp, dis->iwhc, nz);
       chn->save();
       dis->save();
 
-#if 0
-      if (cnd)
-        cnd->save();
-#endif
-
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g advrms=%g pixrms=%g\n",
          gen->fn().c_str(), gen->rounds(),
          dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
-        gen->rms(), dis->rms
+        gen->rms(), dis->rms, advrms, pixrms
       );
 
       if (chn->rounds() >= stoprounds && stoprounds >= 0) {
@@ -331,8 +327,216 @@ kaddnoise(dis->kinp, dis->iwhc, nz);
 
   kfree(ktmp);
   kfree(ktgt);
-  kfree(kinp);
-  delete[] loss;
+  kfree(kgen);
+  kfree(kerr);
+  kfree(kreal);
+  kfree(kfake);
+}
+
+// Unconditional GAN: gaussian latent -> generator chain -> image, versus a
+// discriminator on real images (tgt). Options follow StyleGAN2's recipe where
+// the chain abstraction allows: non-saturating logistic loss (loss=ns) or
+// least squares (loss=ls), lazy R1 gradient penalty on real images computed
+// by finite differences (r1=gamma, r1int=interval), and an exponential
+// moving average copy of the generator (ema=file, emabeta=beta).
+void learngan(
+  Kleption *tgt,
+  Chain *chn,
+  Cortex *dis,
+  Cortex *ema,
+  int repint,
+  double mul,
+  long reps,
+  long disreps,
+  long stoprounds,
+  double genmul, double dismul,
+  bool nsloss,
+  double r1, int r1int, double r1eps,
+  double emabeta,
+  Cortex *disema, double disemabeta,   // optional EMA of the discriminator; the generator plays against it
+  int replay, double replayfrac,       // optional ring buffer of past fake batches shown again to the discriminator
+  Kleption *cnd, int cc                // optional condition paired with tgt: the generator's tail input, spliced into dis input
+) {
+  Paracortex *gen = chn->tail;
+  int bn = chn->bn;
+  int zn = chn->head->iwhc;          // whole batch of latents
+  int sout = gen->owhc / bn;
+  int goc = gen->oc;
+  int pn = bn * gen->ow * gen->oh;   // pixels in a batch
+  int cellc = cc * gen->ow * gen->oh;   // condition floats per sample
+  if (!cnd) cc = 0;
+
+  if (chn->rounds() >= stoprounds && stoprounds >= 0) {
+    warning("genrounds reached stoprounds value, all done");
+    return;
+  }
+
+  assert(dis->bn == bn);
+  assert(dis->iw == gen->ow);
+  assert(dis->ih == gen->oh);
+  assert(dis->ic == gen->oc + cc);
+  int disin = dis->iwhc * bn, disout = dis->owhc * bn;
+  assert(disin == gen->owhc + bn * cellc);
+
+  float *ktgt;  kmake(&ktgt, gen->owhc);   // real images
+  float *krin;  kmake(&krin, disin);        // real dis input (image + condition)
+  float *kfin;  kmake(&kfin, disin);        // fake dis input
+  float *kcnd = NULL, *kcndr = NULL;        // conditions for the fake and real batches
+  if (cc) { kmake(&kcnd, bn * cellc); kmake(&kcndr, bn * cellc); }
+  float *kxp;   kmake(&kxp, disin);
+  float *kg;    kmake(&kg, disin);
+  float *kreal; kmake(&kreal, disout); kfill(kreal, disout, 0.0);
+  float *kfake; kmake(&kfake, disout); kfill(kfake, disout, 1.0);
+
+  // replay ring of past fake batches
+  float *kring = NULL; int ringn = 0, ringi = 0;
+  if (replay > 0)
+    kmake(&kring, (long)replay * disin);
+  Cortex *gdis = disema ? disema : dis;   // discriminator the generator is trained against
+
+  double t0 = now();
+  int rep = 0;
+  long it = 0;
+  double dreal = 0, dfake = 0, gnorm = 0;
+
+  // dis input = [image | condition] per pixel
+  auto splice_in = [&](const float *kimg, const float *kc, float *kdst) {
+    ksplice(kimg, pn, goc, 0, goc, kdst, dis->ic, 0);
+    if (cc) ksplice(kc, pn, cc, 0, cc, kdst, dis->ic, goc);
+  };
+  auto gen_fake = [&]() {
+    kzero(chn->kinp(), zn);
+    kaddnoise(chn->kinp(), zn, 1.0);
+    if (cc)
+      for (int b = 0; b < bn; ++b)
+        cnd->pick(kcnd + b * cellc);
+    chn->synth(0, 0.0, kcnd);
+    splice_in(gen->kout(), kcnd, kfin);
+    kcopy(kfin, disin, dis->kinp);
+  };
+  auto ktmp_fake = [&]() { return kfin; };
+
+  while (reps < 0 || rep < reps) {
+    bool report = ((it + 1) % repint == 0);
+    bool dor1 = (r1 > 0 && r1int > 0 && it % r1int == 0);
+
+    // discriminator phase
+    for (long r = 0; r < disreps; ++r) {
+      gen_fake();
+      dis->synth();
+      dfake = ksum(dis->kout, disout) / disout;
+      if (nsloss) klogis(dis->kout, disout, -1); else dis->target(kfake);
+      dis->accumulate();
+
+      if (kring) {
+        if (ringn > 0) {
+          // one stored batch, weighted by replayfrac
+          int j = randuint() % ringn;
+          dis->synth(kring + (long)j * disin);
+          if (nsloss) klogis(dis->kout, disout, -1); else dis->target(kfake);
+          if (replayfrac != 1.0) kmul(dis->kout, (float)replayfrac, disout, dis->kout);
+          dis->accumulate();
+        }
+        kcopy(ktmp_fake(), disin, kring + (long)ringi * disin);
+        ringi = (ringi + 1) % replay;
+        if (ringn < replay) ++ringn;
+      }
+
+      for (int b = 0; b < bn; ++b) {
+        if (cc) Kleption::pick_pair(tgt, ktgt + b * sout, cnd, kcndr + b * cellc);
+        else tgt->pick(ktgt + b * sout);
+      }
+      splice_in(ktgt, kcndr, krin);
+      kcopy(krin, disin, dis->kinp);
+      dis->synth();
+      dreal = ksum(dis->kout, disout) / disout;
+      if (nsloss) klogis(dis->kout, disout, +1); else dis->target(kreal);
+
+      if (dor1 && r + 1 == disreps) {
+        dis->accumulate();
+
+        // g = d(sum D)/dx at the real batch
+        dis->synth(krin);
+        kfill(dis->kout, disout, 1.0);
+        dis->propback();
+        gnorm = sqrt(ksumsq(dis->kinp, disin));
+        double eps = r1eps * sqrt((double)disin);
+        if (gnorm > 0) {
+          // x' = x + eps * g / |g|
+          kmul(dis->kinp, (float)(eps / gnorm), disin, kg);
+          kaddvec(krin, kg, disin, kxp);
+          dis->synth(kxp);
+          double s1 = ksum(dis->kout, disout);
+          dis->synth(krin);
+          double s0 = ksum(dis->kout, disout);
+          double delta = (s1 - s0) / eps;                 // ~ |g|
+          double c = r1 * r1int * delta / eps;            // lazy R1: scaled by interval
+          // penalty R = r1/2 * delta^2; descend: kout = +c at x, -c at x'
+          kfill(dis->kout, disout, (float)c);
+          dis->accumulate();
+          dis->synth(kxp);
+          kfill(dis->kout, disout, (float)(-c));
+        }
+        dis->learn(dismul * mul);
+      } else {
+        dis->learn(dismul * mul);
+      }
+    }
+
+    // generator phase (against the EMA discriminator when one is given)
+    gen_fake();
+    if (gdis != dis) kcopy(kfin, disin, gdis->kinp);
+    gdis->synth();
+    if (nsloss) klogis(gdis->kout, disout, +1); else gdis->target(kreal);
+    gdis->propback();
+    ksplice(gdis->kinp, pn, dis->ic, 0, goc, gen->kout(), goc, 0);   // image part of the input gradient
+    chn->learn(genmul * mul);
+
+    if (ema)
+      ema->ema(*gen->ctxv[0], (float)emabeta);
+    if (disema)
+      disema->ema(*dis, (float)disemabeta);
+
+    ++it;
+    if (report) {
+      double t1 = now();
+      double dt = t1 - t0;
+      t0 = t1;
+
+      chn->save();
+      dis->save();
+      if (ema)
+        ema->save();
+      if (disema)
+        disema->save();
+
+      printf(
+        "gen=%s genrounds=%lu dt=%g eta=%g dreal=%g dfake=%g gnorm=%g disrms=%g\n",
+         gen->fn().c_str(), gen->rounds(),
+         dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
+        dreal, dfake, gnorm, dis->rms
+      );
+
+      if (chn->rounds() >= stoprounds && stoprounds >= 0) {
+        warning("genrounds reached stoprounds value, all done");
+        break;
+      }
+
+      ++rep;
+    }
+  }
+
+  kfree(ktgt);
+  kfree(krin);
+  kfree(kfin);
+  if (kcnd) kfree(kcnd);
+  if (kcndr) kfree(kcndr);
+  kfree(kxp);
+  kfree(kg);
+  kfree(kreal);
+  kfree(kfake);
+  if (kring)
+    kfree(kring);
 }
 
 void learn(
@@ -374,30 +578,30 @@ void learn(
   assert(dis->ih == chn->tail->oh);
   assert(dis->ic == cnd->oc + chn->tail->oc);
 
-  double *ktmp;
+  float *ktmp;
   kmake(&ktmp, dis->iwhc);
 
-  double *kinp;
+  float *kinp;
   kmake(&kinp, enc->iwhc);
 
-  double *ktgt;
+  float *ktgt;
   kmake(&ktgt, chn->tail->owhc);
 
-  double *kreal;
+  float *kreal;
   kmake(&kreal, dis->owhc);
   kfill(kreal, dis->owhc, 0.5);
 
-  double *kfake;
+  float *kfake;
   kmake(&kfake, dis->owhc);
   kfill(kfake, dis->owhc, -0.5);
 
-  double *kloss;
+  float *kloss;
   kmake(&kloss, dis->owhc);
 
-  double *kimpr;
+  float *kimpr;
   kmake(&kimpr, dis->owhc);
 
-  double *kstab;
+  float *kstab;
   kmake(&kstab, dis->owhc);
   kfill(kstab, dis->owhc, 0.0);
 
@@ -568,39 +772,44 @@ void normalize(
   Cortex *enc,
   Cortex *gen
 ) {
-  int owh = enc->ow * enc->oh;
   int oc = enc->oc;
-  int owhc = owh * oc;
-
   assert(rvg->dim == oc);
 
   double *mean = new double[oc];
   double *chol = new double[oc * oc];
   double *unchol = new double[oc * oc];
-
   memcpy(mean, rvg->mean, oc * sizeof(double));
   memcpy(chol, rvg->chol, oc * oc * sizeof(double));
   matinv(chol, unchol, oc);
   cpumatxpose(chol, oc);
   cpumatxpose(unchol, oc);
 
-  double *em, *eb;
+  float *fem, *feb;
   int ew, eh;
-  enc->_get_head_op(&eb, &em, &ew, &eh);
+  enc->_get_head_op(&feb, &fem, &ew, &eh);
   assert(ew > 0);
   assert(eh == oc);
 
-  double *gm, *gb;
+  float *fgm, *fgb;
   int gw, gh;
-  gen->_get_tail_op(&gb, &gm, &gw, &gh);
+  gen->_get_tail_op(&fgb, &fgm, &gw, &gh);
   assert(gw == oc);
   assert(gh > 0);
 
   if (eh != gw)
     error("matrices don't match, gen needs to start with con0 to normalize");
 
+  // work in double on the host, store back as float
+  double *em = new double[ew * eh], *eb = new double[eh];
+  double *gm = new double[gw * gh], *gb = new double[gh];
+  for (int i = 0; i < ew * eh; ++i) em[i] = fem[i];
+  for (int i = 0; i < eh; ++i) eb[i] = feb[i];
+  for (int i = 0; i < gw * gh; ++i) gm[i] = fgm[i];
+  for (int i = 0; i < gh; ++i) gb[i] = fgb[i];
+
   for (int z = 0; z < oc; ++z)
     eb[z] -= mean[z];
+
   for (int y = 0; y < gh; ++y) {
     double q = 0;
     for (int z = 0; z < oc; ++z)
@@ -614,20 +823,22 @@ void normalize(
 
   cpumatmat(unchol, oc, oc, em, ew, eh, tem);
   memcpy(em, tem, sizeof(double) * ew * eh);
-
   cpumatvec(unchol, oc, oc, eb, teb);
   memcpy(eb, teb, sizeof(double) * eh);
-
   cpumatmat(gm, gw, gh, chol, oc, oc, tgm);
   memcpy(gm, tgm, sizeof(double) * gw * gh);
 
-  gen->_put_tail_op(gb, gm, gw, gh);
-  enc->_put_head_op(eb, em, ew, eh);
+  for (int i = 0; i < ew * eh; ++i) fem[i] = (float)em[i];
+  for (int i = 0; i < eh; ++i) feb[i] = (float)eb[i];
+  for (int i = 0; i < gw * gh; ++i) fgm[i] = (float)gm[i];
+  for (int i = 0; i < gh; ++i) fgb[i] = (float)gb[i];
+
+  gen->_put_tail_op(fgb, fgm, gw, gh);
+  enc->_put_head_op(feb, fem, ew, eh);
 
   delete[] mean;
   delete[] chol;
   delete[] unchol;
-
   delete[] teb;
   delete[] tem;
   delete[] tgm;
@@ -635,6 +846,10 @@ void normalize(
   delete[] gm;
   delete[] eb;
   delete[] gb;
+  delete[] fem;
+  delete[] fgm;
+  delete[] feb;
+  delete[] fgb;
 }
 
 int main(int argc, char **argv) {
@@ -687,6 +902,10 @@ int main(int argc, char **argv) {
   int lowmem = arg.get("lowmem", "0");
   int cuda = arg.get("cuda", "-1");
   int kbs = arg.get("kbs", "256");
+  int prec = arg.get("prec", "32");
+  if (prec != 16 && prec != 32)
+    error("prec must be 16 or 32");
+  setkprec(prec);
 
   if (cmd == "server") {
     double reload = arg.get("reload", "0.0");
@@ -771,6 +990,8 @@ int main(int argc, char **argv) {
       error(str("can't open ") + spec + ": " + strerror(errno));
 
     std::string specline;
+    std::string init = "gauss";
+    int eqlr = 0;
     bool got_header = false;
     while (read_line(specfp, &specline)) {
       strmap specopt;
@@ -782,6 +1003,8 @@ int main(int argc, char **argv) {
       specopt["eps"] = "1e-8";
       specopt["clip"] = "0";
       specopt["rdev"] = "0.1";
+      specopt["init"] = "gauss";
+      specopt["eqlr"] = "0";
 
       int keys = parsekv(specline, &specopt);
       if (keys < 0)
@@ -799,6 +1022,8 @@ int main(int argc, char **argv) {
       out->head->eps = strtod(specopt["eps"]);
       out->head->clip = strtod(specopt["clip"]);
       out->head->rdev = strtod(specopt["rdev"]);
+      init = specopt["init"];
+      eqlr = strtoi(specopt["eqlr"]);
 
       got_header = true;
       break;
@@ -816,11 +1041,13 @@ int main(int argc, char **argv) {
       specopt["ow"] = "0";
       specopt["oh"] = "0";
       specopt["oc"] = "0";
-      specopt["mul"] = "1.0";
+      specopt["mul"] = "";
       specopt["freeze"] = "0";
       specopt["rad"] = "0";
       specopt["relu"] = "0";
       specopt["dim"] = "2";
+      specopt["sdim"] = "0";
+      specopt["slot"] = "";
 
       int keys = parsekv(specline, &specopt);
       if (keys < 0)
@@ -829,6 +1056,14 @@ int main(int argc, char **argv) {
         continue;
 
       std::string type = specopt["type"];
+      if (specopt["mul"] == "")
+        specopt["mul"] = (type == "lrlu") ? "0.2" : "1.0";
+      int eqlr_nin = 0;
+      if (eqlr && type.length() == 4 && (type.substr(0, 3) == "con" || type.substr(0, 3) == "rcn") && isdigit(type[3])) {
+        int cic = strtoi(specopt["ic"]); if (cic == 0) cic = poc;
+        int f = 2 * (type[3] - '0') + 1;
+        eqlr_nin = (strtoi(specopt["dim"]) == 1) ? cic * f : cic * f * f;
+      }
       int iw = strtoi(specopt["iw"]);
       int ih = strtoi(specopt["ih"]);
       int ic = strtoi(specopt["ic"]);
@@ -839,6 +1074,35 @@ int main(int argc, char **argv) {
       int freeze = strtoi(specopt["freeze"]);
       int rad = strtoi(specopt["rad"]);
       int relu = strtoi(specopt["relu"]);
+      if (eqlr_nin > 0) {
+        mul *= sqrt(2.0 / (double)eqlr_nin);
+        relu |= 2;
+      }
+      if (type == "styl") {
+        rad = strtoi(specopt["sdim"]);
+        if (rad <= 0)
+          error("styl requires sdim");
+        if (eqlr) {
+          mul *= sqrt(1.0 / (double)rad);
+          relu |= 2;
+        }
+      }
+      if (type == "mcon") {
+        rad = strtoi(specopt["sdim"]);
+        if (rad <= 0)
+          error("mcon requires sdim");
+        if (eqlr) {
+          mul *= sqrt(2.0 / (9.0 * (double)(ic ? ic : poc)));
+          relu |= 2;
+        }
+      }
+      if (type == "keep" || type == "rcal" || type == "radd") {
+        if (specopt["slot"] == "")
+          error(type + " requires slot");
+        rad = strtoi(specopt["slot"]);
+        if (rad < 0 || rad >= 16)
+          error("slot must be 0..15");
+      }
       int dim = strtoi(specopt["dim"]);
 
       if (ic == 0)
@@ -854,7 +1118,7 @@ int main(int argc, char **argv) {
     }
     fclose(specfp);
 
-    out->scram(out->head->rdev);
+    out->scram(out->head->rdev, init == "he");
     delete out;
 
     return 0;
@@ -887,13 +1151,13 @@ int main(int argc, char **argv) {
 
     out->push("con0", dim, dim);
 
-    double *m, *b;
+    float *m, *b;
     int w, h;
     out->_get_head_op(&b, &m, &w, &h);
     assert(w == dim);
     assert(h == dim);
 
-    memset(b, 0, sizeof(double) * dim);
+    memset(b, 0, sizeof(float) * dim);
 
     for (int y = 0; y < dim; ++y)
       for (int x = 0; x < dim; ++x)
@@ -1014,9 +1278,68 @@ int main(int argc, char **argv) {
       warning("unrecognized options");
 
     double rdev = gen->head->rdev;
-    gen->scram(rdev);
+    gen->scram(rdev, std::string(arg.get("init", "gauss")) == "he");
 
     delete gen;
+    return 0;
+  }
+
+  if (cmd == "glyphs") {
+    // tewel glyphs map.ctx gen.ctx ref=ref96.u8 zdat=z.dat out=sheets.rgb [refdim=32x48x1]
+    // decodes the 96 reference glyph cells with one style per latent (f64le rows of the mapping
+    // net's input size) and tiles each font into a 12x8 sheet, written as raw u8 rgb
+    if (ctx.size() != 2)
+      error("glyphs needs map.ctx gen.ctx");
+    int cw, chh, cc;
+    if (!parsedim(arg.get("refdim", "32x48x1"), &cw, &chh, &cc))
+      error("bad refdim");
+    std::string reffn = arg.get("ref"), zfn = arg.get("zdat"), outfn = arg.get("out");
+    Cortex *map = new Cortex(ctx[0], O_RDONLY);
+    map->prepare(1, 1, 1);
+    Cortex *gen = new Cortex(ctx[1], O_RDONLY);
+    gen->prepare(cw, chh, 96);
+    if (gen->sdim != map->oc)
+      error("gen style dim doesn't match map output");
+    if (gen->ic != cc)
+      error("gen input channels don't match refdim");
+    int sdim = gen->sdim, zn = map->iwhc, goc = gen->oc;
+    long refn = 96L * chh * cw * cc;
+    std::vector<uint8_t> refb(refn);
+    { FILE *fp = fopen(reffn.c_str(), "r"); if (!fp || fread(refb.data(), 1, refn, fp) != (size_t)refn) error("can't read ref"); fclose(fp); }
+    std::vector<float> reff(refn);
+    for (long i = 0; i < refn; ++i) reff[i] = refb[i] / 255.0f;
+    float *kref; kmake(&kref, refn); enk(reff.data(), refn, kref);
+    std::vector<double> zd;
+    { FILE *fp = fopen(zfn.c_str(), "r"); if (!fp) error("can't read zdat"); double v; while (fread(&v, 8, 1, fp) == 1) zd.push_back(v); fclose(fp); }
+    long n = zd.size() / zn;
+    float *kz; kmake(&kz, zn);
+    float *kw; kmake(&kw, 96L * sdim);
+    std::vector<float> zf(zn), outf(96L * chh * cw * goc);
+    int W = 12 * cw, H = 8 * chh;
+    std::vector<uint8_t> sheet((size_t)W * H * 3);
+    FILE *fo = fopen(outfn.c_str(), "w"); if (!fo) error("can't write out");
+    for (long i = 0; i < n; ++i) {
+      for (int j = 0; j < zn; ++j) zf[j] = (float)zd[i * zn + j];
+      enk(zf.data(), zn, kz);
+      Cortex::set_noise_seed(Cortex::hash_input(zf.data(), zn));
+      float *w = map->synth(kz);
+      for (int b = 0; b < 96; ++b) kcopy(w, sdim, kw + (long)b * sdim);
+      gen->kstyle = kw;
+      float *o = gen->synth(kref);
+      dek(o, outf.size(), outf.data());
+      for (int b = 0; b < 96; ++b) {
+        int col = b % 12, row = b / 12;
+        for (int y = 0; y < chh; ++y)
+          for (int x = 0; x < cw; ++x) {
+            float v = outf[(((long)b * chh + y) * cw + x) * goc];
+            int u = (int)lrintf(v * 255.0f); if (u < 0) u = 0; if (u > 255) u = 255;
+            uint8_t *p = &sheet[(((size_t)(row * chh + y)) * W + col * cw + x) * 3];
+            p[0] = p[1] = p[2] = (uint8_t)u;
+          }
+      }
+      fwrite(sheet.data(), 1, sheet.size(), fo);
+    }
+    fclose(fo);
     return 0;
   }
 
@@ -1179,13 +1502,13 @@ int main(int argc, char **argv) {
       enc->push("nerf", dim, dim);
 
     {
-      double *m, *b;
+      float *m, *b;
       int w, h;
       enc->_get_head_op(&b, &m, &w, &h);
       assert(w == dim);
       assert(h == dim);
 
-      memset(b, 0, sizeof(double) * dim);
+      memset(b, 0, sizeof(float) * dim);
 
       for (int y = 0; y < dim; ++y)
         for (int x = 0; x < dim; ++x)
@@ -1207,13 +1530,13 @@ int main(int argc, char **argv) {
     gen->push("con0", dim, dim);
 
     {
-      double *m, *b;
+      float *m, *b;
       int w, h;
       gen->_get_tail_op(&b, &m, &w, &h);
       assert(w == dim);
       assert(h == dim);
 
-      memset(b, 0, sizeof(double) * dim);
+      memset(b, 0, sizeof(float) * dim);
 
       for (int y = 0; y < dim; ++y)
         for (int x = 0; x < dim; ++x)
@@ -1268,9 +1591,10 @@ int main(int argc, char **argv) {
 
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
+    int batch = arg.get("batch", "1");
 
     int ic;
-    chn->prepare(iw, ih);
+    chn->prepare(iw, ih, batch);
     ic = chn->head->ic;
 
     std::string srcdim = arg.get("srcdim", diropt["srcdim"]);
@@ -1332,11 +1656,17 @@ int main(int argc, char **argv) {
     long reps = strtol(arg.get("reps", diropt["reps"]));
     double stoploss = arg.get("stoploss", "0.0");
     long stoprounds = strtol(arg.get("stoprounds", "-1"));
+    std::string loss = arg.get("loss", "l2");
+    if (loss != "l1" && loss != "l2")
+      error("loss must be l1 or l2");
+    double lossdelta = arg.get("lossdelta", "0.01");
+    double latnoise = arg.get("latnoise", "0.0");
+    double latreg = arg.get("latreg", "0.0");
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    learnfunc(src, tgt, chn, repint, mul, reps, stoploss, stoprounds);
+    learnfunc(src, tgt, chn, repint, mul, reps, stoploss, stoprounds, loss == "l1", lossdelta, latnoise, latreg);
 
     delete src;
     delete tgt;
@@ -1365,11 +1695,10 @@ int main(int argc, char **argv) {
       uerror("input height must be positive");
     int repint = arg.get("repint", diropt["repint"]);
     double mul = arg.get("mul", diropt["mul"]);
-    bool lossreg = strtoi(arg.get("lossreg", "0"));
-    double losspin = strtod(arg.get("losspin", "0.0"));
+    int batch = arg.get("batch", "1");
 
     int ic;
-    chn->prepare(iw, ih);
+    chn->prepare(iw, ih, batch);
     ic = chn->head->ic;
 
     Cortex *dis = NULL;
@@ -1379,13 +1708,13 @@ int main(int argc, char **argv) {
       error("dis argument required");
     }
 
-    dis->prepare(chn->tail->ow, chn->tail->oh);
+    dis->prepare(chn->tail->ow, chn->tail->oh, batch);
 
     Cortex *cnd = NULL;
     if (arg.present("cnd")) {
       cnd = new Cortex(arg.get("cnd"));
 
-      cnd->prepare(chn->head->iw, chn->head->ih);
+      cnd->prepare(chn->head->iw, chn->head->ih, batch);
 
       if (cnd->ow != dis->iw)
         error("cnd ow doesn't match dis iw");
@@ -1433,21 +1762,6 @@ int main(int argc, char **argv) {
       sw, sh, sc
     );
 
-    Kleption *alt = NULL;
-    if (arg.present("alt")) {
-      std::string altfn = (std::string)arg.get("alt");
-
-      Kleption::Flags altflags = Kleption::FLAG_REPEAT;
-      if (lowmem)
-        altflags |= Kleption::FLAG_LOWMEM;
-
-      alt = new Kleption(
-        altfn, iw, ih, ic,
-        altflags, Kleption::TRAV_RAND, srckind,
-        sw, sh, sc
-      );
-    }
-
     std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
     int tw = 0, th = 0, tc = 0;
     if (!parsedim(tgtdim, &tw, &th, &tc))
@@ -1478,22 +1792,155 @@ int main(int argc, char **argv) {
     long reps = strtol(arg.get("reps", diropt["reps"]));
     long stoprounds = strtol(arg.get("stoprounds", "-1"));
     long disreps = strtol(arg.get("disreps", "1"));
-    double stablize = strtod(arg.get("stablize", "0.0"));
     double genmul = strtod(arg.get("genmul", "1.0"));
     double dismul = strtod(arg.get("dismul", "1.0"));
     double noise = strtod(arg.get("noise", "0.0"));
+    double tether = arg.get("tether", "0.0");
+    std::string loss = arg.get("loss", "l2");
+    if (loss != "l1" && loss != "l2")
+      error("loss must be l1 or l2");
+    double lossdelta = arg.get("lossdelta", "0.01");
+    double latnoise = arg.get("latnoise", "0.0");
+    double latreg = arg.get("latreg", "0.0");
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    info(fmt("dim=%dx%d reps=%ld", iw, ih, reps));
+    info(fmt("dim=%dx%d reps=%ld batch=%d disreps=%ld tether=%g", iw, ih, reps, batch, disreps, tether));
 
-    learnhans(src, alt, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul, noise);
+    learnhans(src, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul, noise, tether, loss == "l1", lossdelta, latnoise, latreg);
 
     delete src;
     delete tgt;
     delete chn;
     delete dis;
+    return 0;
+  }
+
+  if (cmd == "learngan") {
+    Chain *chn = new Chain;
+    for (auto ctxfn : ctx)
+      chn->push(ctxfn, O_RDWR);
+
+    int iw = 1, ih = 1;
+    if (arg.present("dim")) {
+      if (!parsedim2(arg.get("dim"), &iw, &ih))
+        error("dim must be like 1 or like 1x1");
+    }
+
+    int repint = arg.get("repint", diropt["repint"]);
+    double mul = arg.get("mul", diropt["mul"]);
+    int batch = arg.get("batch", "1");
+
+    // optional condition paired with the targets (same ids): the generator's tail input,
+    // and extra channels of the discriminator input
+    Kleption *cnd = NULL;
+    int cw = 0, chh = 0, cc = 0;
+    if (arg.present("cnd")) {
+      if (!parsedim(arg.get("cnddim", ""), &cw, &chh, &cc) || cw <= 0 || chh <= 0 || cc <= 0)
+        error("cnd requires cnddim like 32x48x1");
+      Kleption::Kind cndkind = Kleption::get_kind(arg.get("cndkind", "u8"));
+      Kleption::Flags cndflags = Kleption::FLAG_REPEAT;
+      if (lowmem)
+        cndflags |= Kleption::FLAG_LOWMEM;
+      cnd = new Kleption((std::string)arg.get("cnd"), cw, chh, cc, cndflags, Kleption::TRAV_RAND, cndkind, cw, chh, cc);
+    }
+
+    chn->prepare(iw, ih, batch, cw, chh);
+
+    if (!arg.present("dis"))
+      error("dis argument required");
+    Cortex *dis = new Cortex(arg.get("dis"));
+    dis->prepare(chn->tail->ow, chn->tail->oh, batch);
+
+    if (dis->iw != chn->tail->ow || dis->ih != chn->tail->oh)
+      error("gen output dims don't match dis input dims");
+    if (dis->ic != chn->tail->oc + cc)
+      error("gen oc (plus cnd channels) doesn't match dis ic");
+    if (cnd && (cw != chn->tail->ow || chh != chn->tail->oh))
+      error("cnddim doesn't match gen output dims");
+
+    Cortex *ema = NULL;
+    if (arg.present("ema")) {
+      if (chn->tail->ctxv.size() != 1)
+        error("ema requires a single-ctx generator");
+      std::string emafn = arg.get("ema");
+      if (!fexists(emafn)) {
+        info("creating " + emafn + " as a copy of the generator");
+        std::string genfn = chn->tail->fn();
+        FILE *fi = fopen(genfn.c_str(), "r"); if (!fi) error("can't open " + genfn);
+        FILE *fo = fopen(emafn.c_str(), "w"); if (!fo) error("can't create " + emafn);
+        char buf[65536]; size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), fi)) > 0) fwrite(buf, 1, n, fo);
+        fclose(fi); fclose(fo);
+      }
+      ema = new Cortex(emafn);
+      ema->prepare(chn->tail->ctxv[0]->iw, chn->tail->ctxv[0]->ih, batch);
+    }
+
+    std::string tgtdim = arg.get("tgtdim", diropt["tgtdim"]);
+    int tw = 0, th = 0, tc = 0;
+    if (!parsedim(tgtdim, &tw, &th, &tc))
+      error("bad tgtdim format");
+    Kleption::Kind tgtkind = Kleption::get_kind(arg.get("tgtkind", diropt["tgtkind"]));
+    if (!arg.present("tgt"))
+      error("tgt argument required");
+    std::string tgtfn = (std::string)arg.get("tgt");
+    Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
+    if (lowmem)
+      tgtflags |= Kleption::FLAG_LOWMEM;
+    if ((int)arg.get("flip", "0"))
+      tgtflags |= Kleption::FLAG_FLIP;
+    Kleption *tgt = new Kleption(
+      tgtfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
+      tgtflags, Kleption::TRAV_RAND, tgtkind,
+      tw, th, tc
+    );
+
+    long reps = strtol(arg.get("reps", diropt["reps"]));
+    long stoprounds = strtol(arg.get("stoprounds", "-1"));
+    long disreps = strtol(arg.get("disreps", "1"));
+    double genmul = strtod(arg.get("genmul", "1.0"));
+    double dismul = strtod(arg.get("dismul", "1.0"));
+    std::string loss = arg.get("loss", "ns");
+    if (loss != "ns" && loss != "ls")
+      error("loss must be ns or ls");
+    double r1 = arg.get("r1", "0.0");
+    int r1int = arg.get("r1int", "16");
+    double r1eps = arg.get("r1eps", "1e-3");
+    double emabeta = arg.get("emabeta", "0.999");
+    int replay = arg.get("replay", "0");
+    double replayfrac = arg.get("replayfrac", "0.5");
+    double disemabeta = arg.get("disemabeta", "0.99");
+
+    Cortex *disema = NULL;
+    if (arg.present("disema")) {
+      std::string fn2 = arg.get("disema");
+      if (!fexists(fn2)) {
+        info("creating " + fn2 + " as a copy of the discriminator");
+        std::string dfn = arg.get("dis");
+        FILE *fi = fopen(dfn.c_str(), "r"); if (!fi) error("can't open " + dfn);
+        FILE *fo = fopen(fn2.c_str(), "w"); if (!fo) error("can't create " + fn2);
+        char buf[65536]; size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), fi)) > 0) fwrite(buf, 1, n, fo);
+        fclose(fi); fclose(fo);
+      }
+      disema = new Cortex(fn2);
+      disema->prepare(chn->tail->ow, chn->tail->oh, batch);
+    }
+
+    if (!arg.unused.empty())
+      error("unrecognized options");
+
+    info(fmt("learngan batch=%d disreps=%ld loss=%s r1=%g r1int=%d replay=%d disema=%d cnd=%d", batch, disreps, loss.c_str(), r1, r1int, replay, disema ? 1 : 0, cc));
+
+    learngan(tgt, chn, dis, ema, repint, mul, reps, disreps, stoprounds, genmul, dismul, loss == "ns", r1, r1int, r1eps, emabeta, disema, disemabeta, replay, replayfrac, cnd, cc);
+
+    delete tgt;
+    delete chn;
+    delete dis;
+    if (ema) delete ema;
+    if (disema) delete disema;
     return 0;
   }
 

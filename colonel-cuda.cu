@@ -6,7 +6,9 @@
 #include <assert.h>
 
 #include <math.h>
+#include <map>
 
+#include <mma.h>
 #include "colonel.hh"
 
 namespace makemore {
@@ -50,7 +52,11 @@ int kndevs() {
 #undef PRE
 #define PRE(x) _gpu_ ## x
 
+#undef KATOMIC_ADD
+#define KATOMIC_ADD(p, v) atomicAdd((p), (v))
+
 #include "colonel-core.inc"
+#include "colonel-gemm.inc"
 
 
 
@@ -62,6 +68,9 @@ int kndevs() {
 
 #undef PRE
 #define PRE(x) _cpu_ ## x
+
+#undef KATOMIC_ADD
+#define KATOMIC_ADD(p, v) (*(p) += (v))
 
 
 #undef DEFN_KERNEL
@@ -105,13 +114,33 @@ void dekv(const void *da, unsigned int n, void *a) {
     ::memcpy(a, da, n);
 }
 
+// Caching device allocator: cudaFree synchronizes the whole device, so freed blocks are kept
+// on a per-size free list and reused by the next allocation of the same size.
+static std::multimap<unsigned int, void *> *g_kfree = NULL;
+static std::map<void *, unsigned int> *g_klive = NULL;
+
 void kmakev(void **dp, unsigned int n) {
   if (kdev) {
+    if (!g_kfree) { g_kfree = new std::multimap<unsigned int, void *>; g_klive = new std::map<void *, unsigned int>; }
+    auto it = g_kfree->find(n);
+    if (it != g_kfree->end()) {
+      *dp = it->second;
+      g_kfree->erase(it);
+      (*g_klive)[*dp] = n;
+      return;
+    }
     void *d = NULL;
-    // assert(n > 0);
     int ret = ::cudaMalloc((void **)&d, n);
-    // assert(d != NULL);
+    if (ret != 0) {
+      // out of memory: release the cache and retry once
+      for (auto &kv : *g_kfree) ::cudaFree(kv.second);
+      g_kfree->clear();
+      ret = ::cudaMalloc((void **)&d, n);
+    }
+    if (ret != 0)
+      fprintf(stderr, "kmakev: cudaMalloc(%u bytes) failed: %s\n", n, cudaGetErrorString((cudaError_t)ret));
     assert(ret == 0);
+    (*g_klive)[d] = n;
     *dp = d;
   } else {
     *dp = (void *)(new char[n]);
@@ -120,10 +149,15 @@ void kmakev(void **dp, unsigned int n) {
 }
 
 void kfreev(void *x) {
-  if (kdev)
-    ::cudaFree(x);
-  else
+  if (kdev) {
+    if (!x) return;
+    auto it = g_klive->find(x);
+    assert(it != g_klive->end());
+    g_kfree->insert(std::make_pair(it->second, x));
+    g_klive->erase(it);
+  } else {
     delete[] ((char *)x);
+  }
 }
 
 void kzerov(void *x, unsigned int n) {
@@ -133,13 +167,14 @@ void kzerov(void *x, unsigned int n) {
     ::memset(x, 0, n);
 }
 
-void kfill(double *x, unsigned int n, double v) {
+__global__ void _fill_kernel(float *x, unsigned int n, float v) {
+  unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < n) x[i] = v;
+}
+
+void kfill(float *x, unsigned int n, float v) {
   if (kdev) {
-    double *y = new double[n];
-    for (unsigned int i = 0; i < n; ++i)
-      y[i] = v;
-    enk(y, n, x);
-    delete[] y;
+    if (n > 0) _fill_kernel<<<(n + 255) / 256, 256>>>(x, n, v);
   } else {
     for (unsigned int i = 0; i < n; ++i)
       x[i] = v;

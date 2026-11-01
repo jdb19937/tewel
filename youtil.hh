@@ -32,6 +32,8 @@ inline uint8_t dtob(double d) {
 
 extern void endub(const uint8_t *x, unsigned int n, double *y);
 extern void dedub(const double *y, unsigned int n, uint8_t *x);
+extern void endub(const uint8_t *x, unsigned int n, float *y);
+extern void dedub(const float *y, unsigned int n, uint8_t *x);
 
 inline bool startswith(const std::string &str, const std::string &suf) {
   return (

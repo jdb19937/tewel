@@ -20,6 +20,10 @@ struct Rando {
   void observe(const double *dat);
   void save(const std::string &fn);
   void generate(double *dat, double mul = 1.0, double evolve = 0.0);
+
+  // float-buffer variants (device-side data is float)
+  void observe(const float *dat);
+  void generate(float *dat, double mul = 1.0, double evolve = 0.0);
 };
 
 }

@@ -113,6 +113,7 @@ void Server::main() {
 
   while (1) {
     this->select();
+    this->extend();   // periodic work (e.g. EGServer weight reload); select() bounds the wait to 50 ms
 
     if (FD_ISSET(s, fdsets + 0))
       while (this->accept());

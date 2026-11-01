@@ -37,6 +37,16 @@ void dedub(const double *d, unsigned int n, uint8_t *b) {
     b[i] = dtob(d[i]);
 }
 
+void endub(const uint8_t *b, unsigned int n, float *d) {
+  for (unsigned int i = 0; i < n; ++i)
+    d[i] = (float)btod(b[i]);
+}
+
+void dedub(const float *d, unsigned int n, uint8_t *b) {
+  for (unsigned int i = 0; i < n; ++i)
+    b[i] = dtob((double)d[i]);
+}
+
 void spit(const uint8_t *x, size_t n, FILE *fp) {
   size_t ret;
   ret = ::fwrite(x, 1, n, fp);

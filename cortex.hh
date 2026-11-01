@@ -9,6 +9,7 @@
 
 #include <string>
 #include <list>
+#include <vector>
 
 namespace makemore {
 
@@ -51,24 +52,31 @@ struct Cortex {
 
   int iw, ih, ic, iwhc;
   int ow, oh, oc, owhc;
+  int bn;   // batch size; kinp/kout hold bn samples
 
   uint8_t *kbuf;
   unsigned long kbufn;
-  double nu, b1, b2, eps, clip;
+  float nu, b1, b2, eps, clip;
 
-  double *kdw;
+  float *kdw;
   unsigned long dwn;
 
-  double *kinp, *kout;
+  float *kinp, *kout;
 
-  double rms;
-  double max;
-  double decay;
+  // style side input (per-sample vector, [bn][sdim]) for styl layers; not owned
+  const float *kstyle;
+  float *kstylegrad;   // gradient w.r.t. the style, accumulated by learn/accumulate/propback
+  int sdim;            // 0 when the net has no styl layers
+  std::vector<float *> kstash;   // per-mcon-layer forward outputs kept for backward
+
+  float rms;
+  float max;
+  float decay;
   uint64_t rounds;
 
   uint64_t new_rounds;
 
-  double rmul;
+  float rmul;
 
 
   std::list<uint8_t*> bufstack;
@@ -85,35 +93,38 @@ struct Cortex {
   void _clear();
 
   static void create(const std::string &, bool clobber = false);
+  static void set_noise_seed(long seed);           // -1: random noise windows (training); >= 0: deterministic
+  static long hash_input(const float *x, long n);  // host-side hash of an input vector, for seeding
   void open(const std::string &_fn, int flags = O_RDWR);
   void close();
 
   void dump(FILE * = stdout);
   void bindump(FILE *, unsigned int a, unsigned int b);
   void unprepare();
-  bool prepare(int _iw, int _ih);
+  bool prepare(int _iw, int _ih, int _bn = 1);
   void load();
   void save();
 
   void unfreeze(int last);
 
-  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0, double mul = 0.0, int rad = 1, int freeze = 0, int relu = 0, int dim = 2);
-  void scram(double dev = 1.0);
+  void push(const std::string &type, int ic, int oc, int viw = 0, int vih = 0, int vow = 0, int voh = 0, float mul = 0.0, int rad = 1, int freeze = 0, int relu = 0, int dim = 2);
+  void scram(float dev = 1.0, bool fanin = false);
+  void ema(const Cortex &src, float beta);
 
-  void target(const double *ktgt);
-  void setloss(const double *ktgt);
-  double *synth(const double *_kinp);
-  double *synth();
+  void target(const float *ktgt);
+  void setloss(const float *ktgt);
+  float *synth(const float *_kinp);
+  float *synth();
   void stats();
-  double *propback();
-  double *accumulate();
-  double *learn(double mul);
-  double *learn(const double *_kout, double mul);
+  float *propback();
+  float *accumulate();
+  float *learn(float mul);
+  float *learn(const float *_kout, float mul);
 
-  void _get_head_op(double **vecp, double **matp, int *wp, int *hp);
-  void _put_head_op(const double *vec, const double *mat, int w, int h);
-  void _get_tail_op(double **vecp, double **matp, int *wp, int *hp);
-  void _put_tail_op(const double *vec, const double *mat, int w, int h);
+  void _get_head_op(float **vecp, float **matp, int *wp, int *hp);
+  void _put_head_op(const float *vec, const float *mat, int w, int h);
+  void _get_tail_op(float **vecp, float **matp, int *wp, int *hp);
+  void _put_tail_op(const float *vec, const float *mat, int w, int h);
 
 };
 

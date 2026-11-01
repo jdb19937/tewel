@@ -1,6 +1,10 @@
 #ifndef __MAKEMORE_CAMERA_HH__
 #define __MAKEMORE_CAMERA_HH__ 1
 
+#include <cstdint>
+#include <cstddef>
+#include <string>
+
 namespace makemore {
 
 struct Camera {

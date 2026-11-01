@@ -10,15 +10,15 @@ namespace makemore {
 
 static std::random_device rd;
 static std::mt19937 rg(rd());
-static std::normal_distribution<double> rn(0, 1);
+static std::normal_distribution<float> rn(0, 1);
 static std::uniform_int_distribution<uint32_t> ru(0, 1UL<<31);
 
-double randgauss() {
+float randgauss() {
   return rn(rg);
 }
 
-double randrange(double a, double b) {
-  std::uniform_real_distribution<double> uniform(a, b);
+float randrange(float a, float b) {
+  std::uniform_real_distribution<float> uniform(a, b);
   return uniform(rg);
 }
 
@@ -34,14 +34,14 @@ void seedrand() {
   rg.seed(rd());
 }
 
-void kaddnoise(double *kdat, unsigned int n, double dev) {
+void kaddnoise(float *kdat, unsigned int n, float dev) {
   if (dev == 0.0)
     return;
 
-  double *noise = new double[n];
+  float *noise = new float[n];
   for (unsigned int j = 0; j < n; ++j)
     noise[j] = randgauss() * dev;
-  double *knoise;
+  float *knoise;
   kmake(&knoise, n);
   enk(noise, n, knoise);
   delete[] noise;

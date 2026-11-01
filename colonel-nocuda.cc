@@ -173,6 +173,9 @@ static long double erfinv(long double x, int nr_iter) {
 #undef PRE
 #define PRE(x) _cpu_ ## x
 
+#undef KATOMIC_ADD
+#define KATOMIC_ADD(p, v) (*(p) += (v))
+
 #include "colonel-core.inc"
 
 
@@ -206,7 +209,7 @@ void kzerov(void *x, unsigned int n) {
   ::memset(x, 0, n);
 }
 
-void kfill(double *x, unsigned int n, double v) {
+void kfill(float *x, unsigned int n, float v) {
   for (unsigned int i = 0; i < n; ++i)
     x[i] = v;
 }
@@ -214,6 +217,19 @@ void kfill(double *x, unsigned int n, double v) {
 void kcopyv(const void *x, unsigned int n, void *y) {
   ::memcpy(y, x, n);
 }
+
+void gpu_synth_conv(const float *, int, int, int, float *, int, int, int, bool, int, int, const float *, float) { assert(!"no cuda"); }
+void gpu_learn_conv_w(const float *, int, int, int, const float *, int, int, int, bool, int, int, float *, float) { assert(!"no cuda"); }
+int kprec = 32;
+void setkprec(int p) { kprec = p; }
+void gpu_styl_affine(const float *, const float *, int, int, int, float, float *) { assert(!"no cuda"); }
+void gpu_synth_conv16(const float *, int, int, int, float *, int, int, int, bool, int, int, const float *, float) { assert(!"no cuda"); }
+void gpu_learn_conv_w16(const float *, int, int, int, const float *, int, int, int, bool, int, int, float *, float) { assert(!"no cuda"); }
+void gpu_learn_conv_in16(float *, int, int, int, const float *, int, int, int, bool, int, int, const float *, float) { assert(!"no cuda"); }
+void gpu_learn_pnrm(float *, int, int, const float *) { assert(!"no cuda"); }
+void gpu_synth_pnrm(const float *, long, int, float *) { assert(!"no cuda"); }
+void gpu_styl_dsc(const float *, const float *, long, int, int, float *) { assert(!"no cuda"); }
+void gpu_learn_conv_in(float *, int, int, int, const float *, int, int, int, bool, int, int, const float *, float) { assert(!"no cuda"); }
 
 #include "colonel-common.inc"
 

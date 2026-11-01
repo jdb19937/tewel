@@ -1,26 +1,31 @@
 
-DEFN_KERNEL(kaddvec, const double *a, const double *b, unsigned int n, double *c) {
+DEFN_KERNEL(kaddvec, const float *a, const float *b, unsigned int n, float *c) {
   PREF_KERNEL;
   c[i] = a[i] + b[i];
 }
 
-DEFN_KERNEL(ksubvec, const double *a, const double *b, unsigned int n, double *c) {
+DEFN_KERNEL(ksubvec, const float *a, const float *b, unsigned int n, float *c) {
   PREF_KERNEL;
   c[i] = a[i] - b[i];
 }
 
-DEFN_KERNEL(kmul, const double *a, const double b, unsigned int n, double *c) {
+DEFN_KERNEL(kaxpy, const float *x, const float a, unsigned int n, float *y) {
+  PREF_KERNEL;
+  y[i] += a * x[i];
+}
+
+DEFN_KERNEL(kmul, const float *a, const float b, unsigned int n, float *c) {
   PREF_KERNEL;
   c[i] = a[i] * b;
 }
 
-DEFN_KERNEL(krectify, const double *a, double *b, unsigned int n) {
+DEFN_KERNEL(krectify, const float *a, float *b, unsigned int n) {
   PREF_KERNEL;
   if (a[i] <= 0.0)
     b[i] = 0.0;
 }
 
-DEFN_KERNEL(ksumsq, const double *a, unsigned int n, double *sumsqp) {
+DEFN_KERNEL(ksumsq, const float *a, unsigned int n, float *sumsqp) {
   PREF_KERNEL;
 
   unsigned int j0 = i * 128;
@@ -28,14 +33,14 @@ DEFN_KERNEL(ksumsq, const double *a, unsigned int n, double *sumsqp) {
     return;
   unsigned int j1 = (j0 + 128 >= n) ? n : (j0 + 128);
   
-  double s = 0;
+  float s = 0;
   for (unsigned int j = j0; j < j1; ++j)
     s += a[j] * a[j];
 
   sumsqp[i] = s;
 }
 
-DEFN_KERNEL(ksum, const double *a, unsigned int n, double *sumsqp) {
+DEFN_KERNEL(ksum, const float *a, unsigned int n, float *sumsqp) {
   PREF_KERNEL;
 
   unsigned int j0 = i * 128;
@@ -43,14 +48,14 @@ DEFN_KERNEL(ksum, const double *a, unsigned int n, double *sumsqp) {
     return;
   unsigned int j1 = (j0 + 128 >= n) ? n : (j0 + 128);
   
-  double s = 0;
+  float s = 0;
   for (unsigned int j = j0; j < j1; ++j)
     s += a[j];
 
   sumsqp[i] = s;
 }
 
-DEFN_KERNEL(kmaxabs, const double *a, unsigned int n, double *maxp) {
+DEFN_KERNEL(kmaxabs, const float *a, unsigned int n, float *maxp) {
   PREF_KERNEL;
 
   unsigned int j0 = i * 128;
@@ -59,11 +64,11 @@ DEFN_KERNEL(kmaxabs, const double *a, unsigned int n, double *maxp) {
   unsigned int j1 = (j0 + 128 >= n) ? n : (j0 + 128);
 
   unsigned int j = j0;
-  double s = fabs(a[j]);
+  float s = fabs(a[j]);
   ++j;
   
   for (; j < j1; ++j) {
-    double aa = fabs(a[j]);
+    float aa = fabs(a[j]);
     if (aa > s)
       s = aa;
   }
@@ -72,8 +77,8 @@ DEFN_KERNEL(kmaxabs, const double *a, unsigned int n, double *maxp) {
 }
 
 DEFN_KERNEL(kspliceadd,
-  const double *x, int n, int xm, int xa, int xk,
-  double *y, int ym, int ya
+  const float *x, int n, int xm, int xa, int xk,
+  float *y, int ym, int ya
 ) {
   PREF_KERNEL;
 
@@ -84,8 +89,8 @@ DEFN_KERNEL(kspliceadd,
 }
 
 DEFN_KERNEL(ksplice,
-  const double *x, int n, int xm, int xa, int xk,
-  double *y, int ym, int ya
+  const float *x, int n, int xm, int xa, int xk,
+  float *y, int ym, int ya
 ) {
   PREF_KERNEL;
 
@@ -96,8 +101,8 @@ DEFN_KERNEL(ksplice,
 }
 
 DEFN_KERNEL(ksplice2,
-  const double *x, const double *z, double l, int n, int xm, int xa, int xk,
-  double *y, int ym, int ya
+  const float *x, const float *z, float l, int n, int xm, int xa, int xk,
+  float *y, int ym, int ya
 ) {
   PREF_KERNEL;
 
@@ -110,10 +115,10 @@ DEFN_KERNEL(ksplice2,
 }
 
 DEFN_KERNEL(synth_norm,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   PREF_KERNEL;
 
@@ -127,22 +132,22 @@ DEFN_KERNEL(synth_norm,
 
   int ini = outi;
 
-  double outv = 0;
-  outv += in[ini] * (1.0 + wmv[(outi + outn) * 3]);
-  outv += wmv[outi * 3];
+  float outv = 0;
+  outv += in[ini] * (1.0 + wmv[outi + outn]);
+  outv += wmv[outi];
 
   out[outi] = outv;
 }
 
 
 DEFN_KERNEL(learn_norm1,
-  const double *in, int iw, int ih,
-  const double *fout,
+  const float *in, int iw, int ih,
+  const float *fout,
 
   int ic, int oc,
 
-  double *dwv,
-  double nu, double b1, double b2
+  float *dwv,
+  float nu, float b1, float b2
 ) {
   PREF_KERNEL;
 
@@ -158,7 +163,7 @@ DEFN_KERNEL(learn_norm1,
   if (wi >= wn)
     return;
 
-  double dw = 0;
+  float dw = 0;
 
   if (wi < outn) {
     int outi = wi;
@@ -166,7 +171,7 @@ DEFN_KERNEL(learn_norm1,
   } else {
 #if 0
     int outi = wi - outn;
-    dw += fout[outi] * (1.0 + wmv[wi * 3]);
+    dw += fout[outi] * (1.0 + wmv[wi]);
 #endif
     dw = 0;
   }
@@ -176,12 +181,12 @@ DEFN_KERNEL(learn_norm1,
 
 
 DEFN_KERNEL(learn_norm2,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc,
 
-  const double *wmv
+  const float *wmv
 ) {
   PREF_KERNEL;
 
@@ -197,8 +202,8 @@ DEFN_KERNEL(learn_norm2,
 DEFN_KERNEL(learn_norm3,
   int iw, int ih,
   int ic, int oc,
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds, float mc, float vc
 ) {
   PREF_KERNEL;
 
@@ -212,21 +217,19 @@ DEFN_KERNEL(learn_norm3,
   if (wi >= wn)
     return;
 
-  double dw = dwv[wi];
+  float dw = dwv[wi];
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
+  float m = wmv[wn + wi];
+  float v = wmv[2 * wn + wi];
   m = (1.0 - b1) * m + b1 * dw;
   v = (1.0 - b2) * v + b2 * dw * dw;
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  wmv[wn + wi] = m;
+  wmv[2 * wn + wi] = v;
 
-  double w = wmv[wi * 3 + 0];
+  float w = wmv[wi];
 
-  if (rounds < 1024.0) {
-    m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
-    v = v / (1.0 - pow(1.0 - b2, 1.0 + rounds));
-  }
+  m *= mc;
+  v *= vc;
 
   w += nu * m / (sqrt(v) + eps);
 
@@ -237,17 +240,17 @@ DEFN_KERNEL(learn_norm3,
       w = -clip;
   }
 
-  wmv[wi * 3 + 0] = w;
+  wmv[wi] = w;
   dwv[wi] = 0;
 }
 
 
 
 DEFN_KERNEL(synth_bias,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   PREF_KERNEL;
 
@@ -262,22 +265,22 @@ DEFN_KERNEL(synth_bias,
 
   int ini = outi;
 
-  double outv = 0;
+  float outv = 0;
   outv += in[ini];
-  outv += wmv[outi * 3];
+  outv += wmv[outi];
 
   out[outi] = outv;
 }
 
 
 DEFN_KERNEL(learn_bias1,
-  const double *in, int iw, int ih,
-  const double *fout,
+  const float *in, int iw, int ih,
+  const float *fout,
 
   int ic, int oc,
 
-  double *dwv,
-  double nu, double b1, double b2
+  float *dwv,
+  float nu, float b1, float b2
 ) {
   PREF_KERNEL;
 
@@ -293,7 +296,7 @@ DEFN_KERNEL(learn_bias1,
   if (wi >= wn)
     return;
 
-  double dw = 0;
+  float dw = 0;
 
   if (wi < outn) {
     int outi = wi;
@@ -305,11 +308,11 @@ DEFN_KERNEL(learn_bias1,
 
 
 DEFN_KERNEL(learn_bias2,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   PREF_KERNEL;
 
@@ -325,8 +328,8 @@ DEFN_KERNEL(learn_bias2,
 DEFN_KERNEL(learn_bias3,
   int iw, int ih,
   int ic, int oc,
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds, float mc, float vc
 ) {
   PREF_KERNEL;
 
@@ -340,21 +343,19 @@ DEFN_KERNEL(learn_bias3,
   if (wi >= wn)
     return;
 
-  double dw = dwv[wi];
+  float dw = dwv[wi];
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
+  float m = wmv[wn + wi];
+  float v = wmv[2 * wn + wi];
   m = (1.0 - b1) * m + b1 * dw;
   v = (1.0 - b2) * v + b2 * dw * dw;
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  wmv[wn + wi] = m;
+  wmv[2 * wn + wi] = v;
 
-  double w = wmv[wi * 3 + 0];
+  float w = wmv[wi];
 
-  if (rounds < 1024.0) {
-    m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
-    v = v / (1.0 - pow(1.0 - b2, 1.0 + rounds));
-  }
+  m *= mc;
+  v *= vc;
 
   w += nu * m / (sqrt(v) + eps);
 
@@ -365,15 +366,15 @@ DEFN_KERNEL(learn_bias3,
       w = -clip;
   }
 
-  wmv[wi * 3 + 0] = w;
+  wmv[wi] = w;
   dwv[wi] = 0;
 }
 
 DEFN_KERNEL(synth_local,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   PREF_KERNEL;
 
@@ -399,7 +400,7 @@ DEFN_KERNEL(synth_local,
   int f = d * 2 + 1;
   // int wmvn = 3 * (oc + ic * f * f * oc);
 
-  double outv = 0;
+  float outv = 0;
 
   for (int iyt = iy0; iyt <= iy1; ++iyt) {
     int iy = (iyt + ih) % ih;
@@ -412,28 +413,28 @@ DEFN_KERNEL(synth_local,
         int dy = iyt - iy0;
         int wi = outn + (iz + ic * (dx + f * (dy + f * outi)));
 
-        double v = in[ini];
-        double w = wmv[wi * 3];
+        float v = in[ini];
+        float w = wmv[wi];
 
         outv += v * w;
       }
     }
   }
 
-  outv += wmv[outi * 3];
+  outv += wmv[outi];
 
   out[outi] = outv;
 }
 
 
 DEFN_KERNEL(learn_local1,
-  const double *in, int iw, int ih,
-  const double *fout,
+  const float *in, int iw, int ih,
+  const float *fout,
 
   int d, int ic, int oc,
 
-  double *dwv,
-  double nu, double b1, double b2
+  float *dwv,
+  float nu, float b1, float b2
 ) {
   PREF_KERNEL;
 
@@ -450,7 +451,7 @@ DEFN_KERNEL(learn_local1,
   if (wi >= wn)
     return;
 
-  double dw = 0;
+  float dw = 0;
 
   if (wi < outn) {
     int outi = wi;
@@ -480,12 +481,12 @@ DEFN_KERNEL(learn_local1,
 
 
 DEFN_KERNEL(learn_local2,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic, int oc,
 
-  const double *wmv
+  const float *wmv
 ) {
   PREF_KERNEL;
 
@@ -511,7 +512,7 @@ DEFN_KERNEL(learn_local2,
   int f = d * 2 + 1;
   // int wmvn = 3 * (oc + ic * f * f * oc);
 
-  double finv = 0;
+  float finv = 0;
 
   for (int oyt = oy0; oyt <= oy1; ++oyt) {
     int oy = (oyt + oh) % oh;
@@ -524,8 +525,8 @@ DEFN_KERNEL(learn_local2,
         int dy = iy - oyt + d;
         int wi = outn + (iz + ic * (dx + f * (dy + f * outi)));
 
-        double v = fout[outi];
-        double w = wmv[wi * 3];
+        float v = fout[outi];
+        float w = wmv[wi];
         finv += v * w;
       }
     }
@@ -538,8 +539,8 @@ DEFN_KERNEL(learn_local2,
 DEFN_KERNEL(learn_local3,
   int iw, int ih,
   int d, int ic, int oc,
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds, float mc, float vc
 ) {
   PREF_KERNEL;
 
@@ -554,21 +555,19 @@ DEFN_KERNEL(learn_local3,
   if (wi >= wn)
     return;
 
-  double dw = dwv[wi];
+  float dw = dwv[wi];
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
+  float m = wmv[wn + wi];
+  float v = wmv[2 * wn + wi];
   m = (1.0 - b1) * m + b1 * dw;
   v = (1.0 - b2) * v + b2 * dw * dw;
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  wmv[wn + wi] = m;
+  wmv[2 * wn + wi] = v;
 
-  double w = wmv[wi * 3 + 0];
+  float w = wmv[wi];
 
-  if (rounds < 1024.0) {
-    m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
-    v = v / (1.0 - pow(1.0 - b2, 1.0 + rounds));
-  }
+  m *= mc;
+  v *= vc;
 
   w += nu * m / (sqrt(v) + eps);
 
@@ -579,13 +578,13 @@ DEFN_KERNEL(learn_local3,
       w = -clip;
   }
 
-  wmv[wi * 3 + 0] = w;
+  wmv[wi] = w;
   dwv[wi] = 0;
 }
 
 DEFN_KERNEL(synth_padd,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic
 ) {
   PREF_KERNEL;
@@ -619,8 +618,8 @@ DEFN_KERNEL(synth_padd,
 }
 
 DEFN_KERNEL(synth_crop,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic,
   int ix0, int iy0
 ) {
@@ -650,8 +649,8 @@ DEFN_KERNEL(synth_crop,
 }
 
 DEFN_KERNEL(synth_trim,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic
 ) {
   PREF_KERNEL;
@@ -681,12 +680,12 @@ DEFN_KERNEL(synth_trim,
 
 
 DEFN_KERNEL(synth_conv,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic, int oc,
   bool relu, int freeze,
   int dim,
-  const double *wmv
+  const float *wmv, float wscale
 ) {
   PREF_KERNEL;
 
@@ -709,7 +708,7 @@ DEFN_KERNEL(synth_conv,
     int iy = oy;
     int iz = oz;
     int ini = iz + ic * (ix + iw * iy);
-    double v = in[ini];
+    float v = in[ini];
 
     out[outi] = v;
     return;
@@ -717,7 +716,7 @@ DEFN_KERNEL(synth_conv,
 
   int ix0 = ox - d;
   int ix1 = ox + d;
-  double outv = 0;
+  float outv = 0;
   int f = d * 2 + 1;
 
   if (dim == 1) {
@@ -728,13 +727,13 @@ DEFN_KERNEL(synth_conv,
       int ix = (ixt + iw) % iw;
       for (int iz = 0; iz < ic; ++iz) {
         int ini = iz + ic * (ix + iw * iy);
-        double v = in[ini];
+        float v = in[ini];
 
         if (!relu || v > 0 || iz < freeze) {
           int dx = ixt - ix0;
           int wi = oc + (iz + ic * (dx + f * oz));
 
-          double w = wmv[wi * 3];
+          float w = wmv[wi] * wscale;
 
           outv += v * w;
         }
@@ -751,14 +750,14 @@ DEFN_KERNEL(synth_conv,
         int ix = (ixt + iw) % iw;
         for (int iz = 0; iz < ic; ++iz) {
           int ini = iz + ic * (ix + iw * iy);
-          double v = in[ini];
+          float v = in[ini];
 
           if (!relu || v > 0 || iz < freeze) {
             int dx = ixt - ix0;
             int dy = iyt - iy0;
             int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
 
-            double w = wmv[wi * 3];
+            float w = wmv[wi] * wscale;
   
             outv += v * w;
           }
@@ -767,14 +766,14 @@ DEFN_KERNEL(synth_conv,
     }
   }
 
-  outv += wmv[oz * 3];
+  outv += wmv[oz];
 
   out[outi] = outv;
 }
 
 DEFN_KERNEL(learn_padd,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic
 ) {
@@ -803,8 +802,8 @@ DEFN_KERNEL(learn_padd,
 }
 
 DEFN_KERNEL(learn_trim,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic
 ) {
@@ -843,16 +842,16 @@ DEFN_KERNEL(learn_trim,
 
 
 DEFN_KERNEL(learn_conv1,
-  const double *in, int iw, int ih,
-  const double *fout,
+  const float *in, int iw, int ih,
+  const float *fout,
 
   int d, int ic, int oc,
   bool relu,
 
   int freeze,
   int dim,
-  double *dwv,
-  double nu, double b1, double b2
+  float *dwv,
+  float nu, float b1, float b2, float wscale
 ) {
   PREF_KERNEL;
 
@@ -867,14 +866,14 @@ DEFN_KERNEL(learn_conv1,
     wn = (oc + ic * f * f * oc);
   }
 
-  int wi = i;
-  if (wi >= wn)
+  int wi = i % wn;
+  int oy = i / wn;
+  if (oy >= ih)
     return;
 
   int ow = iw;
-  int oh = ih;
 
-  double dw = 0;
+  float dw = 0;
 
   if (wi < oc) {
     int oz = wi;
@@ -882,7 +881,7 @@ DEFN_KERNEL(learn_conv1,
     if (oz < freeze) {
       dw = 0;
     } else {
-      for (int oy = 0; oy < oh; ++oy) {
+      {
         for (int ox = 0; ox < ow; ++ox) {
           int outi = oz + oc * (ox + ow * oy);
           dw += fout[outi];
@@ -899,13 +898,13 @@ DEFN_KERNEL(learn_conv1,
       if (oz < freeze) {
         dw = 0;
       } else {
-        for (int oy = 0; oy < oh; ++oy) {
+        {
           for (int ox = 0; ox < ow; ++ox) {
             int ix = (ox - d + dx + iw) % iw;
             int iy = oy;
   
             int ini = iz + ic * (ix + iw * iy);
-            double v = in[ini];
+            float v = in[ini];
             if (!relu || v > 0 || iz < freeze) {
               int outi = oz + oc * (ox + ow * oy);
               dw += fout[outi] * v;
@@ -923,13 +922,13 @@ DEFN_KERNEL(learn_conv1,
       if (oz < freeze) {
         dw = 0;
       } else {
-        for (int oy = 0; oy < oh; ++oy) {
+        {
           for (int ox = 0; ox < ow; ++ox) {
             int ix = (ox - d + dx + iw) % iw;
             int iy = (oy - d + dy + ih) % ih;
     
             int ini = iz + ic * (ix + iw * iy);
-            double v = in[ini];
+            float v = in[ini];
             if (!relu || v > 0 || iz < freeze) {
               int outi = oz + oc * (ox + ow * oy);
               dw += fout[outi] * v;
@@ -940,19 +939,19 @@ DEFN_KERNEL(learn_conv1,
     }
   }
 
-  dwv[wi] += dw;
+  KATOMIC_ADD(&dwv[wi], (wi < oc) ? dw : dw * wscale);
 }
 
 
 DEFN_KERNEL(learn_conv2,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic, int oc,
   bool relu, int freeze,
   int dim,
 
-  const double *wmv
+  const float *wmv, float wscale
 ) {
   PREF_KERNEL;
 
@@ -977,7 +976,7 @@ DEFN_KERNEL(learn_conv2,
   int ox0 = ix - d;
   int ox1 = ix + d;
   int f = d * 2 + 1;
-  double finv = 0;
+  float finv = 0;
 
   if (dim == 1) {
     int oy = iy;
@@ -986,8 +985,8 @@ DEFN_KERNEL(learn_conv2,
       for (int oz = 0; oz < oc; ++oz) {
         int outi = oz + oc * (ox + ow * oy);
 
-        double v = fout[outi];
-        double w;
+        float v = fout[outi];
+        float w;
 
         if (oz < freeze) {
           if (ix == ox && iy == oy && iz == oz) {
@@ -998,7 +997,7 @@ DEFN_KERNEL(learn_conv2,
         } else {
           int dx = ix - oxt + d;
           int wi = oc + (iz + ic * (dx + f * oz));
-          w = wmv[wi * 3];
+          w = wmv[wi] * wscale;
         }
 
         finv += v * w;
@@ -1016,8 +1015,8 @@ DEFN_KERNEL(learn_conv2,
         for (int oz = 0; oz < oc; ++oz) {
           int outi = oz + oc * (ox + ow * oy);
 
-          double v = fout[outi];
-          double w;
+          float v = fout[outi];
+          float w;
 
           if (oz < freeze) {
             if (ix == ox && iy == oy && iz == oz) {
@@ -1030,7 +1029,7 @@ DEFN_KERNEL(learn_conv2,
             int dy = iy - oyt + d;
             int wi = oc + (iz + ic * (dx + f * (dy + f * oz)));
   
-            w = wmv[wi * 3];
+            w = wmv[wi] * wscale;
           }
 
           finv += v * w;
@@ -1045,8 +1044,8 @@ DEFN_KERNEL(learn_conv2,
 
 DEFN_KERNEL(learn_conv3,
   int d, int ic, int oc, int dim,
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds, float mc, float vc
 ) {
   PREF_KERNEL;
 
@@ -1065,21 +1064,19 @@ DEFN_KERNEL(learn_conv3,
   if (wi >= wn)
     return;
 
-  double dw = dwv[wi];
+  float dw = dwv[wi];
 
-  double m = wmv[wi * 3 + 1];
-  double v = wmv[wi * 3 + 2];
+  float m = wmv[wn + wi];
+  float v = wmv[2 * wn + wi];
   m = (1.0 - b1) * m + b1 * dw;
   v = (1.0 - b2) * v + b2 * dw * dw;
-  wmv[wi * 3 + 1] = m;
-  wmv[wi * 3 + 2] = v;
+  wmv[wn + wi] = m;
+  wmv[2 * wn + wi] = v;
 
-  double w = wmv[wi * 3 + 0];
+  float w = wmv[wi];
 
-  if (rounds < 1024.0) {
-    m = m / (1.0 - pow(1.0 - b1, 1.0 + rounds));
-    v = v / (1.0 - pow(1.0 - b2, 1.0 + rounds));
-  }
+  m *= mc;
+  v *= vc;
 
   w += nu * m / (sqrt(v) + eps);
 
@@ -1090,13 +1087,13 @@ DEFN_KERNEL(learn_conv3,
       w = -clip;
   }
 
-  wmv[wi * 3 + 0] = w;
+  wmv[wi] = w;
   dwv[wi] = 0;
 }
 
 DEFN_KERNEL(synth_addgeo,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1121,23 +1118,23 @@ DEFN_KERNEL(synth_addgeo,
     int ini = iz + ic * (ix + iw * iy);
     out[outi] = in[ini];
   } else if (oz == ic) {
-    out[outi] = (double)ox / (double)ow;
+    out[outi] = (float)ox / (float)ow;
   } else if (oz == ic + 1) {
-    out[outi] = (double)oy / (double)oh;
+    out[outi] = (float)oy / (float)oh;
   } else if (oz == ic + 2) {
-    out[outi] = 1.0 - 2.0 * fabs(0.5 - (double)ox / (double)ow);
+    out[outi] = 1.0 - 2.0 * fabs(0.5 - (float)ox / (float)ow);
   } else if (oz == ic + 3) {
-    out[outi] = 1.0 - 2.0 * fabs(0.5 - (double)oy / (double)oh);
+    out[outi] = 1.0 - 2.0 * fabs(0.5 - (float)oy / (float)oh);
   } else if (oz == ic + 4) {
-    out[outi] = (log((double)ow) / log(2.0)) / 16.0;
+    out[outi] = (log((float)ow) / log(2.0)) / 16.0;
   } else {
     out[outi] = 0;
   }
 }
 
 DEFN_KERNEL(learn_addgeo,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1163,9 +1160,9 @@ DEFN_KERNEL(learn_addgeo,
 }
 
 DEFN_KERNEL(synth_pad,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1196,8 +1193,8 @@ DEFN_KERNEL(synth_pad,
 }
 
 DEFN_KERNEL(learn_pad,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1223,9 +1220,9 @@ DEFN_KERNEL(learn_pad,
 }
 
 DEFN_KERNEL(synth_zero,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1241,8 +1238,8 @@ DEFN_KERNEL(synth_zero,
 }
 
 DEFN_KERNEL(learn_zero,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1256,9 +1253,9 @@ DEFN_KERNEL(learn_zero,
 }
 
 DEFN_KERNEL(synth_popp,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1283,8 +1280,8 @@ DEFN_KERNEL(synth_popp,
 }
 
 DEFN_KERNEL(learn_popp,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1315,9 +1312,9 @@ DEFN_KERNEL(learn_popp,
 }
 
 DEFN_KERNEL(synth_iden,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1342,8 +1339,8 @@ DEFN_KERNEL(synth_iden,
 }
 
 DEFN_KERNEL(learn_iden,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1363,7 +1360,7 @@ DEFN_KERNEL(learn_iden,
   int ox = ix;
   int oy = iy;
 
-  double v = 0;
+  float v = 0;
   for (int oz = iz; oz < oc; oz += ic) {
     int outi = oz + oc * (ox + ow * oy);
     v += fout[outi];
@@ -1373,9 +1370,9 @@ DEFN_KERNEL(learn_iden,
 }
 
 DEFN_KERNEL(synth_smax,
-  double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1394,7 +1391,7 @@ DEFN_KERNEL(synth_smax,
   int ix = ox;
   int iy = oy;
 
-  double v = 0;
+  float v = 0;
   for (int iz = oz; iz < ic; iz += oc) {
     int ini = iz + ic * (ix + iw * iy);
     if (iz == oz || in[ini] > v)
@@ -1410,15 +1407,15 @@ DEFN_KERNEL(synth_smax,
 
   for (int iz = oz; iz < ic; iz += oc) {
     int ini = iz + ic * (ix + iw * iy);
-    in[ini] = (in[ini] >= v) ? 1.0 / (double)nmax : 0.0;
+    in[ini] = (in[ini] >= v) ? 1.0 / (float)nmax : 0.0;
   }
 
   out[outi] = v;
 }
 
 DEFN_KERNEL(learn_smax,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1444,9 +1441,9 @@ DEFN_KERNEL(learn_smax,
 }
 
 DEFN_KERNEL(synth_mean,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1465,18 +1462,18 @@ DEFN_KERNEL(synth_mean,
   int ix = ox;
   int iy = oy;
 
-  double v = 0;
+  float v = 0;
   for (int iz = oz; iz < ic; iz += oc) {
     int ini = iz + ic * (ix + iw * iy);
     v += in[ini];
   }
-  v *= (double)oc / (double)ic;
+  v *= (float)oc / (float)ic;
   out[outi] = v;
 }
 
 DEFN_KERNEL(learn_mean,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1498,13 +1495,13 @@ DEFN_KERNEL(learn_mean,
   int oy = iy;
 
   int outi = oz + oc * (ox + ow * oy);
-  fin[ini] = fout[outi] * (double)oc / (double)ic;
+  fin[ini] = fout[outi] * (float)oc / (float)ic;
 }
 
 DEFN_KERNEL(synth_median,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1556,8 +1553,8 @@ DEFN_KERNEL(synth_median,
 }
 
 DEFN_KERNEL(learn_median,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1581,7 +1578,7 @@ DEFN_KERNEL(learn_median,
   int oy1 = iy + 1;
   int oz = iz;
 
-  double dv = 0;
+  float dv = 0;
 
   for (int oyt = oy0; oyt <= oy1; ++oyt) {
     int oy = (oyt + oh) % oh;
@@ -1633,9 +1630,9 @@ DEFN_KERNEL(learn_median,
 }
 
 DEFN_KERNEL(synth_blur,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1657,14 +1654,14 @@ DEFN_KERNEL(synth_blur,
   int iy1 = oy + 1;
   int iz = oz;
 
-  double v = 0;
+  float v = 0;
 
   for (int iyt = iy0; iyt <= iy1; ++iyt) {
     int iy = (iyt + ih) % ih;
     for (int ixt = ix0; ixt <= ix1; ++ixt) { 
       int ix = (ixt + iw) % iw;
 
-      double w = 0.25;
+      float w = 0.25;
       if (ix != ox) 
         w *= 0.5;
       if (iy != oy) 
@@ -1679,9 +1676,9 @@ DEFN_KERNEL(synth_blur,
 }
 
 DEFN_KERNEL(synth_diff,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1702,7 +1699,7 @@ DEFN_KERNEL(synth_diff,
 
   int iz = oz;
   int ini = iz + ic * (ix + iw * iy);
-  double v = in[ini];
+  float v = in[ini];
 
   iz += oc;
   ini = iz + ic * (ix + iw * iy);
@@ -1712,8 +1709,8 @@ DEFN_KERNEL(synth_diff,
 }
 
 DEFN_KERNEL(learn_diff,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1735,16 +1732,16 @@ DEFN_KERNEL(learn_diff,
   int oy = iy;
 
   int q = (iz >= oc);
-  double sgn = (q % 2) ? -1.0 : 1.0;
+  float sgn = (q % 2) ? -1.0 : 1.0;
 
   int outi = oz + oc * (ox + ow * oy);
   fin[ini] = fout[outi] * sgn;
 }
 
 DEFN_KERNEL(synth_sum,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -1763,7 +1760,7 @@ DEFN_KERNEL(synth_sum,
   int ix = ox;
   int iy = oy;
 
-  double v = 0;
+  float v = 0;
   for (int iz = oz; iz < ic; iz += oc) {
     int ini = iz + ic * (ix + iw * iy);
     v += in[ini];
@@ -1772,8 +1769,8 @@ DEFN_KERNEL(synth_sum,
 }
 
 DEFN_KERNEL(learn_sum,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic, int oc
 ) {
   PREF_KERNEL;
@@ -1799,8 +1796,8 @@ DEFN_KERNEL(learn_sum,
 }
 
 DEFN_KERNEL(synth_cent,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -1819,8 +1816,8 @@ DEFN_KERNEL(synth_cent,
 }
 
 DEFN_KERNEL(learn_cent,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -1835,8 +1832,8 @@ DEFN_KERNEL(learn_cent,
 }
 
 DEFN_KERNEL(synth_sigm,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -1855,8 +1852,8 @@ DEFN_KERNEL(synth_sigm,
 }
 
 DEFN_KERNEL(learn_sigm,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -1867,13 +1864,13 @@ DEFN_KERNEL(learn_sigm,
     return;
 
   int outi = ini;
-  double outv = 1.0 / (1.0 + exp(-fin[ini]));
+  float outv = 1.0 / (1.0 + exp(-fin[ini]));
   fin[ini] = fout[outi] * outv * (1.0 - outv);
 }
 
 DEFN_KERNEL(synth_inrf,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -1888,7 +1885,7 @@ DEFN_KERNEL(synth_inrf,
     return;
 
   int ini = outi;
-  double v = in[ini];
+  float v = in[ini];
 
   if (v < 1.0/256.0)
     v = 1.0/256.0;
@@ -1899,8 +1896,8 @@ DEFN_KERNEL(synth_inrf,
 }
 
 DEFN_KERNEL(learn_inrf,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -1912,13 +1909,13 @@ DEFN_KERNEL(learn_inrf,
 
   int outi = ini;
 
-  const double sq2pi = 2.506628275;
+  const float sq2pi = 2.506628275;
   fin[ini] = fout[outi] * sq2pi * exp(fout[outi] * fout[outi] * 2.0);
 }
 
 DEFN_KERNEL(synth_nerf,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -1932,7 +1929,7 @@ DEFN_KERNEL(synth_nerf,
   if (outi >= outn)
     return;
 
-  const double isq2 = 0.7071067812;
+  const float isq2 = 0.7071067812;
 
   int ini = outi;
 
@@ -1940,8 +1937,8 @@ DEFN_KERNEL(synth_nerf,
 }
 
 DEFN_KERNEL(learn_nerf,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -1953,14 +1950,14 @@ DEFN_KERNEL(learn_nerf,
 
   int outi = ini;
 
-  const double isq2pi = 0.3989422804;
+  const float isq2pi = 0.3989422804;
   fin[ini] = fout[outi] * isq2pi * exp(-fin[ini] * fin[ini] / 2.0);
 }
 
 
 DEFN_KERNEL(synth_clamp,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -1985,8 +1982,8 @@ DEFN_KERNEL(synth_clamp,
 }
 
 DEFN_KERNEL(learn_clamp,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -2006,8 +2003,8 @@ DEFN_KERNEL(learn_clamp,
 }
 
 DEFN_KERNEL(synth_relu,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -2029,8 +2026,8 @@ DEFN_KERNEL(synth_relu,
 }
 
 DEFN_KERNEL(learn_relu,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -2050,8 +2047,8 @@ DEFN_KERNEL(learn_relu,
 }
 
 DEFN_KERNEL(synth_abs,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   PREF_KERNEL;
@@ -2073,8 +2070,8 @@ DEFN_KERNEL(synth_abs,
 }
 
 DEFN_KERNEL(learn_abs,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int ic
 ) {
   PREF_KERNEL;
@@ -2095,8 +2092,8 @@ DEFN_KERNEL(learn_abs,
 
 
 DEFN_KERNEL(synth_upscale,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int s, int ic, int oc,
   int dim
 ) {
@@ -2157,8 +2154,8 @@ DEFN_KERNEL(synth_upscale,
 
 
 DEFN_KERNEL(learn_upscale,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int s, int ic, int oc, int dim
 ) {
   PREF_KERNEL;
@@ -2195,8 +2192,8 @@ DEFN_KERNEL(learn_upscale,
 
 
 DEFN_KERNEL(synth_downscale,
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int s, int ic, int oc, int dim
 ) {
   PREF_KERNEL;
@@ -2257,8 +2254,8 @@ DEFN_KERNEL(synth_downscale,
 
 
 DEFN_KERNEL(learn_downscale,
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int s, int ic, int oc, int dim
 ) {
   PREF_KERNEL;
@@ -2302,32 +2299,32 @@ DEFN_KERNEL(learn_downscale,
 
 
 
-static inline __device__ double PRE(f)(double n) {
+static inline __device__ float PRE(f)(float n) {
    return (n > 0.04045 ? pow((n + 0.055) / 1.055, 2.4) : n / 12.92) * 100.0;
 }
 
-static inline __device__ void PRE(rgbtoxyz)(unsigned char r, unsigned char g, unsigned char b, double *xp, double *yp, double *zp) {
-  double dr = PRE(f)((double)r / 255.0);
-  double dg = PRE(f)((double)g / 255.0);
-  double db = PRE(f)((double)b / 255.0);
+static inline __device__ void PRE(rgbtoxyz)(unsigned char r, unsigned char g, unsigned char b, float *xp, float *yp, float *zp) {
+  float dr = PRE(f)((float)r / 255.0);
+  float dg = PRE(f)((float)g / 255.0);
+  float db = PRE(f)((float)b / 255.0);
 
   *xp = dr * 0.4124 + dg * 0.3576 + db * 0.1805;
   *yp = dr * 0.2126 + dg * 0.7152 + db * 0.0722;
   *zp = dr * 0.0193 + dg * 0.1192 + db * 0.9505;
 }
 
-static inline __device__ void PRE(xyztorgb)(double x, double y, double z, unsigned char *rp, unsigned char *gp, unsigned char *bp) {
-  double dx = x / 100.0;
-  double dy = y / 100.0;
-  double dz = z / 100.0;
+static inline __device__ void PRE(xyztorgb)(float x, float y, float z, unsigned char *rp, unsigned char *gp, unsigned char *bp) {
+  float dx = x / 100.0;
+  float dy = y / 100.0;
+  float dz = z / 100.0;
 
-  double pr = dx * 3.2404542 + dy * -1.5371385 + dz * -0.4985314;
-  double pg = dx * -0.9692660 + dy * 1.8760108 + dz * 0.0415560;
-  double pb = dx * 0.0556434 + dy * -0.2040259 + dz * 1.0572252;
+  float pr = dx * 3.2404542 + dy * -1.5371385 + dz * -0.4985314;
+  float pg = dx * -0.9692660 + dy * 1.8760108 + dz * 0.0415560;
+  float pb = dx * 0.0556434 + dy * -0.2040259 + dz * 1.0572252;
 
-  double qr = (((pr > 0.0031308) ? (1.055*pow(pr, 1 / 2.4) - 0.055) : (12.92*pr)) * 255.0);
-  double qg = (((pg > 0.0031308) ? (1.055*pow(pg, 1 / 2.4) - 0.055) : (12.92*pg)) * 255.0);
-  double qb = (((pb > 0.0031308) ? (1.055*pow(pb, 1 / 2.4) - 0.055) : (12.92*pb)) * 255.0);
+  float qr = (((pr > 0.0031308) ? (1.055*pow(pr, 1 / 2.4) - 0.055) : (12.92*pr)) * 255.0);
+  float qg = (((pg > 0.0031308) ? (1.055*pow(pg, 1 / 2.4) - 0.055) : (12.92*pg)) * 255.0);
+  float qb = (((pb > 0.0031308) ? (1.055*pow(pb, 1 / 2.4) - 0.055) : (12.92*pb)) * 255.0);
 
   if (qr < 0) qr = 0; if (qr > 255.0) qr = 255.0;
   if (qg < 0) qg = 0; if (qg > 255.0) qg = 255.0;
@@ -2340,16 +2337,16 @@ static inline __device__ void PRE(xyztorgb)(double x, double y, double z, unsign
 
 		
 
-static inline __device__ double PRE(g)(double n) {
-  const double EPS = 0.008856;
-  const double KAPPA = 903.3;
+static inline __device__ float PRE(g)(float n) {
+  const float EPS = 0.008856;
+  const float KAPPA = 903.3;
   return n > EPS ? pow(n, 1.0/3.0) : (KAPPA * n + 16.0) / 116.0;
 }
 
-static inline __device__ void PRE(xyztolab)(double x, double y, double z, double *lp, double *ap, double *bp) {
-  double dx = PRE(g)(x / 95.047);
-  double dy = PRE(g)(y / 100.0);
-  double dz = PRE(g)(z / 108.883);
+static inline __device__ void PRE(xyztolab)(float x, float y, float z, float *lp, float *ap, float *bp) {
+  float dx = PRE(g)(x / 95.047);
+  float dy = PRE(g)(y / 100.0);
+  float dz = PRE(g)(z / 108.883);
 
   *lp = 116.0 * dy - 16.0;
   if (*lp < 0)
@@ -2362,25 +2359,25 @@ static inline __device__ void PRE(xyztolab)(double x, double y, double z, double
   *bp /= 100.0;
 }
 
-static inline __device__ void PRE(labtoxyz)(double l, double a, double b, double *xp, double *yp, double *zp) {
+static inline __device__ void PRE(labtoxyz)(float l, float a, float b, float *xp, float *yp, float *zp) {
   l *= 100.0;
   a *= 100.0;
   b *= 100.0;
 
-  double py = (l + 16.0) / 116.0;
-  double px = a / 500.0 + py;
-  double pz = py - b / 200.0;
+  float py = (l + 16.0) / 116.0;
+  float px = a / 500.0 + py;
+  float pz = py - b / 200.0;
 
-  double x3 = px*px*px;
-  double y3 = py*py*py;
-  double z3 = pz*pz*pz;
+  float x3 = px*px*px;
+  float y3 = py*py*py;
+  float z3 = pz*pz*pz;
 
   *xp = ((x3 > 0.008856) ? x3 : ((px - 16.0 / 116.0) / 7.787)) * 95.047;
   *yp = ((y3 > 0.008856) ? y3 : ((py - 16.0 / 116.0) / 7.787)) * 100.0;
   *zp = ((z3 > 0.008856) ? z3 : ((pz - 16.0 / 116.0) / 7.787)) * 108.883;
 }
 
-static inline __device__ unsigned char PRE(dtob)(double d) {
+static inline __device__ unsigned char PRE(dtob)(float d) {
   d *= 256.0;
   if (d > 255.0)
     d = 255.0;
@@ -2389,20 +2386,20 @@ static inline __device__ unsigned char PRE(dtob)(double d) {
   return ((unsigned char)(d + 0.5));
 }
 
-static inline __device__ void PRE(rgbtolab)(double r, double g, double b, double *lp, double *ap, double *bp) {
-  double x, y, z;
+static inline __device__ void PRE(rgbtolab)(float r, float g, float b, float *lp, float *ap, float *bp) {
+  float x, y, z;
   PRE(rgbtoxyz)(PRE(dtob)(r), PRE(dtob)(g), PRE(dtob)(b), &x, &y, &z);
   PRE(xyztolab)(x, y, z, lp, ap, bp);
 }
 
-static inline __device__ void PRE(labtorgb)(double l, double a, double b, double *rp, double *gp, double *bp) {
-  double x, y, z;
+static inline __device__ void PRE(labtorgb)(float l, float a, float b, float *rp, float *gp, float *bp) {
+  float x, y, z;
   PRE(labtoxyz)(l, a, b, &x, &y, &z);
   unsigned char rip, gip, bip;
   PRE(xyztorgb)(x, y, z, &rip, &gip, &bip);
-  *rp = (double)rip / 255.0;
-  *gp = (double)gip / 255.0;
-  *bp = (double)bip / 255.0;
+  *rp = (float)rip / 255.0;
+  *gp = (float)gip / 255.0;
+  *bp = (float)bip / 255.0;
 }
 
 
@@ -2410,9 +2407,9 @@ static inline __device__ void PRE(labtorgb)(double l, double a, double b, double
 
 
 DEFN_KERNEL(synth_tlab,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -2432,15 +2429,15 @@ DEFN_KERNEL(synth_tlab,
   int iy = oy;
 
   int rgbi = 0 + ic * (ix + iw * iy);
-  double lab[3] = {0,0,0};
+  float lab[3] = {0,0,0};
   PRE(rgbtolab)(in[rgbi], in[rgbi+1], in[rgbi+2], lab, lab+1, lab+2);
   out[outi] = lab[oz];
 }
 
 DEFN_KERNEL(synth_flab,
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   PREF_KERNEL;
 
@@ -2460,7 +2457,417 @@ DEFN_KERNEL(synth_flab,
   int iy = oy;
 
   int labi = 0 + ic * (ix + iw * iy);
-  double rgb[3] = {0,0,0};
+  float rgb[3] = {0,0,0};
   PRE(labtorgb)(in[labi], in[labi+1], in[labi+2], rgb, rgb+1, rgb+2);
   out[outi] = rgb[oz];
+}
+
+
+DEFN_KERNEL(kcharb, float *e, unsigned int n, float delta) {
+  PREF_KERNEL;
+  float x = e[i];
+  e[i] = x / sqrt(x * x + delta * delta);
+}
+
+DEFN_KERNEL(synth_lrlu,
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, float slope
+) {
+  PREF_KERNEL;
+  float v = in[i];
+  out[i] = (v > 0) ? v : v * slope;
+}
+
+DEFN_KERNEL(learn_lrlu,
+  float *fin, int iw, int ih,
+  const float *fout,
+  int ic, float slope
+) {
+  PREF_KERNEL;
+  fin[i] = (fin[i] > 0) ? fout[i] : fout[i] * slope;
+}
+
+// pixel norm: y = x / sqrt(mean_c(x^2) + eps), one thread per output element
+DEFN_KERNEL(synth_pnrm,
+  const float *in, int iw, int ih,
+  float *out,
+  int ic
+) {
+  PREF_KERNEL;
+  long p = i / ic;
+  const float *x = in + p * ic;
+  float s = 0;
+  for (int z = 0; z < ic; ++z)
+    s += x[z] * x[z];
+  s = sqrt(s / (float)ic + 1e-8);
+  out[i] = in[i] / s;
+}
+
+// pixel norm backward, one thread per pixel (owns all channels, no race)
+DEFN_KERNEL(learn_pnrm,
+  float *fin, int iw, int ih,
+  const float *fout,
+  int ic
+) {
+  PREF_KERNEL;
+  float *x = fin + i * ic;
+  const float *g = fout + i * ic;
+  float s = 0;
+  for (int z = 0; z < ic; ++z)
+    s += x[z] * x[z];
+  s = sqrt(s / (float)ic + 1e-8);
+  float dot = 0;
+  for (int z = 0; z < ic; ++z)
+    dot += g[z] * x[z];
+  dot /= ((float)ic * s * s);
+  for (int z = 0; z < ic; ++z)
+    x[z] = (g[z] - x[z] * dot) / s;
+}
+
+
+// 2x bilinear upsample (half-pixel centers, clamped borders), ic == oc
+DEFN_KERNEL(synth_upbl,
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int bn
+) {
+  PREF_KERNEL;   // i over bn * oh * ow * ic
+  int ow = iw * 2, oh = ih * 2;
+  long outi = i;
+  int oz = outi % ic; long t = outi / ic;
+  int ox = t % ow; long t2 = t / ow; int oy = t2 % oh; long b = t2 / oh;
+  in += b * (long)iw * ih * ic;
+  float sx = (ox + 0.5f) * 0.5f - 0.5f;
+  float sy = (oy + 0.5f) * 0.5f - 0.5f;
+  int x0 = (int)floorf(sx), y0 = (int)floorf(sy);
+  float wx = sx - x0, wy = sy - y0;
+  int x0c = x0 < 0 ? 0 : x0, x1c = x0 + 1 >= iw ? iw - 1 : x0 + 1;
+  int y0c = y0 < 0 ? 0 : y0, y1c = y0 + 1 >= ih ? ih - 1 : y0 + 1;
+  float v =
+    (1 - wy) * ((1 - wx) * in[oz + ic * (x0c + iw * y0c)] + wx * in[oz + ic * (x1c + iw * y0c)]) +
+    wy       * ((1 - wx) * in[oz + ic * (x0c + iw * y1c)] + wx * in[oz + ic * (x1c + iw * y1c)]);
+  out[outi] = v;
+}
+
+DEFN_KERNEL(learn_upbl,
+  float *fin, int iw, int ih,
+  const float *fout,
+  int ic, int bn
+) {
+  PREF_KERNEL;   // i over bn * ih * iw * ic
+  int ow = iw * 2, oh = ih * 2;
+  long ini = i;
+  int iz = ini % ic; long t = ini / ic;
+  int ix = t % iw; long t2 = t / iw; int iy = t2 % ih; long b = t2 / ih;
+  fout += b * (long)ow * oh * ic;
+  float g = 0;
+  int oy0 = 2 * iy - 2 < 0 ? 0 : 2 * iy - 2, oy1 = 2 * iy + 3 >= oh ? oh - 1 : 2 * iy + 3;
+  int ox0 = 2 * ix - 2 < 0 ? 0 : 2 * ix - 2, ox1 = 2 * ix + 3 >= ow ? ow - 1 : 2 * ix + 3;
+  for (int oy = oy0; oy <= oy1; ++oy) {
+    float sy = (oy + 0.5f) * 0.5f - 0.5f;
+    int y0 = (int)floorf(sy); float wy = sy - y0;
+    int y0c = y0 < 0 ? 0 : y0, y1c = y0 + 1 >= ih ? ih - 1 : y0 + 1;
+    float cy = (y0c == iy ? (1 - wy) : 0) + (y1c == iy ? wy : 0);
+    if (cy == 0) continue;
+    for (int ox = ox0; ox <= ox1; ++ox) {
+      float sx = (ox + 0.5f) * 0.5f - 0.5f;
+      int x0 = (int)floorf(sx); float wx = sx - x0;
+      int x0c = x0 < 0 ? 0 : x0, x1c = x0 + 1 >= iw ? iw - 1 : x0 + 1;
+      float cx = (x0c == ix ? (1 - wx) : 0) + (x1c == ix ? wx : 0);
+      if (cx == 0) continue;
+      g += cx * cy * fout[iz + ic * (ox + ow * oy)];
+    }
+  }
+  fin[ini] = g;
+}
+
+// 2x average pool, ic == oc
+DEFN_KERNEL(synth_dnav,
+  const float *in, int iw, int ih,
+  float *out,
+  int ic
+) {
+  PREF_KERNEL;
+  int ow = iw / 2;
+  long outi = i;
+  int oz = outi % ic; long t = outi / ic;
+  int ox = t % ow; int oy = t / ow;
+  int ix = ox * 2, iy = oy * 2;
+  float v = in[oz + ic * (ix + iw * iy)] + in[oz + ic * (ix + 1 + iw * iy)]
+          + in[oz + ic * (ix + iw * (iy + 1))] + in[oz + ic * (ix + 1 + iw * (iy + 1))];
+  out[outi] = v * 0.25f;
+}
+
+DEFN_KERNEL(learn_dnav,
+  float *fin, int iw, int ih,
+  const float *fout,
+  int ic
+) {
+  PREF_KERNEL;
+  int ow = iw / 2;
+  long ini = i;
+  int iz = ini % ic; long t = ini / ic;
+  int ix = t % iw; int iy = t / iw;
+  fin[ini] = 0.25f * fout[iz + ic * (ix / 2 + ow * (iy / 2))];
+}
+
+// a = beta * a + (1 - beta) * b
+DEFN_KERNEL(kema, float *a, const float *b, unsigned int n, float beta) {
+  PREF_KERNEL;
+  a[i] = beta * a[i] + (1.0f - beta) * b[i];
+}
+
+// logistic (non-saturating) GAN gradient on logits, ascent convention:
+//   sign > 0: x = sigmoid(-x)   (push logit up)    sign < 0: x = -sigmoid(x)  (push logit down)
+DEFN_KERNEL(klogis, float *x, unsigned int n, int sign) {
+  PREF_KERNEL;
+  float v = x[i];
+  x[i] = (sign > 0) ? 1.0f / (1.0f + expf(v)) : -1.0f / (1.0f + expf(-v));
+}
+
+
+// minibatch standard deviation (StyleGAN): appends one channel holding the mean over
+// (pixels, channels) of the per-(pixel, channel) std across the batch. Batched kernels.
+DEFN_KERNEL(mbsd_stat, const float *in, int bn, long pc, float *ksig) {
+  PREF_KERNEL;   // i over p*ic
+  long whc = pc;
+  float mu = 0;
+  for (int b = 0; b < bn; ++b)
+    mu += in[i + whc * b];
+  mu /= bn;
+  float var = 0;
+  for (int b = 0; b < bn; ++b) {
+    float d = in[i + whc * b] - mu;
+    var += d * d;
+  }
+  ksig[i] = sqrtf(var / bn + 1e-8f);
+}
+
+DEFN_KERNEL(mbsd_fill, const float *in, int bn, long pn, int ic, float *out, float s) {
+  PREF_KERNEL;   // i over bn * pn * (ic + 1)
+  int oc = ic + 1;
+  int z = i % oc; long bp = i / oc;   // bp = p + pn * b
+  out[i] = (z < ic) ? in[z + ic * bp] : s;
+}
+
+DEFN_KERNEL(mbsd_extra, const float *fout, long pn, int bn, int ic, float *tmp) {
+  PREF_KERNEL;   // i over bn * pn: gather the appended channel's gradient
+  tmp[i] = fout[ic + (ic + 1) * i];
+}
+
+DEFN_KERNEL(mbsd_learn, float *fin, int bn, long pn, int ic, const float *fout, float gs) {
+  PREF_KERNEL;   // i over bn * pn * ic
+  int z = i % ic; long bp = i / ic; long p = bp % pn; int b = bp / pn;
+  long whc = pn * ic;
+  long j = z + ic * p;   // (p, c) index within a sample
+  float mu = 0;
+  for (int k = 0; k < bn; ++k)
+    mu += fin[j + whc * k];
+  mu /= bn;
+  float var = 0;
+  for (int k = 0; k < bn; ++k) {
+    float d = fin[j + whc * k] - mu;
+    var += d * d;
+  }
+  float sig = sqrtf(var / bn + 1e-8f);
+  float x = fin[i];
+  float g = fout[z + (ic + 1) * bp] + gs * (x - mu) / ((float)bn * sig * (float)pn * (float)ic);
+  fin[i] = g;   // note: other threads still read fin[j + whc*k]; see wrapper (two-pass)
+}
+
+DEFN_KERNEL(kcopyn, const float *a, unsigned int n, float *b) {
+  PREF_KERNEL;
+  b[i] = a[i];
+}
+
+
+// ---- style modulation (AdaIN-style affine from a per-sample style vector) ----
+// weights: [scale bias: ic][shift bias: ic][A: ic x sdim][B: ic x sdim]; wi >= 2*ic: j = (wi-2ic)/sdim, k = (wi-2ic)%sdim
+// out[b,p,c] = in[b,p,c] * (1 + sc[b,c]) + sh[b,c]
+DEFN_KERNEL(styl_affine, const float *wmv, const float *kstyle, int bn, int ic, int sdim, float wscale, float *ksc) {
+  PREF_KERNEL;   // i over bn * 2ic
+  int j = i % (2 * ic); int b = i / (2 * ic);
+  const float *s = kstyle + (long)b * sdim;
+  const float *w = wmv + 2 * ic + (long)j * sdim;
+  float v = 0;
+  for (int k = 0; k < sdim; ++k)
+    v += w[k] * s[k];
+  ksc[i] = wmv[j] + wscale * v;
+}
+
+DEFN_KERNEL(styl_apply, const float *in, long pn, int ic, const float *ksc, float *out) {
+  PREF_KERNEL;   // i over bn * pn * ic
+  int c = i % ic; int b = i / (pn * ic);
+  const float *sc = ksc + (long)b * 2 * ic;
+  out[i] = in[i] * (1.0f + sc[c]) + sc[ic + c];
+}
+
+// per (b, j): j < ic: sum_p g * x  (d scale);  j >= ic: sum_p g  (d shift)
+DEFN_KERNEL(styl_dsc, const float *x, const float *g, long pn, int ic, float *kd) {
+  PREF_KERNEL;   // i over bn * 2ic
+  int j = i % (2 * ic); int b = i / (2 * ic);
+  long base = (long)b * pn * ic;
+  float v = 0;
+  if (j < ic) {
+    for (long p = 0; p < pn; ++p) { long q = base + p * ic + j; v += g[q] * x[q]; }
+  } else {
+    int c = j - ic;
+    for (long p = 0; p < pn; ++p) v += g[base + p * ic + c];
+  }
+  kd[i] = v;
+}
+
+DEFN_KERNEL(styl_din, float *fin, const float *fout, long pn, int ic, const float *ksc) {
+  PREF_KERNEL;   // in place: fin = fout * (1 + sc)
+  int c = i % ic; int b = i / (pn * ic);
+  fin[i] = fout[i] * (1.0f + ksc[(long)b * 2 * ic + c]);
+}
+
+DEFN_KERNEL(styl_dw, const float *kd, const float *kstyle, int bn, int ic, int sdim, float wscale, float *dwv) {
+  PREF_KERNEL;   // i over 2ic + 2ic*sdim
+  float v = 0;
+  if (i < 2 * ic) {
+    for (int b = 0; b < bn; ++b) v += kd[(long)b * 2 * ic + i];
+  } else {
+    long t = i - 2 * ic; int j = t / sdim; int k = t % sdim;
+    for (int b = 0; b < bn; ++b) v += kd[(long)b * 2 * ic + j] * kstyle[(long)b * sdim + k];
+    v *= wscale;
+  }
+  dwv[i] += v;
+}
+
+DEFN_KERNEL(styl_ds, const float *kd, const float *wmv, int bn, int ic, int sdim, float wscale, float *kstylegrad) {
+  PREF_KERNEL;   // i over bn * sdim
+  int k = i % sdim; int b = i / sdim;
+  const float *d = kd + (long)b * 2 * ic;
+  const float *w = wmv + 2 * ic;
+  float v = 0;
+  for (int j = 0; j < 2 * ic; ++j)
+    v += d[j] * w[(long)j * sdim + k];
+  kstylegrad[i] += wscale * v;
+}
+
+// generic Adam step over wn weights (no clipping of the first nbias entries)
+DEFN_KERNEL(learn_adam, float *wmv, float *dwv, int wn, int nbias,
+  float nu, float b1, float b2, float eps, float clip, float mc, float vc) {
+  PREF_KERNEL;
+  if (!(nu > 0)) return;
+  int wi = i;
+  float dw = dwv[wi];
+  float m = wmv[wn + wi], v = wmv[2 * wn + wi];
+  m = (1.0 - b1) * m + b1 * dw;
+  v = (1.0 - b2) * v + b2 * dw * dw;
+  wmv[wn + wi] = m; wmv[2 * wn + wi] = v;
+  float w = wmv[wi];
+  w += nu * (m * mc) / (sqrtf(v * vc) + eps);
+  if (clip > 0 && wi >= nbias) { if (w > clip) w = clip; else if (w < -clip) w = -clip; }
+  wmv[wi] = w;
+  dwv[wi] = 0;
+}
+
+
+// ---- modulated 3x3 convolution with demodulation (StyleGAN2) ----
+// weights: [conv bias: oc][conv w: oc*ic*9 (k = iz + ic*(dx + 3*dy))][affine bias: ic][A: ic x sdim]
+// s[b,iz] = abias[iz] + wscaleA * A[iz] . style[b]
+// x'[b,p,iz] = x * s[b,iz];  y = conv(x', wscale * w) + bias;  out = y / d[b,oz]
+// d[b,oz] = sqrt(sum_iz W2[oz,iz] * s[b,iz]^2 + eps),  W2[oz,iz] = sum_{dx,dy} (wscale * w)^2
+DEFN_KERNEL(mcon_affine, const float *wmv, long offab, long offA, const float *kstyle, int bn, int ic, int sdim, float wscaleA, float *ks) {
+  PREF_KERNEL;   // i over bn * ic
+  int iz = i % ic; int b = i / ic;
+  const float *a = wmv + offA + (long)iz * sdim;
+  const float *st = kstyle + (long)b * sdim;
+  float v = 0;
+  for (int k = 0; k < sdim; ++k) v += a[k] * st[k];
+  ks[i] = wmv[offab + iz] + wscaleA * v;
+}
+
+DEFN_KERNEL(mcon_w2, const float *wmv, int ic, int oc, float wscale, float *w2) {
+  PREF_KERNEL;   // i over oc * ic
+  int iz = i % ic; int oz = i / ic;
+  long K = 9L * ic;
+  float v = 0;
+  for (int t = 0; t < 9; ++t) { float w = wscale * wmv[oc + iz + ic * t + K * oz]; v += w * w; }
+  w2[i] = v;
+}
+
+DEFN_KERNEL(mcon_demod, const float *w2, const float *ks, int bn, int ic, int oc, float *kd) {
+  PREF_KERNEL;   // i over bn * oc
+  int oz = i % oc; int b = i / oc;
+  float v = 0;
+  for (int iz = 0; iz < ic; ++iz) { float s = ks[(long)b * ic + iz]; v += w2[(long)oz * ic + iz] * s * s; }
+  kd[i] = sqrtf(v + 1e-8f);
+}
+
+DEFN_KERNEL(mcon_scale_in, const float *x, const float *ks, long pn, int ic, float *xs) {
+  PREF_KERNEL;   // i over bn * pn * ic
+  int c = i % ic; int b = i / (pn * ic);
+  xs[i] = x[i] * ks[(long)b * ic + c];
+}
+
+DEFN_KERNEL(mcon_div_out, float *out, const float *kd, long pn, int oc) {
+  PREF_KERNEL;   // i over bn * pn * oc, in place
+  int c = i % oc; int b = i / (pn * oc);
+  out[i] /= kd[(long)b * oc + c];
+}
+
+// g_d[b,oz] = -(1/d) sum_p g * out   (out = stashed forward output)
+DEFN_KERNEL(mcon_gd, const float *g, const float *outs, const float *kd, long pn, int oc, float *kgd) {
+  PREF_KERNEL;   // i over bn * oc
+  int oz = i % oc; int b = i / oc;
+  long base = (long)b * pn * oc;
+  float v = 0;
+  for (long p = 0; p < pn; ++p) { long q = base + p * oc + oz; v += g[q] * outs[q]; }
+  kgd[i] = -v / kd[i];
+}
+
+// g_s[b,iz] = sum_p g_x' * x  +  sum_oz g_d[b,oz] * s[b,iz] * W2[oz,iz] / d[b,oz]
+DEFN_KERNEL(mcon_gs, const float *gxs, const float *x, const float *ks, const float *kgd, const float *kd, const float *w2, long pn, int ic, int oc, float *kgs) {
+  PREF_KERNEL;   // i over bn * ic
+  int iz = i % ic; int b = i / ic;
+  long base = (long)b * pn * ic;
+  float v = 0;
+  for (long p = 0; p < pn; ++p) { long q = base + p * ic + iz; v += gxs[q] * x[q]; }
+  float s = ks[i], u = 0;
+  for (int oz = 0; oz < oc; ++oz) u += kgd[(long)b * oc + oz] * w2[(long)oz * ic + iz] / kd[(long)b * oc + oz];
+  kgs[i] = v + s * u;
+}
+
+DEFN_KERNEL(mcon_gx, const float *gxs, const float *ks, long pn, int ic, float *fin) {
+  PREF_KERNEL;   // i over bn * pn * ic; writes the input gradient over x
+  int c = i % ic; int b = i / (pn * ic);
+  fin[i] = gxs[i] * ks[(long)b * ic + c];
+}
+
+// demodulation's contribution to the conv weight gradient:
+// dw[oz][k] += sum_b g_d[b,oz] * wscale^2 * w[oz][k] * s[b,iz]^2 / d[b,oz]
+DEFN_KERNEL(mcon_dw_demod, const float *wmv, const float *ks, const float *kgd, const float *kd, int bn, int ic, int oc, float wscale, float *dwv) {
+  PREF_KERNEL;   // i over oc * ic * 9 (conv weights, excluding bias)
+  long K = 9L * ic;
+  int oz = i / K; long k = i % K; int iz = k % ic;
+  float w = wmv[oc + i];
+  float v = 0;
+  for (int b = 0; b < bn; ++b) { float s = ks[(long)b * ic + iz]; v += kgd[(long)b * oc + oz] * s * s / kd[(long)b * oc + oz]; }
+  dwv[oc + i] += v * wscale * wscale * w;
+}
+
+DEFN_KERNEL(mcon_daffine, const float *kgs, const float *kstyle, int bn, int ic, int sdim, float wscaleA, long offab, long offA, float *dwv) {
+  PREF_KERNEL;   // i over ic + ic*sdim
+  float v = 0;
+  if (i < ic) {
+    for (int b = 0; b < bn; ++b) v += kgs[(long)b * ic + i];
+    dwv[offab + i] += v;
+  } else {
+    long t = i - ic; int iz = t / sdim; int k = t % sdim;
+    for (int b = 0; b < bn; ++b) v += kgs[(long)b * ic + iz] * kstyle[(long)b * sdim + k];
+    dwv[offA + t] += wscaleA * v;
+  }
+}
+
+DEFN_KERNEL(mcon_dstyle, const float *kgs, const float *wmv, long offA, int bn, int ic, int sdim, float wscaleA, float *kstylegrad) {
+  PREF_KERNEL;   // i over bn * sdim
+  int k = i % sdim; int b = i / sdim;
+  float v = 0;
+  for (int iz = 0; iz < ic; ++iz) v += kgs[(long)b * ic + iz] * wmv[offA + (long)iz * sdim + k];
+  kstylegrad[i] += wscaleA * v;
 }

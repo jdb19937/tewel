@@ -1,32 +1,36 @@
-void kaddvec(const double *a, const double *b, unsigned int n, double *c) {
+void kaxpy(const float *x, float a, unsigned int n, float *y) {
+  CALL_KERNEL(kaxpy, n, x, a, n, y);
+}
+
+void kaddvec(const float *a, const float *b, unsigned int n, float *c) {
   CALL_KERNEL(kaddvec, n, a, b, n, c);
 }
 
-void ksubvec(const double *a, const double *b, unsigned int n, double *c) {
+void ksubvec(const float *a, const float *b, unsigned int n, float *c) {
   CALL_KERNEL(ksubvec, n, a, b, n, c);
 }
 
-void kmul(const double *a, const double b, unsigned int n, double *c) {
+void kmul(const float *a, const float b, unsigned int n, float *c) {
   CALL_KERNEL(kmul, n, a, b, n, c);
 }
 
-double ksum(
-  const double *a, unsigned int n
+float ksum(
+  const float *a, unsigned int n
 ) {
   if (n == 0)
     return 0;
 
-  double *sump = NULL;
+  float *sump = NULL;
   unsigned int sumn = ((n + 127) / 128);
   kmake(&sump, sumn);
 
   CALL_KERNEL(ksum, sumn, a, n, sump);
 
-  double *sumv = new double[sumn];
+  float *sumv = new float[sumn];
   dek(sump, sumn, sumv);
   kfree(sump);
 
-  double s = 0;
+  float s = 0;
   for (int i = 0; i < sumn; ++i)
     s += sumv[i];
 
@@ -35,23 +39,23 @@ double ksum(
   return s;
 }
 
-double ksumsq(
-  const double *a, unsigned int n
+float ksumsq(
+  const float *a, unsigned int n
 ) {
   if (n == 0)
     return 0;
 
-  double *sumsqp = NULL;
+  float *sumsqp = NULL;
   unsigned int sumsqn = ((n + 127) / 128);
   kmake(&sumsqp, sumsqn);
 
   CALL_KERNEL(ksumsq, sumsqn, a, n, sumsqp);
 
-  double *sumsqv = new double[sumsqn];
+  float *sumsqv = new float[sumsqn];
   dek(sumsqp, sumsqn, sumsqv);
   kfree(sumsqp);
 
-  double s = 0;
+  float s = 0;
   for (int i = 0; i < sumsqn; ++i)
     s += sumsqv[i];
 
@@ -60,22 +64,22 @@ double ksumsq(
   return s;
 }
 
-double kmaxabs(
-  const double *a, unsigned int n
+float kmaxabs(
+  const float *a, unsigned int n
 ) {
   if (n == 0)
     return 0;
 
-  double *maxp = NULL;
+  float *maxp = NULL;
   unsigned int maxn = ((n + 127) / 128);
   kmake(&maxp, maxn);
 
   CALL_KERNEL(kmaxabs, maxn, a, n, maxp);
 
-  double *maxv = new double[maxn];
+  float *maxv = new float[maxn];
   dek(maxp, maxn, maxv);
 
-  double s = maxv[0];
+  float s = maxv[0];
   for (int i = 1; i < maxn; ++i)
     if (maxv[i] > s)
       s = maxv[i];
@@ -88,8 +92,8 @@ double kmaxabs(
 
 
 void kspliceadd(
-  const double *x, int n, int xm, int xa, int xk,
-  double *y, int ym, int ya
+  const float *x, int n, int xm, int xa, int xk,
+  float *y, int ym, int ya
 ) {
   CALL_KERNEL(kspliceadd, n * xk, x, n, xm, xa, xk, y, ym, ya);
 }
@@ -97,15 +101,15 @@ void kspliceadd(
 
 
 void ksplice(
-  const double *x, int n, int xm, int xa, int xk,
-  double *y, int ym, int ya
+  const float *x, int n, int xm, int xa, int xk,
+  float *y, int ym, int ya
 ) {
   CALL_KERNEL(ksplice, n * xk, x, n, xm, xa, xk, y, ym, ya);
 }
 
 void ksplice2(
-  const double *x, const double *z, double l, int n, int xm, int xa, int xk,
-  double *y, int ym, int ya
+  const float *x, const float *z, float l, int n, int xm, int xa, int xk,
+  float *y, int ym, int ya
 ) {
   CALL_KERNEL(ksplice2, n * xk, x, z, l, n, xm, xa, xk, y, ym, ya);
 }
@@ -117,10 +121,10 @@ int size_norm(
 }
 
 void synth_norm(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   int ow = iw;
   int oh = ih;
@@ -133,21 +137,28 @@ void synth_norm(
 
 
 void learn_norm(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc,
 
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds
 ) {
+  // Adam bias correction, computed once per layer instead of per weight
+  float mc = 1.0, vc = 1.0;
+  if (rounds < 1024.0) {
+    double dm = 1.0 - pow(1.0 - b1, 1.0 + rounds), dv = 1.0 - pow(1.0 - b2, 1.0 + rounds);
+    if (dm > 1e-12) mc = 1.0 / dm;
+    if (dv > 1e-12) vc = 1.0 / dv;
+  }
   int outn = iw * ih * oc;
   int wn = outn * 2;
   int inn = iw * ih * ic;
 
   CALL_KERNEL(learn_norm1, wn, fin, iw, ih, fout, ic, oc, dwv, nu, b1, b2);
   CALL_KERNEL(learn_norm2, inn, fin, iw, ih, fout, ic, oc, wmv);
-  CALL_KERNEL(learn_norm3, wn, iw, ih, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds);
+  CALL_KERNEL(learn_norm3, wn, iw, ih, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds, mc, vc);
 }
 
 int size_bias(
@@ -157,10 +168,10 @@ int size_bias(
 }
 
 void synth_bias(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   int ow = iw;
   int oh = ih;
@@ -173,21 +184,28 @@ void synth_bias(
 
 
 void learn_bias(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc,
 
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds
 ) {
+  // Adam bias correction, computed once per layer instead of per weight
+  float mc = 1.0, vc = 1.0;
+  if (rounds < 1024.0) {
+    double dm = 1.0 - pow(1.0 - b1, 1.0 + rounds), dv = 1.0 - pow(1.0 - b2, 1.0 + rounds);
+    if (dm > 1e-12) mc = 1.0 / dm;
+    if (dv > 1e-12) vc = 1.0 / dv;
+  }
   int outn = iw * ih * oc;
   int wn = outn;
   int inn = iw * ih * ic;
 
   CALL_KERNEL(learn_bias1, wn, fin, iw, ih, fout, ic, oc, dwv, nu, b1, b2);
   CALL_KERNEL(learn_bias2, inn, fin, iw, ih, fout, ic, oc, wmv);
-  CALL_KERNEL(learn_bias3, wn, iw, ih, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds);
+  CALL_KERNEL(learn_bias3, wn, iw, ih, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds, mc, vc);
 }
 
 int size_local(
@@ -198,10 +216,10 @@ int size_local(
 }
 
 void synth_local(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic, int oc,
-  const double *wmv
+  const float *wmv
 ) {
   int ow = iw;
   int oh = ih;
@@ -214,14 +232,21 @@ void synth_local(
 
 
 void learn_local(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic, int oc,
 
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds
 ) {
+  // Adam bias correction, computed once per layer instead of per weight
+  float mc = 1.0, vc = 1.0;
+  if (rounds < 1024.0) {
+    double dm = 1.0 - pow(1.0 - b1, 1.0 + rounds), dv = 1.0 - pow(1.0 - b2, 1.0 + rounds);
+    if (dm > 1e-12) mc = 1.0 / dm;
+    if (dv > 1e-12) vc = 1.0 / dv;
+  }
   int f = d * 2 + 1;
   int outn = iw * ih * oc;
   int wn = (outn + ic * f * f * outn);
@@ -229,7 +254,7 @@ void learn_local(
 
   CALL_KERNEL(learn_local1, wn, fin, iw, ih, fout, d, ic, oc, dwv, nu, b1, b2);
   CALL_KERNEL(learn_local2, inn, fin, iw, ih, fout, d, ic, oc, wmv);
-  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds);
+  CALL_KERNEL(learn_local3, wn, iw, ih, d, ic, oc, wmv, dwv, nu, b1, b2, eps, clip, rounds, mc, vc);
 }
 
 
@@ -247,8 +272,8 @@ int size_conv(
 }
 
 void synth_crop(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic,
   int ix0, int iy0
 ) {
@@ -265,8 +290,8 @@ void synth_crop(
 }
 
 void synth_padd(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic
 ) {
   int ow = iw + 2 * d;
@@ -280,8 +305,8 @@ void synth_padd(
 }
 
 void synth_trim(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic
 ) {
   int ow = iw - 2 * d;
@@ -298,24 +323,34 @@ void synth_trim(
 
 
 void synth_conv(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int d, int ic, int oc,
   bool relu, int freeze, int dim,
-  const double *wmv
+  const float *wmv,
+  int bn, float wscale
 ) {
   int ow = iw;
   int oh = ih;
   int outn = ow * oh * oc;
+  int inn = iw * ih * ic;
 
-  CALL_KERNEL(synth_conv, outn,
-    in, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv
-  );
+  if (kdev) {
+    if (kprec == 16) gpu_synth_conv16(in, bn, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv, wscale);
+    else gpu_synth_conv(in, bn, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv, wscale);
+    return;
+  }
+
+  for (int b = 0; b < bn; ++b) {
+    CALL_KERNEL(synth_conv, outn,
+      in + (size_t)b * inn, iw, ih, out + (size_t)b * outn, d, ic, oc, relu, freeze, dim, wmv, wscale
+    );
+  }
 }
 
 void learn_crop(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic
 ) {
@@ -323,8 +358,8 @@ void learn_crop(
 }
 
 void learn_padd(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic
 ) {
@@ -334,8 +369,8 @@ void learn_padd(
 }
 
 void learn_trim(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic
 ) {
@@ -346,27 +381,52 @@ void learn_trim(
 
 
 void learn_conv(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int d, int ic, int oc,
   bool relu, int freeze, int dim,
 
-  double *wmv, double *dwv,
-  double nu, double b1, double b2, double eps, double clip, double rounds
+  float *wmv, float *dwv,
+  float nu, float b1, float b2, float eps, float clip, float rounds,
+  int bn, float wscale
 ) {
+  // Adam bias correction, computed once per layer instead of per weight
+  float mc = 1.0, vc = 1.0;
+  if (rounds < 1024.0) {
+    double dm = 1.0 - pow(1.0 - b1, 1.0 + rounds), dv = 1.0 - pow(1.0 - b2, 1.0 + rounds);
+    if (dm > 1e-12) mc = 1.0 / dm;
+    if (dv > 1e-12) vc = 1.0 / dv;
+  }
   int f = d * 2 + 1;
-  int wn = (oc + ic * f * f * oc);
+  int wn = (dim == 1) ? (oc + ic * f * oc) : (oc + ic * f * f * oc);
   int inn = iw * ih * ic;
+  int outn = iw * ih * oc;
 
-  CALL_KERNEL(learn_conv1, wn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, dwv, nu, b1, b2);
-  CALL_KERNEL(learn_conv2, inn, fin, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv);
-  CALL_KERNEL(learn_conv3, wn, d, ic, oc, dim, wmv, dwv, nu, b1, b2, eps, clip, rounds);
+  if (kdev) {
+    if (dwv) {
+      if (kprec == 16) gpu_learn_conv_w16(fin, bn, iw, ih, fout, d, ic, oc, relu, freeze, dim, dwv, wscale);
+      else gpu_learn_conv_w(fin, bn, iw, ih, fout, d, ic, oc, relu, freeze, dim, dwv, wscale);
+    }
+    if (kprec == 16) gpu_learn_conv_in16(fin, bn, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv, wscale);
+    else gpu_learn_conv_in(fin, bn, iw, ih, fout, d, ic, oc, relu, freeze, dim, wmv, wscale);
+  } else {
+    for (int b = 0; b < bn; ++b) {
+      const float *inb = fin + (size_t)b * inn;
+      const float *foutb = fout + (size_t)b * outn;
+      CALL_KERNEL(learn_conv1, (long)wn * (long)ih, inb, iw, ih, foutb, d, ic, oc, relu, freeze, dim, dwv, nu, b1, b2, wscale);
+    }
+    for (int b = 0; b < bn; ++b) {
+      CALL_KERNEL(learn_conv2, inn, fin + (size_t)b * inn, iw, ih, fout + (size_t)b * outn, d, ic, oc, relu, freeze, dim, wmv, wscale);
+    }
+  }
+
+  CALL_KERNEL(learn_conv3, wn, d, ic, oc, dim, wmv, dwv, nu, b1, b2, eps, clip, rounds, mc, vc);
 }
 
 void synth_addgeo(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic, int oc
 ) {
   int ow = iw;
@@ -382,8 +442,8 @@ void synth_addgeo(
 
 
 void learn_addgeo(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -395,9 +455,9 @@ void learn_addgeo(
 }
 
 void synth_pad(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -410,8 +470,8 @@ void synth_pad(
 
 
 void learn_pad(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -423,9 +483,9 @@ void learn_pad(
 }
 
 void synth_zero(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -438,8 +498,8 @@ void synth_zero(
 
 
 void learn_zero(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -451,9 +511,9 @@ void learn_zero(
 }
 
 void synth_tlab(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -468,9 +528,9 @@ void synth_tlab(
 }
 
 void synth_flab(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -486,9 +546,9 @@ void synth_flab(
 
 
 void synth_popp(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -501,8 +561,8 @@ void synth_popp(
 
 
 void learn_popp(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -514,9 +574,9 @@ void learn_popp(
 }
 
 void synth_iden(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -529,8 +589,8 @@ void synth_iden(
 
 
 void learn_iden(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -543,9 +603,9 @@ void learn_iden(
 
 
 void synth_smax(
-  double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -558,8 +618,8 @@ void synth_smax(
 
 
 void learn_smax(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -571,9 +631,9 @@ void learn_smax(
 }
 
 void synth_mean(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -586,8 +646,8 @@ void synth_mean(
 
 
 void learn_mean(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -599,9 +659,9 @@ void learn_mean(
 }
 
 void synth_blur(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -614,8 +674,8 @@ void synth_blur(
 
 
 void learn_blur(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -629,9 +689,9 @@ void learn_blur(
 }
 
 void synth_median(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -644,8 +704,8 @@ void synth_median(
 
 
 void learn_median(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -657,9 +717,9 @@ void learn_median(
 }
 
 void synth_diff(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -674,8 +734,8 @@ void synth_diff(
 
 
 void learn_diff(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -689,9 +749,9 @@ void learn_diff(
 }
 
 void synth_sum(
-  const double *in, int iw, int ih,
-  double *out,
-  int ic, int oc, const double *kbuf
+  const float *in, int iw, int ih,
+  float *out,
+  int ic, int oc, const float *kbuf
 ) {
   int ow = iw;
   int oh = ih;
@@ -704,8 +764,8 @@ void synth_sum(
 
 
 void learn_sum(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic, int oc
 ) {
@@ -717,8 +777,8 @@ void learn_sum(
 }
 
 void synth_cent(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -732,8 +792,8 @@ void synth_cent(
 }
 
 void learn_cent(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -745,8 +805,8 @@ void learn_cent(
 }
 
 void synth_sigm(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -760,8 +820,8 @@ void synth_sigm(
 }
 
 void learn_sigm(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -773,8 +833,8 @@ void learn_sigm(
 }
 
 void synth_nerf(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -788,8 +848,8 @@ void synth_nerf(
 }
 
 void learn_nerf(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -801,8 +861,8 @@ void learn_nerf(
 }
 
 void synth_inrf(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -816,8 +876,8 @@ void synth_inrf(
 }
 
 void learn_inrf(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -829,8 +889,8 @@ void learn_inrf(
 }
 
 void synth_clamp(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -844,8 +904,8 @@ void synth_clamp(
 }
 
 void learn_clamp(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -857,8 +917,8 @@ void learn_clamp(
 }
 
 void synth_relu(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -872,8 +932,8 @@ void synth_relu(
 }
 
 void learn_relu(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -886,8 +946,8 @@ void learn_relu(
 
 
 void synth_abs(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int ic
 ) {
   int ow = iw;
@@ -901,8 +961,8 @@ void synth_abs(
 }
 
 void learn_abs(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
 
   int ic
 ) {
@@ -915,8 +975,8 @@ void learn_abs(
 
 
 void synth_upscale(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int s, int ic, int oc, int dim
 ) {
   assert(dim == 1 || dim == 2);
@@ -939,8 +999,8 @@ void synth_upscale(
 
 
 void learn_upscale(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int s, int ic, int oc, int dim
 ) {
   int inn = iw * ih * ic;
@@ -954,8 +1014,8 @@ void learn_upscale(
 
 
 void synth_downscale(
-  const double *in, int iw, int ih,
-  double *out,
+  const float *in, int iw, int ih,
+  float *out,
   int s, int ic, int oc, int dim
 ) {
   int ow = iw;
@@ -971,8 +1031,8 @@ void synth_downscale(
 
 
 void learn_downscale(
-  double *fin, int iw, int ih,
-  const double *fout,
+  float *fin, int iw, int ih,
+  const float *fout,
   int s, int ic, int oc, int dim
 ) {
   int inn = iw * ih * ic;
@@ -982,3 +1042,181 @@ void learn_downscale(
   CALL_KERNEL(learn_downscale, inn, fin, iw, ih, fout, s, ic, oc, dim);
 }
 
+
+
+void kcharb(float *e, unsigned int n, float delta) {
+  CALL_KERNEL(kcharb, n, e, n, delta);
+}
+
+void synth_lrlu(const float *in, int iw, int ih, float *out, int ic, float slope) {
+  int outn = iw * ih * ic;
+  CALL_KERNEL(synth_lrlu, outn, in, iw, ih, out, ic, slope);
+}
+
+void learn_lrlu(float *fin, int iw, int ih, const float *fout, int ic, float slope) {
+  int inn = iw * ih * ic;
+  CALL_KERNEL(learn_lrlu, inn, fin, iw, ih, fout, ic, slope);
+}
+
+void synth_pnrm(const float *in, int iw, int ih, float *out, int ic) {
+  int outn = iw * ih * ic;
+  if (kdev) { gpu_synth_pnrm(in, iw * ih, ic, out); return; }
+  CALL_KERNEL(synth_pnrm, outn, in, iw, ih, out, ic);
+}
+
+void learn_pnrm(float *fin, int iw, int ih, const float *fout, int ic) {
+  int pn = iw * ih;
+  if (kdev) {
+    gpu_learn_pnrm(fin, pn, ic, fout);
+    return;
+  }
+  CALL_KERNEL(learn_pnrm, pn, fin, iw, ih, fout, ic);
+}
+
+
+void synth_upbl(const float *in, int iw, int ih, float *out, int ic, int bn) {
+  long outn = (long)bn * iw * 2 * ih * 2 * ic;
+  CALL_KERNEL(synth_upbl, outn, in, iw, ih, out, ic, bn);
+}
+void learn_upbl(float *fin, int iw, int ih, const float *fout, int ic, int bn) {
+  long inn = (long)bn * iw * ih * ic;
+  CALL_KERNEL(learn_upbl, inn, fin, iw, ih, fout, ic, bn);
+}
+void synth_dnav(const float *in, int iw, int ih, float *out, int ic) {
+  long outn = (long)(iw / 2) * (ih / 2) * ic;
+  CALL_KERNEL(synth_dnav, outn, in, iw, ih, out, ic);
+}
+void learn_dnav(float *fin, int iw, int ih, const float *fout, int ic) {
+  long inn = (long)iw * ih * ic;
+  CALL_KERNEL(learn_dnav, inn, fin, iw, ih, fout, ic);
+}
+void kema(float *a, const float *b, unsigned int n, float beta) {
+  CALL_KERNEL(kema, n, a, b, n, beta);
+}
+void klogis(float *x, unsigned int n, int sign) {
+  CALL_KERNEL(klogis, n, x, n, sign);
+}
+
+
+void synth_mbsd(const float *in, int iw, int ih, float *out, int ic, int bn) {
+  long pn = (long)iw * ih;
+  long pc = pn * ic;
+  float *ksig; kmake(&ksig, pc);
+  CALL_KERNEL(mbsd_stat, pc, in, bn, pc, ksig);
+  float s = ksum(ksig, pc) / (float)pc;
+  kfree(ksig);
+  CALL_KERNEL(mbsd_fill, (long)bn * pn * (ic + 1), in, bn, pn, ic, out, s);
+}
+
+void learn_mbsd(float *fin, int iw, int ih, const float *fout, int ic, int bn) {
+  long pn = (long)iw * ih;
+  long n = (long)bn * pn;
+  float *tmp; kmake(&tmp, n);
+  CALL_KERNEL(mbsd_extra, n, fout, pn, bn, ic, tmp);
+  float gs = ksum(tmp, n);
+  kfree(tmp);
+  // the learn kernel reads other samples' inputs while writing its own gradient:
+  // work from a copy of the inputs, write the gradient into fin
+  float *x; kmake(&x, n * ic);
+  CALL_KERNEL(kcopyn, n * ic, fin, n * ic, x);
+  CALL_KERNEL(mbsd_learn, n * ic, x, bn, pn, ic, fout, gs);
+  CALL_KERNEL(kcopyn, n * ic, x, n * ic, fin);
+  kfree(x);
+}
+
+
+int size_styl(int ic, int sdim) {
+  return 3 * (2 * ic + 2 * ic * sdim);
+}
+
+void synth_styl(const float *in, int iw, int ih, float *out, int ic, int bn, const float *wmv, const float *kstyle, int sdim, float wscale) {
+  long pn = (long)iw * ih;
+  float *ksc; kmake(&ksc, (long)bn * 2 * ic);
+  if (kdev) gpu_styl_affine(wmv, kstyle, bn, ic, sdim, wscale, ksc); else CALL_KERNEL(styl_affine, (long)bn * 2 * ic, wmv, kstyle, bn, ic, sdim, wscale, ksc);
+  CALL_KERNEL(styl_apply, (long)bn * pn * ic, in, pn, ic, ksc, out);
+  kfree(ksc);
+}
+
+void learn_styl(float *fin, int iw, int ih, const float *fout, int ic, int bn, float *wmv, float *dwv,
+  const float *kstyle, float *kstylegrad, int sdim, float wscale,
+  float nu, float b1, float b2, float eps, float clip, float rounds) {
+  long pn = (long)iw * ih;
+  int wn = 2 * ic + 2 * ic * sdim;
+  float *ksc; kmake(&ksc, (long)bn * 2 * ic);
+  float *kd; kmake(&kd, (long)bn * 2 * ic);
+  if (kdev) gpu_styl_affine(wmv, kstyle, bn, ic, sdim, wscale, ksc); else CALL_KERNEL(styl_affine, (long)bn * 2 * ic, wmv, kstyle, bn, ic, sdim, wscale, ksc);
+  if (kdev) gpu_styl_dsc(fin, fout, pn, ic, bn, kd); else CALL_KERNEL(styl_dsc, (long)bn * 2 * ic, fin, fout, pn, ic, kd);
+  if (dwv)
+    CALL_KERNEL(styl_dw, (long)wn, kd, kstyle, bn, ic, sdim, wscale, dwv);
+  if (kstylegrad)
+    CALL_KERNEL(styl_ds, (long)bn * sdim, kd, wmv, bn, ic, sdim, wscale, kstylegrad);
+  CALL_KERNEL(styl_din, (long)bn * pn * ic, fin, fout, pn, ic, ksc);
+  kfree(kd);
+  kfree(ksc);
+  float mc = 1.0, vc = 1.0;
+  if (rounds < 1024.0) {
+    double dm = 1.0 - pow(1.0 - b1, 1.0 + rounds), dv = 1.0 - pow(1.0 - b2, 1.0 + rounds);
+    if (dm > 1e-12) mc = 1.0 / dm;
+    if (dv > 1e-12) vc = 1.0 / dv;
+  }
+  CALL_KERNEL(learn_adam, (long)wn, wmv, dwv, wn, 2 * ic, nu, b1, b2, eps, clip, mc, vc);
+}
+
+
+int size_mcon(int ic, int oc, int sdim) {
+  return 3 * (oc + oc * ic * 9 + ic + ic * sdim);
+}
+
+// forward; `stash` (bn*pn*oc) keeps the output for the backward pass
+void synth_mcon(const float *in, int iw, int ih, float *out, int ic, int oc, int bn,
+  const float *wmv, const float *kstyle, int sdim, float wscale, float wscaleA, float *stash) {
+  long pn = (long)iw * ih;
+  long offab = oc + 9L * oc * ic, offA = offab + ic;
+  float *ks, *w2, *kd, *xs;
+  kmake(&ks, (long)bn * ic); kmake(&w2, (long)oc * ic); kmake(&kd, (long)bn * oc); kmake(&xs, (long)bn * pn * ic);
+  CALL_KERNEL(mcon_affine, (long)bn * ic, wmv, offab, offA, kstyle, bn, ic, sdim, wscaleA, ks);
+  CALL_KERNEL(mcon_w2, (long)oc * ic, wmv, ic, oc, wscale, w2);
+  CALL_KERNEL(mcon_demod, (long)bn * oc, w2, ks, bn, ic, oc, kd);
+  CALL_KERNEL(mcon_scale_in, (long)bn * pn * ic, in, ks, pn, ic, xs);
+  synth_conv(xs, iw, ih, out, 1, ic, oc, false, 0, 2, wmv, bn, wscale);
+  CALL_KERNEL(mcon_div_out, (long)bn * pn * oc, out, kd, pn, oc);
+  kcopy(out, (long)bn * pn * oc, stash);
+  kfree(xs); kfree(kd); kfree(w2); kfree(ks);
+}
+
+void learn_mcon(float *fin, int iw, int ih, float *fout, int ic, int oc, int bn,
+  float *wmv, float *dwv, const float *kstyle, float *kstylegrad, int sdim, float wscale, float wscaleA, const float *stash,
+  float nu, float b1, float b2, float eps, float clip, float rounds) {
+  long pn = (long)iw * ih;
+  long offab = oc + 9L * oc * ic, offA = offab + ic;
+  int wn = oc + oc * ic * 9 + ic + ic * sdim;
+  float *ks, *w2, *kd, *xs, *kgd, *kgs;
+  kmake(&ks, (long)bn * ic); kmake(&w2, (long)oc * ic); kmake(&kd, (long)bn * oc);
+  kmake(&xs, (long)bn * pn * ic); kmake(&kgd, (long)bn * oc); kmake(&kgs, (long)bn * ic);
+  CALL_KERNEL(mcon_affine, (long)bn * ic, wmv, offab, offA, kstyle, bn, ic, sdim, wscaleA, ks);
+  CALL_KERNEL(mcon_w2, (long)oc * ic, wmv, ic, oc, wscale, w2);
+  CALL_KERNEL(mcon_demod, (long)bn * oc, w2, ks, bn, ic, oc, kd);
+  CALL_KERNEL(mcon_gd, (long)bn * oc, fout, stash, kd, pn, oc, kgd);
+  CALL_KERNEL(mcon_div_out, (long)bn * pn * oc, fout, kd, pn, oc);          // fout := g_y
+  CALL_KERNEL(mcon_scale_in, (long)bn * pn * ic, fin, ks, pn, ic, xs);         // xs := x'
+  // conv weight gradient into dwv (no update: nu = 0) and input gradient into xs
+  learn_conv(xs, iw, ih, fout, 1, ic, oc, false, 0, 2, wmv, dwv, 0.0f, b1, b2, eps, clip, rounds, bn, wscale);
+  CALL_KERNEL(mcon_gs, (long)bn * ic, xs, fin, ks, kgd, kd, w2, pn, ic, oc, kgs);
+  CALL_KERNEL(mcon_gx, (long)bn * pn * ic, xs, ks, pn, ic, fin);               // fin := g_x
+  if (dwv) {
+    CALL_KERNEL(mcon_dw_demod, 9L * oc * ic, wmv, ks, kgd, kd, bn, ic, oc, wscale, dwv);
+    CALL_KERNEL(mcon_daffine, (long)ic + (long)ic * sdim, kgs, kstyle, bn, ic, sdim, wscaleA, offab, offA, dwv);
+  }
+  if (kstylegrad)
+    CALL_KERNEL(mcon_dstyle, (long)bn * sdim, kgs, wmv, offA, bn, ic, sdim, wscaleA, kstylegrad);
+  kfree(kgs); kfree(kgd); kfree(xs); kfree(kd); kfree(w2); kfree(ks);
+  if (dwv) {
+    float mc = 1.0, vc = 1.0;
+    if (rounds < 1024.0) {
+      double dm = 1.0 - pow(1.0 - b1, 1.0 + rounds), dv = 1.0 - pow(1.0 - b2, 1.0 + rounds);
+      if (dm > 1e-12) mc = 1.0 / dm;
+      if (dv > 1e-12) vc = 1.0 / dv;
+    }
+    CALL_KERNEL(learn_adam, (long)wn, wmv, dwv, wn, oc, nu, b1, b2, eps, clip, mc, vc);
+  }
+}

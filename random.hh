@@ -8,13 +8,13 @@
 
 namespace makemore {
 
-extern double randgauss();
-extern double randrange(double, double);
+extern float randgauss();
+extern float randrange(float, float);
 extern uint32_t randuint();
 extern void seedrand(uint64_t);
 extern void seedrand();
 
-extern void kaddnoise(double *kdat, unsigned int n, double dev);
+extern void kaddnoise(float *kdat, unsigned int n, float dev);
 
 }
 

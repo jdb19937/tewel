@@ -172,3 +172,23 @@ void Rando::save(const std::string &fn) {
 }
 
 }
+
+namespace makemore {
+
+void Rando::observe(const float *dat) {
+  double *tmp = new double[dim];
+  for (int i = 0; i < dim; ++i)
+    tmp[i] = dat[i];
+  observe(tmp);
+  delete[] tmp;
+}
+
+void Rando::generate(float *dat, double mul, double evolve) {
+  double *tmp = new double[dim];
+  generate(tmp, mul, evolve);
+  for (int i = 0; i < dim; ++i)
+    dat[i] = (float)tmp[i];
+  delete[] tmp;
+}
+
+}

@@ -154,7 +154,7 @@ uint8_t *TileServer::tile_rgb(uint32_t x, uint32_t y, uint32_t z, bool opt) {
     prgbp[j] = tile_rgb(pxp[j], pyp[j], pz, true);
   }
 
-  double *qrgb = new double[512 * 512 * 3];
+  float *qrgb = new float[512 * 512 * 3];
   for (int y = 0; y < 256; ++y) {
     for (int x = 0; x < 256; ++x) {
       for (int c = 0; c < 3; ++c) {

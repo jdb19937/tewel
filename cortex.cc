@@ -55,6 +55,34 @@ const uint32_t TYPE_CROP = CC4('c','r','o','p');
 const uint32_t TYPE_SIGM = CC4('s','i','g','m');
 const uint32_t TYPE_CENT = CC4('c','e','n','t');
 const uint32_t TYPE_RELU = CC4('r','e','l','u');
+const uint32_t TYPE_LRLU = CC4('l','r','l','u');
+const uint32_t TYPE_PNRM = CC4('p','n','r','m');
+const uint32_t TYPE_UPBL = CC4('u','p','b','l');
+const uint32_t TYPE_DNAV = CC4('d','n','a','v');
+const uint32_t TYPE_MBSD = CC4('m','b','s','d');
+const uint32_t TYPE_STYL = CC4('s','t','y','l');
+const uint32_t TYPE_MCON = CC4('m','c','o','n');
+// skip connections: keep (out = in, stash slot), rcal (out = stash slot; oc may differ from ic),
+// radd (out = (in + stash slot) * mul).  Slots live in the layer's rad field, each keep has one
+// consumer (the next rcal/radd of that slot) and the consumer must precede the slot's next keep.
+const uint32_t TYPE_KEEP = CC4('k','e','e','p');
+const uint32_t TYPE_RCAL = CC4('r','c','a','l');
+const uint32_t TYPE_RADD = CC4('r','a','d','d');
+static const int g_nslots = 16;
+static float *g_slot_out[g_nslots];        // forward: the kept tensor
+static size_t g_slot_n[g_nslots];
+static const float *g_slot_grad[g_nslots]; // backward: gradient the consumer hands back to keep
+static float g_slot_gmul[g_nslots];
+static int g_slot_w[g_nslots], g_slot_h[g_nslots], g_slot_c[g_nslots];   // kept shape (rcal takes its output shape from it)
+
+// per-layer stash buffers (mcon keeps its forward output for the backward pass)
+static std::vector<float *> *g_stash = NULL;
+static int g_li = 0;
+static std::vector<size_t> g_stash_sizes;
+
+// style side input for the pipeline currently being run (set by Cortex before pipe_*)
+static const float *g_kstyle = NULL;
+static float *g_kstylegrad = NULL;
 const uint32_t TYPE_CLMP = CC4('c','l','m','p');
 const uint32_t TYPE_ABSV = CC4('a','b','s','v');
 const uint32_t TYPE_GRND = CC4('g','r','n','d');
@@ -104,7 +132,7 @@ static void _parse_header(
   uint32_t *typep, int *lenp,
   int *icp = NULL, int *ocp = NULL,
   int *iwp = NULL, int *ihp = NULL, int *owp = NULL, int *ohp = NULL,
-  double *mulp = NULL, int *radp = NULL, int *freezep = NULL, int *relup = NULL, int *dimp = NULL
+  float *mulp = NULL, int *radp = NULL, int *freezep = NULL, int *relup = NULL, int *dimp = NULL
 ) {
   assert(!memcmp(hdr.magic, "MakeMore", 8));
 
@@ -136,7 +164,7 @@ static void _parse_header(
 }
 
 
-static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp, unsigned long *dwnp) {
+static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, int *owp, int *ohp, int *ocp, unsigned long *dwnp, int bn, int *sdimp) {
   int i = 0;
   size_t kbufn = 0;
   unsigned int basei = 0;
@@ -158,7 +186,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     int len, vic;
     int viw, vih, vow, voh;
     int rad, freeze, relu;
-    double _mul;
+    float _mul;
     int dim;
     _parse_header(hdr, &type, &len, &vic, &oc, &viw, &vih, &vow, &voh, &_mul, &rad, &freeze, &relu, &dim);
 
@@ -173,7 +201,7 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 
     if (i == 0) {
       ic = vic;
-      kbufn += iw * ih * ic * sizeof(double);
+      kbufn += (size_t)bn * iw * ih * ic * sizeof(float);
       if (icp)
         *icp = ic;
     } else {
@@ -317,6 +345,63 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
         }
         break;
       }
+    case TYPE_MBSD:
+      assert(len == 0);
+      assert(ic + 1 == oc);
+      ow = iw;
+      oh = ih;
+      break;
+    case TYPE_STYL:
+      assert(ic == oc);
+      assert(len == size_styl(ic, rad));
+      assert(*sdimp == 0 || *sdimp == rad);
+      *sdimp = rad;
+      ow = iw;
+      oh = ih;
+      break;
+    case TYPE_MCON:
+      assert(len == size_mcon(ic, oc, rad));
+      assert(*sdimp == 0 || *sdimp == rad);
+      *sdimp = rad;
+      ow = iw;
+      oh = ih;
+      g_stash_sizes.push_back((size_t)bn * ow * oh * oc);
+      break;
+    case TYPE_UPBL:
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw * 2;
+      oh = ih * 2;
+      break;
+    case TYPE_DNAV:
+      assert(len == 0);
+      assert(ic == oc);
+      assert(iw % 2 == 0 && ih % 2 == 0);
+      ow = iw / 2;
+      oh = ih / 2;
+      break;
+    case TYPE_KEEP:
+      assert(len == 0);
+      assert(ic == oc);
+      assert(rad >= 0 && rad < g_nslots);
+      g_slot_w[rad] = iw; g_slot_h[rad] = ih; g_slot_c[rad] = ic;
+      ow = iw;
+      oh = ih;
+      break;
+    case TYPE_RADD:
+      assert(len == 0);
+      assert(ic == oc);
+      assert(rad >= 0 && rad < g_nslots);
+      ow = iw;
+      oh = ih;
+      break;
+    case TYPE_RCAL:
+      assert(len == 0);
+      assert(rad >= 0 && rad < g_nslots);
+      assert(g_slot_c[rad] == oc);
+      ow = g_slot_w[rad];
+      oh = g_slot_h[rad];
+      break;
     case TYPE_UPS1:
       {
         int s = 1;
@@ -494,6 +579,8 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
       }
     case TYPE_ABSV:
     case TYPE_RELU:
+    case TYPE_LRLU:
+    case TYPE_PNRM:
     case TYPE_CLMP:
     case TYPE_SIGM:
     case TYPE_CENT:
@@ -575,10 +662,10 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
     assert(oh > 0);
     assert(oc > 0);
 
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
+    assert(basei + len * sizeof(float) <= basen);
+    basei += len * sizeof(float);
 
-    kbufn += (size_t)ow * (size_t)oh * (size_t)oc * sizeof(double);
+    kbufn += (size_t)bn * (size_t)ow * (size_t)oh * (size_t)oc * sizeof(float);
 
     assert(len % 3 == 0);
     *dwnp += len / 3;
@@ -601,27 +688,58 @@ static size_t pipe_prep(uint8_t *base, size_t basen, int iw, int ih, int *icp, i
 }
 
 
-static double *_klnoise(int bufn, double mul = 1.0) {
-  double *buf = new double[bufn];
-  for (int i = 0; i < bufn; ++i)
-    buf[i] = randgauss() * mul;
+// device-side pool of unit gaussians, filled once; noise buffers are random windows into it
+static float *g_noisepool = NULL;
+static const long g_noisepooln = 1L << 24;   // 16M floats, 64 MB
 
-  double *kbuf;
+// deterministic inference: when a noise seed is set (>= 0), every noise window is a hash of the
+// seed and the call index within the pass (reset at each Cortex::synth), so equal inputs give
+// equal outputs; training leaves it at -1 (fresh random windows)
+static long g_noiseseed = -1;
+static long g_noisecall = 0;
+void Cortex::set_noise_seed(long seed) { g_noiseseed = seed; g_noisecall = 0; }
+long Cortex::hash_input(const float *x, long n) {
+  uint64_t h = 0xcbf29ce484222325ULL;
+  const uint32_t *u = (const uint32_t *)x;
+  for (long i = 0; i < n; ++i) { h ^= u[i]; h *= 0x100000001b3ULL; }
+  return (long)(h & 0x7fffffffffffffffULL);
+}
+
+static float *_klnoise(int bufn, float mul = 1.0) {
+  if (!g_noisepool) {
+    float *buf = new float[g_noisepooln];
+    for (long i = 0; i < g_noisepooln; ++i)
+      buf[i] = randgauss();
+    kmake(&g_noisepool, g_noisepooln);
+    enk(buf, g_noisepooln, g_noisepool);
+    delete[] buf;
+  }
+  assert(bufn <= g_noisepooln);
+  long off;
+  if (g_noiseseed >= 0) {
+    uint64_t h = (uint64_t)g_noiseseed * 0x9E3779B97F4A7C15ULL + (uint64_t)(g_noisecall + 1) * 0xBF58476D1CE4E5B9ULL;
+    h ^= h >> 31; h *= 0x94D049BB133111EBULL; h ^= h >> 29;
+    off = (long)(h % (uint64_t)(g_noisepooln - bufn + 1));
+  } else {
+    off = (long)(randuint() % (uint32_t)(g_noisepooln - bufn + 1));
+  }
+  ++g_noisecall;
+  float *kbuf;
   kmake(&kbuf, bufn);
-  enk(buf, bufn, kbuf);
-  delete[] buf;
-
+  kcopy(g_noisepool + off, bufn, kbuf);
+  if (mul != 1.0)
+    kmul(kbuf, mul, bufn, kbuf);
   return kbuf;
 }
 
-static double *_kgnoise(int bufn, int c, double mul = 1.0) {
-  double *buf = new double[bufn];
+static float *_kgnoise(int bufn, int c, float mul = 1.0) {
+  float *buf = new float[bufn];
   for (int i = 0; i < c; ++i)
     buf[i] = randgauss() * mul;
   for (int i = c; i < bufn; ++i)
     buf[i] = buf[i % c];
 
-  double *kbuf;
+  float *kbuf;
   kmake(&kbuf, bufn);
   enk(buf, bufn, kbuf);
   delete[] buf;
@@ -629,12 +747,12 @@ static double *_kgnoise(int bufn, int c, double mul = 1.0) {
   return kbuf;
 }
 
-static double *_kpadone(int bufn) {
-  double *buf = new double[bufn];
+static float *_kpadone(int bufn) {
+  float *buf = new float[bufn];
   for (int i = 0; i < bufn; ++i)
     buf[i] = 1.0;
 
-  double *kbuf;
+  float *kbuf;
   kmake(&kbuf, bufn);
   enk(buf, bufn, kbuf);
   delete[] buf;
@@ -642,14 +760,14 @@ static double *_kpadone(int bufn) {
   return kbuf;
 }
 
-static double *pipe_synth(
-  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf, double rmul, double rounds
+static float *pipe_synth(
+  uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf, float rmul, float rounds, int bn
 ) {
   if (basen == 0)
-    return ((double *)kbuf);
+    return ((float *)kbuf);
   assert(basen > 0);
 
-  double *in = (double *)kbuf;
+  float *in = (float *)kbuf;
 
   Cortex::Segment hdr;
   assert(sizeof(hdr) <= basen);
@@ -661,7 +779,7 @@ static double *pipe_synth(
   uint32_t type;
   int len, ic, oc;
   int viw, vih, vow, voh;
-  double mul;
+  float mul;
   int rad, freeze, relu;
   int dim;
   _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
@@ -672,15 +790,21 @@ static double *pipe_synth(
     assert(vih == ih);
 
   int ow, oh;
-  kbuf += iw * ih * ic * sizeof(double);
-  double *out = (double *)kbuf;
+  kbuf += (size_t)bn * iw * ih * ic * sizeof(float);
+  float *out = (float *)kbuf;
+
+  // batch: activations are laid out [bn][ih][iw][ic]; each kernel runs per sample
+  float *in0 = in, *out0 = out;
+  for (int __b = 0; __b < bn; ++__b) {
+  in = in0 + (size_t)__b * iw * ih * ic;
+  out = (__b == 0) ? out0 : out0 + (size_t)__b * ow * oh * oc;
 
   switch (type) {
   case TYPE_NORM:
     {
       int wmvn = size_norm(ic, iw, ih, oc);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
@@ -692,7 +816,7 @@ static double *pipe_synth(
     {
       int wmvn = size_bias(ic, iw, ih, oc);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
@@ -705,7 +829,7 @@ static double *pipe_synth(
       int d = 0;
       int wmvn = size_local(d, ic, iw, ih, oc);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
@@ -718,7 +842,7 @@ static double *pipe_synth(
       int d = 1;
       int wmvn = size_local(d, ic, iw, ih, oc);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
@@ -731,7 +855,7 @@ static double *pipe_synth(
       int d = 2;
       int wmvn = size_local(d, ic, iw, ih, oc);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
@@ -786,12 +910,12 @@ static double *pipe_synth(
       int d = rad;
       int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, relu, freeze, dim, wmv);
+      if (__b == 0) synth_conv(in0, iw, ih, out0, d, ic, oc, relu, freeze, dim, wmv, bn);
       break;
     }
   case TYPE_RCN0:
@@ -800,12 +924,12 @@ static double *pipe_synth(
       int d = 0;
       int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN0, 0, dim, wmv);
+      if (__b == 0) synth_conv(in0, iw, ih, out0, d, ic, oc, type == TYPE_RCN0, 0, dim, wmv, bn, (relu & 2) ? mul : 1.0f);
       break;
     }
   case TYPE_RCN1:
@@ -814,12 +938,12 @@ static double *pipe_synth(
       int d = 1;
       int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN1, 0, dim, wmv);
+      if (__b == 0) synth_conv(in0, iw, ih, out0, d, ic, oc, type == TYPE_RCN1, 0, dim, wmv, bn, (relu & 2) ? mul : 1.0f);
       break;
     }
   case TYPE_RCN2:
@@ -828,12 +952,12 @@ static double *pipe_synth(
       int d = 2;
       int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN2, 0, dim, wmv);
+      if (__b == 0) synth_conv(in0, iw, ih, out0, d, ic, oc, type == TYPE_RCN2, 0, dim, wmv, bn, (relu & 2) ? mul : 1.0f);
       break;
     }
   case TYPE_RCN3:
@@ -842,12 +966,12 @@ static double *pipe_synth(
       int d = 3;
       int wmvn = size_conv(d, ic, oc, dim);
       assert(wmvn == len);
-      double *wmv = (double *)kbase;
+      float *wmv = (float *)kbase;
 
       ow = iw;
       oh = ih;
 
-      synth_conv(in, iw, ih, out, d, ic, oc, type == TYPE_RCN3, 0, dim, wmv);
+      if (__b == 0) synth_conv(in0, iw, ih, out0, d, ic, oc, type == TYPE_RCN3, 0, dim, wmv, bn, (relu & 2) ? mul : 1.0f);
       break;
     }
   case TYPE_SCAL:
@@ -859,13 +983,84 @@ static double *pipe_synth(
 
       if (s > 0) {
         assert((oc << (s + s)) == ic);
-        synth_upscale(in, iw, ih, out, s, ic, oc, dim);
+        if (__b == 0) synth_upscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       } else if (s < 0) {
         assert((ic << -(s + s)) == oc);
-        synth_downscale(in, iw, ih, out, -s, ic, oc, dim);
+        if (__b == 0) synth_downscale(in0, iw, ih * bn, out0, -s, ic, oc, dim);
       } else {
         assert(ic == oc);
-        synth_pad(in, iw, ih, out, ic, oc, NULL);
+        if (__b == 0) synth_pad(in0, iw, ih * bn, out0, ic, oc, NULL);
+      }
+      break;
+    }
+  case TYPE_MBSD:
+    {
+      assert(len == 0);
+      assert(ic + 1 == oc);
+      ow = iw;
+      oh = ih;
+      if (__b == 0) synth_mbsd(in0, iw, ih, out0, ic, bn);
+      break;
+    }
+  case TYPE_STYL:
+    {
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      assert(g_kstyle);
+      if (__b == 0) synth_styl(in0, iw, ih, out0, ic, bn, (const float *)kbase, g_kstyle, rad, (relu & 2) ? mul : 1.0f);
+      break;
+    }
+  case TYPE_MCON:
+    {
+      ow = iw;
+      oh = ih;
+      assert(g_kstyle);
+      if (__b == 0) synth_mcon(in0, iw, ih, out0, ic, oc, bn, (const float *)kbase, g_kstyle, rad,
+        (relu & 2) ? mul : 1.0f, (relu & 2) ? 1.0f / sqrtf((float)rad) : 1.0f, (*g_stash)[g_li++]);
+      break;
+    }
+  case TYPE_UPBL:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw * 2;
+      oh = ih * 2;
+      if (__b == 0) synth_upbl(in0, iw, ih, out0, ic, bn);
+      break;
+    }
+  case TYPE_DNAV:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw / 2;
+      oh = ih / 2;
+      if (__b == 0) synth_dnav(in0, iw, ih * bn, out0, ic);
+      break;
+    }
+  case TYPE_KEEP:
+    {
+      ow = iw; oh = ih;
+      size_t n = (size_t)bn * iw * ih * ic;
+      if (__b == 0) { kcopy(in0, n, out0); g_slot_out[rad] = out0; g_slot_n[rad] = n; g_slot_w[rad] = iw; g_slot_h[rad] = ih; g_slot_c[rad] = ic; }
+      break;
+    }
+  case TYPE_RCAL:
+    {
+      ow = g_slot_w[rad]; oh = g_slot_h[rad];
+      assert(g_slot_c[rad] == oc);
+      size_t n = (size_t)bn * ow * oh * oc;
+      if (__b == 0) { assert(g_slot_out[rad] && g_slot_n[rad] == n); kcopy(g_slot_out[rad], n, out0); }
+      break;
+    }
+  case TYPE_RADD:
+    {
+      ow = iw; oh = ih;
+      size_t n = (size_t)bn * iw * ih * ic;
+      if (__b == 0) {
+        if (g_slot_out[rad]) { assert(g_slot_n[rad] == n); kaddvec(in0, g_slot_out[rad], n, out0); }
+        else kcopy(in0, n, out0);
+        if (mul != 1.0f) kmul(out0, mul, n, out0);
       }
       break;
     }
@@ -884,7 +1079,7 @@ static double *pipe_synth(
       }
 
 
-      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_upscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS2:
@@ -902,7 +1097,7 @@ static double *pipe_synth(
       }
 
 
-      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_upscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS3:
@@ -920,7 +1115,7 @@ static double *pipe_synth(
       }
 
 
-      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_upscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS4:
@@ -938,7 +1133,7 @@ static double *pipe_synth(
       }
 
 
-      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_upscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_UPS5:
@@ -956,7 +1151,7 @@ static double *pipe_synth(
       }
 
 
-      synth_upscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_upscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS1:
@@ -977,7 +1172,7 @@ static double *pipe_synth(
         assert((ic << (s + s)) == oc);
       }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_downscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS2:
@@ -998,7 +1193,7 @@ static double *pipe_synth(
         assert((ic << (s + s)) == oc);
       }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_downscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS3:
@@ -1019,7 +1214,7 @@ static double *pipe_synth(
         assert((ic << (s + s)) == oc);
       }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_downscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS4:
@@ -1040,7 +1235,7 @@ static double *pipe_synth(
         assert((ic << (s + s)) == oc);
       }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_downscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_DNS5:
@@ -1061,7 +1256,7 @@ static double *pipe_synth(
         assert((ic << (s + s)) == oc);
       }
 
-      synth_downscale(in, iw, ih, out, s, ic, oc, dim);
+      if (__b == 0) synth_downscale(in0, iw, ih * bn, out0, s, ic, oc, dim);
       break;
     }
   case TYPE_CENT:
@@ -1070,7 +1265,7 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_cent(in, iw, ih, out, ic);
+      if (__b == 0) synth_cent(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_SIGM:
@@ -1079,7 +1274,7 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_sigm(in, iw, ih, out, ic);
+      if (__b == 0) synth_sigm(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_CLMP:
@@ -1088,7 +1283,7 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_clamp(in, iw, ih, out, ic);
+      if (__b == 0) synth_clamp(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_RELU:
@@ -1097,7 +1292,25 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_relu(in, iw, ih, out, ic);
+      if (__b == 0) synth_relu(in0, iw, ih * bn, out0, ic);
+      break;
+    }
+  case TYPE_LRLU:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      if (__b == 0) synth_lrlu(in0, iw, ih * bn, out0, ic, mul);
+      break;
+    }
+  case TYPE_PNRM:
+    {
+      assert(len == 0);
+      assert(ic == oc);
+      ow = iw;
+      oh = ih;
+      if (__b == 0) synth_pnrm(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_NERF:
@@ -1106,7 +1319,7 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_nerf(in, iw, ih, out, ic);
+      if (__b == 0) synth_nerf(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_INRF:
@@ -1115,7 +1328,7 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_inrf(in, iw, ih, out, ic);
+      if (__b == 0) synth_inrf(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_ABSV:
@@ -1124,7 +1337,7 @@ static double *pipe_synth(
       assert(ic == oc);
       ow = iw;
       oh = ih;
-      synth_abs(in, iw, ih, out, ic);
+      if (__b == 0) synth_abs(in0, iw, ih * bn, out0, ic);
       break;
     }
   case TYPE_DRND:
@@ -1134,10 +1347,10 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double k = 65536.0;
-      double z = mul * k / ((double)rounds + k);
+      float k = 65536.0;
+      float z = mul * k / ((float)rounds + k);
 
-      double *knz = _klnoise((oc - ic) * ow * oh, z);
+      float *knz = _klnoise((oc - ic) * ow * oh, z);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
@@ -1149,9 +1362,11 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _klnoise((oc - ic) * ow * oh, mul * rmul);
-      synth_pad(in, iw, ih, out, ic, oc, knz);
-      kfree(knz);
+      if (__b == 0) {
+        float *knz = _klnoise((oc - ic) * ow * oh * bn, mul * rmul);
+        synth_pad(in0, iw, ih * bn, out0, ic, oc, knz);
+        kfree(knz);
+      }
       break;
     }
   case TYPE_GRND:
@@ -1161,7 +1376,7 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _kgnoise((oc - ic) * ow * oh, oc - ic, mul * rmul);
+      float *knz = _kgnoise((oc - ic) * ow * oh, oc - ic, mul * rmul);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
@@ -1183,7 +1398,7 @@ static double *pipe_synth(
       ow = iw;
       oh = ih;
 
-      double *knz = _kpadone((oc - ic) * ow * oh);
+      float *knz = _kpadone((oc - ic) * ow * oh);
       synth_pad(in, iw, ih, out, ic, oc, knz);
       kfree(knz);
       break;
@@ -1235,7 +1450,7 @@ static double *pipe_synth(
       assert(oc > 0);
       ow = iw;
       oh = ih;
-      synth_iden(in, iw, ih, out, ic, oc, NULL);
+      if (__b == 0) synth_iden(in0, iw, ih * bn, out0, ic, oc, NULL);
       break;
     }
   case TYPE_SMAX:
@@ -1253,7 +1468,7 @@ static double *pipe_synth(
       assert(ic % oc == 0);
       ow = iw;
       oh = ih;
-      synth_mean(in, iw, ih, out, ic, oc, NULL);
+      if (__b == 0) synth_mean(in0, iw, ih * bn, out0, ic, oc, NULL);
       break;
     }
   case TYPE_DIFF:
@@ -1293,20 +1508,22 @@ static double *pipe_synth(
   default:
     assert(0);
   }
+  }
+  out = out0;
 
   if (vow)
     assert(vow == ow);
   if (vih)
     assert(voh == oh);
 
-  assert(len * sizeof(double) <= basen);
-  base += len * sizeof(double);
-  kbase += len * sizeof(double);
-  basen -= len * sizeof(double);
+  assert(len * sizeof(float) <= basen);
+  base += len * sizeof(float);
+  kbase += len * sizeof(float);
+  basen -= len * sizeof(float);
 
   return pipe_synth(
     base, basen, kbase,
-    ow, oh, kbuf, rmul, rounds
+    ow, oh, kbuf, rmul, rounds, bn
   );
 }
 
@@ -1315,7 +1532,7 @@ static double *pipe_synth(
 
 void pipe_learn(
   uint8_t *base, size_t basen, uint8_t *kbase, int iw, int ih, uint8_t *kbuf,
-  double nu, double b1, double b2, double eps, double clip, uint64_t rounds, double *kdw
+  float nu, float b1, float b2, float eps, float clip, uint64_t rounds, float *kdw, int bn
 ) {
   if (basen == 0)
     return;
@@ -1332,7 +1549,7 @@ void pipe_learn(
   int len, ic, oc;
   int viw, vih, vow, voh;
   int rad, freeze, relu;
-  double mul;
+  float mul;
   int dim;
   _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
@@ -1491,6 +1708,49 @@ void pipe_learn(
       }
       break;
     }
+  case TYPE_MBSD:
+    assert(len == 0);
+    assert(ic + 1 == oc);
+    ow = iw;
+    oh = ih;
+    break;
+  case TYPE_STYL:
+    assert(ic == oc);
+    assert(len == size_styl(ic, rad));
+    ow = iw;
+    oh = ih;
+    break;
+  case TYPE_MCON:
+    assert(len == size_mcon(ic, oc, rad));
+    ow = iw;
+    oh = ih;
+    break;
+  case TYPE_UPBL:
+    assert(len == 0);
+    ow = iw * 2;
+    oh = ih * 2;
+    break;
+  case TYPE_DNAV:
+    assert(len == 0);
+    ow = iw / 2;
+    oh = ih / 2;
+    break;
+  case TYPE_KEEP:
+    assert(len == 0);
+    g_slot_w[rad] = iw; g_slot_h[rad] = ih; g_slot_c[rad] = ic;
+    ow = iw;
+    oh = ih;
+    break;
+  case TYPE_RADD:
+    assert(len == 0);
+    ow = iw;
+    oh = ih;
+    break;
+  case TYPE_RCAL:
+    assert(len == 0);
+    ow = g_slot_w[rad];
+    oh = g_slot_h[rad];
+    break;
   case TYPE_UPS1:
     {
       int s = 1;
@@ -1574,6 +1834,8 @@ void pipe_learn(
   case TYPE_CENT:
   case TYPE_SIGM:
   case TYPE_RELU:
+  case TYPE_LRLU:
+  case TYPE_PNRM:
   case TYPE_CLMP:
   case TYPE_ABSV:
   case TYPE_NERF:
@@ -1651,38 +1913,48 @@ void pipe_learn(
   if (voh)
     assert(voh == oh);
 
-  double *in = (double *)kbuf;
-  kbuf += iw * ih * ic * sizeof(double);
-  double *fout = (double *)kbuf;
+  float *in = (float *)kbuf;
+  kbuf += (size_t)bn * iw * ih * ic * sizeof(float);
+  float *fout = (float *)kbuf;
 
-  double *wmv = (double *)kbase;
-  assert(len * sizeof(double) <= basen);
-  base += len * sizeof(double);
-  kbase += len * sizeof(double);
-  basen -= len * sizeof(double);
+  float *wmv = (float *)kbase;
+  assert(len * sizeof(float) <= basen);
+  base += len * sizeof(float);
+  kbase += len * sizeof(float);
+  basen -= len * sizeof(float);
 
   pipe_learn(
     base, basen, kbase,
     ow, oh, kbuf,
     nu, b1, b2, eps, clip, rounds,
-    kdw ? (kdw + len / 3) : kdw
+    kdw ? (kdw + len / 3) : kdw,
+    bn
   );
+
+  // batch: gradients accumulate across samples (nu=0), the weight update
+  // (nu>0) is applied once on the last sample
+  float *in0 = in, *fout0 = fout;
+  float nu0 = nu;
+  for (int __b = 0; __b < bn; ++__b) {
+  in = in0 + (size_t)__b * iw * ih * ic;
+  fout = fout0 + (size_t)__b * ow * oh * oc;
+  nu = (__b + 1 < bn) ? 0.0f : nu0;
 
   switch (type) {
   case TYPE_NORM:
-    learn_norm(in, iw, ih, fout, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    learn_norm(in, iw, ih, fout, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds);
     break;
   case TYPE_BIAS:
-    learn_bias(in, iw, ih, fout, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    learn_bias(in, iw, ih, fout, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds);
     break;
   case TYPE_LOC0:
-    learn_local(in, iw, ih, fout, 0, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    learn_local(in, iw, ih, fout, 0, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds);
     break;
   case TYPE_LOC1:
-    learn_local(in, iw, ih, fout, 1, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    learn_local(in, iw, ih, fout, 1, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds);
     break;
   case TYPE_LOC2:
-    learn_local(in, iw, ih, fout, 2, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    learn_local(in, iw, ih, fout, 2, ic, oc, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds);
     break;
 
   case TYPE_CROP:
@@ -1697,92 +1969,138 @@ void pipe_learn(
     break;
 
   case TYPE_CONV:
-    learn_conv(in, iw, ih, fout, rad, ic, oc, relu, freeze, dim, wmv, kdw, nu * mul, b1, b2, eps, clip, (double)rounds);
+    if (__b + 1 == bn) learn_conv(in0, iw, ih, fout0, rad, ic, oc, relu, freeze, dim, wmv, kdw, nu * mul, b1, b2, eps, clip, (float)rounds, bn);
     break;
 
   case TYPE_CON0:
   case TYPE_RCN0:
-    learn_conv(in, iw, ih, fout, 0, ic, oc, type == TYPE_RCN0, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    if (__b + 1 == bn) learn_conv(in0, iw, ih, fout0, 0, ic, oc, type == TYPE_RCN0, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds, bn, (relu & 2) ? mul : 1.0f);
     break;
   case TYPE_CON1:
   case TYPE_RCN1:
-    learn_conv(in, iw, ih, fout, 1, ic, oc, type == TYPE_RCN1, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    if (__b + 1 == bn) learn_conv(in0, iw, ih, fout0, 1, ic, oc, type == TYPE_RCN1, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds, bn, (relu & 2) ? mul : 1.0f);
     break;
   case TYPE_CON2:
   case TYPE_RCN2:
-    learn_conv(in, iw, ih, fout, 2, ic, oc, type == TYPE_RCN2, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    if (__b + 1 == bn) learn_conv(in0, iw, ih, fout0, 2, ic, oc, type == TYPE_RCN2, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds, bn, (relu & 2) ? mul : 1.0f);
     break;
   case TYPE_CON3:
   case TYPE_RCN3:
-    learn_conv(in, iw, ih, fout, 3, ic, oc, type == TYPE_RCN3, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (double)rounds);
+    if (__b + 1 == bn) learn_conv(in0, iw, ih, fout0, 3, ic, oc, type == TYPE_RCN3, 0, dim, wmv, kdw, nu, b1, b2, eps, clip, (float)rounds, bn, (relu & 2) ? mul : 1.0f);
     break;
   case TYPE_SCAL:
     {
       int s = _scale_factor(ic, oc);
       if (s > 0)
-        learn_upscale(in, iw, ih, fout, s, ic, oc, dim);
+        if (__b + 1 == bn) learn_upscale(in0, iw, ih * bn, fout0, s, ic, oc, dim);
       else if (s < 0) 
-        learn_downscale(in, iw, ih, fout, -s, ic, oc, dim);
+        if (__b + 1 == bn) learn_downscale(in0, iw, ih * bn, fout0, -s, ic, oc, dim);
       else
-        learn_pad(in, iw, ih, fout, ic, oc);
+        if (__b + 1 == bn) learn_pad(in0, iw, ih * bn, fout0, ic, oc);
+    }
+    break;
+  case TYPE_MBSD:
+    if (__b + 1 == bn) learn_mbsd(in0, iw, ih, fout0, ic, bn);
+    break;
+  case TYPE_STYL:
+    assert(g_kstyle);
+    if (__b + 1 == bn) learn_styl(in0, iw, ih, fout0, ic, bn, wmv, kdw, g_kstyle, g_kstylegrad, rad, (relu & 2) ? mul : 1.0f, nu, b1, b2, eps, clip, (float)rounds);
+    break;
+  case TYPE_MCON:
+    assert(g_kstyle);
+    // layers are visited tail-first here; the stash index counts down
+    if (__b + 1 == bn) learn_mcon(in0, iw, ih, fout0, ic, oc, bn, wmv, kdw, g_kstyle, g_kstylegrad, rad,
+      (relu & 2) ? mul : 1.0f, (relu & 2) ? 1.0f / sqrtf((float)rad) : 1.0f, (*g_stash)[--g_li], nu, b1, b2, eps, clip, (float)rounds);
+    break;
+  case TYPE_UPBL:
+    if (__b + 1 == bn) learn_upbl(in0, iw, ih, fout0, ic, bn);
+    break;
+  case TYPE_DNAV:
+    if (__b + 1 == bn) learn_dnav(in0, iw, ih * bn, fout0, ic);
+    break;
+  case TYPE_KEEP:
+    if (__b + 1 == bn) {
+      size_t n = (size_t)bn * iw * ih * ic;
+      kcopy(fout0, n, in0);
+      if (g_slot_grad[rad]) { kaxpy(g_slot_grad[rad], g_slot_gmul[rad], n, in0); g_slot_grad[rad] = NULL; }
+    }
+    break;
+  case TYPE_RCAL:
+    if (__b + 1 == bn) {
+      kzero(in0, (size_t)bn * iw * ih * ic);
+      g_slot_grad[rad] = fout0; g_slot_gmul[rad] = 1.0f;
+    }
+    break;
+  case TYPE_RADD:
+    if (__b + 1 == bn) {
+      size_t n = (size_t)bn * iw * ih * ic;
+      kcopy(fout0, n, in0);
+      if (mul != 1.0f) kmul(in0, mul, n, in0);
+      g_slot_grad[rad] = fout0; g_slot_gmul[rad] = mul;
     }
     break;
   case TYPE_UPS1:
-    learn_upscale(in, iw, ih, fout, 1, ic, oc, dim);
+    if (__b + 1 == bn) learn_upscale(in0, iw, ih * bn, fout0, 1, ic, oc, dim);
     break;
   case TYPE_UPS2:
-    learn_upscale(in, iw, ih, fout, 2, ic, oc, dim);
+    if (__b + 1 == bn) learn_upscale(in0, iw, ih * bn, fout0, 2, ic, oc, dim);
     break;
   case TYPE_UPS3:
-    learn_upscale(in, iw, ih, fout, 3, ic, oc, dim);
+    if (__b + 1 == bn) learn_upscale(in0, iw, ih * bn, fout0, 3, ic, oc, dim);
     break;
   case TYPE_UPS4:
-    learn_upscale(in, iw, ih, fout, 4, ic, oc, dim);
+    if (__b + 1 == bn) learn_upscale(in0, iw, ih * bn, fout0, 4, ic, oc, dim);
     break;
   case TYPE_UPS5:
-    learn_upscale(in, iw, ih, fout, 5, ic, oc, dim);
+    if (__b + 1 == bn) learn_upscale(in0, iw, ih * bn, fout0, 5, ic, oc, dim);
     break;
   case TYPE_DNS1:
-    learn_downscale(in, iw, ih, fout, 1, ic, oc, dim);
+    if (__b + 1 == bn) learn_downscale(in0, iw, ih * bn, fout0, 1, ic, oc, dim);
     break;
   case TYPE_DNS2:
-    learn_downscale(in, iw, ih, fout, 2, ic, oc, dim);
+    if (__b + 1 == bn) learn_downscale(in0, iw, ih * bn, fout0, 2, ic, oc, dim);
     break;
   case TYPE_DNS3:
-    learn_downscale(in, iw, ih, fout, 3, ic, oc, dim);
+    if (__b + 1 == bn) learn_downscale(in0, iw, ih * bn, fout0, 3, ic, oc, dim);
     break;
   case TYPE_DNS4:
-    learn_downscale(in, iw, ih, fout, 4, ic, oc, dim);
+    if (__b + 1 == bn) learn_downscale(in0, iw, ih * bn, fout0, 4, ic, oc, dim);
     break;
   case TYPE_DNS5:
-    learn_downscale(in, iw, ih, fout, 5, ic, oc, dim);
+    if (__b + 1 == bn) learn_downscale(in0, iw, ih * bn, fout0, 5, ic, oc, dim);
     break;
   case TYPE_CENT:
-    learn_cent(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_cent(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_SIGM:
-    learn_sigm(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_sigm(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_CLMP:
-    learn_clamp(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_clamp(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_RELU:
-    learn_relu(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_relu(in0, iw, ih * bn, fout0, ic);
+    break;
+  case TYPE_LRLU:
+    if (__b + 1 == bn) learn_lrlu(in0, iw, ih * bn, fout0, ic, mul);
+    break;
+  case TYPE_PNRM:
+    if (__b + 1 == bn) learn_pnrm(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_NERF:
-    learn_nerf(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_nerf(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_INRF:
-    learn_inrf(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_inrf(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_ABSV:
-    learn_abs(in, iw, ih, fout, ic);
+    if (__b + 1 == bn) learn_abs(in0, iw, ih * bn, fout0, ic);
     break;
   case TYPE_DRND:
   case TYPE_LRND:
   case TYPE_GRND:
   case TYPE_PAD1:
-    learn_pad(in, iw, ih, fout, ic, oc);
+    if (__b + 1 == bn) learn_pad(in0, iw, ih * bn, fout0, ic, oc);
     break;
   case TYPE_ADDG:
     learn_addgeo(in, iw, ih, fout, ic, oc);
@@ -1798,7 +2116,7 @@ void pipe_learn(
     learn_popp(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_IDEN:
-    learn_iden(in, iw, ih, fout, ic, oc);
+    if (__b + 1 == bn) learn_iden(in0, iw, ih * bn, fout0, ic, oc);
     break;
   case TYPE_MEDI:
     learn_median(in, iw, ih, fout, ic, oc);
@@ -1816,10 +2134,11 @@ void pipe_learn(
     learn_smax(in, iw, ih, fout, ic, oc);
     break;
   case TYPE_MEAN:
-    learn_mean(in, iw, ih, fout, ic, oc);
+    if (__b + 1 == bn) learn_mean(in0, iw, ih * bn, fout0, ic, oc);
     break;
   default:
     assert(0);
+  }
   }
 }
 
@@ -1860,6 +2179,9 @@ void Cortex::_clear() {
   kbuf = NULL;
   kinp = NULL;
   kout = NULL;
+  kstyle = NULL;
+  kstylegrad = NULL;
+  sdim = 0;
 
   nu = 1e-4;
   b1 = 0.1;
@@ -1908,7 +2230,8 @@ void Cortex::open(const std::string &_fn, int flags) {
 
   assert(!memcmp(head->magic, "MakeMore", 8));
   uint32_t v = ntohl(head->version);
-  assert(v == 2);
+  if (v != 3)
+    error(fmt("%s: ctx version %u, this build needs version 3 (float weights); re-make it from its spec", fn.c_str(), v));
 
   for (unsigned int j = 0; j < sizeof(Head::blank); ++j)
     assert(head->blank[j] == 0);
@@ -1950,8 +2273,8 @@ void Cortex::open(const std::string &_fn, int flags) {
       assert(tic == vic);
     }
 
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
+    assert(basei + len * sizeof(float) <= basen);
+    basei += len * sizeof(float);
 
     tic = oc;
     ++i;
@@ -1961,7 +2284,7 @@ void Cortex::open(const std::string &_fn, int flags) {
   is_open = true;
 }
 
-void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
+void Cortex::_get_head_op(float **vecp, float **matp, int *wp, int *hp) {
   unsigned int basei = 0;
   Cortex::Segment hdr;
   assert(basei + sizeof(hdr) <= basen);
@@ -1980,17 +2303,17 @@ void Cortex::_get_head_op(double **vecp, double **matp, int *wp, int *hp) {
   assert(tlen % voc == 0);
   *wp = tlen / voc;
 
-  const double *wmv = (double *)(base + basei);
-  *matp = new double[*wp * *hp];
+  const float *wmv = (float *)(base + basei);
+  *matp = new float[*wp * *hp];
   for (int y = 0; y < *hp; ++y)
     for (int x = 0; x < *wp; ++x)
-      (*matp)[x + y * *wp] = wmv[3 * (voc + x + y * *wp)];
-  *vecp = new double[*hp];
+      (*matp)[x + y * *wp] = wmv[voc + x + y * *wp];
+  *vecp = new float[*hp];
   for (int y = 0; y < *hp; ++y)
-    (*vecp)[y] = wmv[3 * y];
+    (*vecp)[y] = wmv[y];
 }
 
-void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
+void Cortex::_put_head_op(const float *vec, const float *mat, int w, int h) {
   unsigned int basei = 0;
   Cortex::Segment hdr;
   assert(basei + sizeof(hdr) <= basen);
@@ -2008,15 +2331,15 @@ void Cortex::_put_head_op(const double *vec, const double *mat, int w, int h) {
   assert(tlen % voc == 0);
   assert(w * voc == tlen);
 
-  double *wmv = (double *)(base + basei);
+  float *wmv = (float *)(base + basei);
   for (int y = 0; y < h; ++y)
     for (int x = 0; x < w; ++x)
-      wmv[3 * (voc + x + y * w)] = mat[x + y * w];
+      wmv[voc + x + y * w] = mat[x + y * w];
   for (int y = 0; y < h; ++y)
-    wmv[3 * y] = vec[y];
+    wmv[y] = vec[y];
 }
 
-void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
+void Cortex::_get_tail_op(float **vecp, float **matp, int *wp, int *hp) {
   unsigned int basei = 0;
 
   while (basei < basen) {
@@ -2029,8 +2352,8 @@ void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
     int len, vic, voc;
     _parse_header(hdr, &type, &len, &vic, &voc);
 
-    assert(basei + len * sizeof(double) <= basen);
-    if (basei + len * sizeof(double) == basen) {
+    assert(basei + len * sizeof(float) <= basen);
+    if (basei + len * sizeof(float) == basen) {
       int tlen = len / 3;
       *hp = voc;
       assert(tlen > voc);
@@ -2038,23 +2361,23 @@ void Cortex::_get_tail_op(double **vecp, double **matp, int *wp, int *hp) {
       assert(tlen % voc == 0);
       *wp = tlen / voc;
 
-      const double *wmv = (double *)(base + basei);
-      *matp = new double[*wp * *hp];
+      const float *wmv = (float *)(base + basei);
+      *matp = new float[*wp * *hp];
       for (int y = 0; y < *hp; ++y)
         for (int x = 0; x < *wp; ++x)
-          (*matp)[x + y * *wp] = wmv[3 * (voc + x + y * *wp)];
-      *vecp = new double[*hp];
+          (*matp)[x + y * *wp] = wmv[voc + x + y * *wp];
+      *vecp = new float[*hp];
       for (int y = 0; y < *hp; ++y)
-        (*vecp)[y] = wmv[3 * y];
+        (*vecp)[y] = wmv[y];
       return;
     }
 
-    basei += len * sizeof(double);
+    basei += len * sizeof(float);
   }
   assert(0);
 }
 
-void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
+void Cortex::_put_tail_op(const float *vec, const float *mat, int w, int h) {
   unsigned int basei = 0;
 
   while (basei < basen) {
@@ -2067,8 +2390,8 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
     int len, vic, voc;
     _parse_header(hdr, &type, &len, &vic, &voc);
 
-    assert(basei + len * sizeof(double) <= basen);
-    if (basei + len * sizeof(double) == basen) {
+    assert(basei + len * sizeof(float) <= basen);
+    if (basei + len * sizeof(float) == basen) {
       int tlen = len / 3;
       assert(h == voc);
       assert(tlen > voc);
@@ -2076,17 +2399,17 @@ void Cortex::_put_tail_op(const double *vec, const double *mat, int w, int h) {
       assert(tlen % voc == 0);
       assert(w * voc == tlen);
 
-      double *wmv = (double *)(base + basei);
+      float *wmv = (float *)(base + basei);
       for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
-          wmv[3 * (voc + x + y * w)] = mat[x + y * w];
+          wmv[voc + x + y * w] = mat[x + y * w];
       for (int y = 0; y < h; ++y)
-        wmv[3 * y] = vec[y];
+        wmv[y] = vec[y];
 
       return;
     }
 
-    basei += len * sizeof(double);
+    basei += len * sizeof(float);
   }
   assert(0);
 }
@@ -2147,7 +2470,7 @@ void Cortex::create(const std::string &_fn, bool clobber) {
   assert(sizeof(Head) == 4096);
   memset(&head, 0, sizeof(head));
   memcpy(head.magic, "MakeMore", 8);
-  head.version = htonl(2);
+  head.version = htonl(3);
   head.rounds = 0;
   head.decay = 0.01;
   head.rdev = 0.1;
@@ -2184,7 +2507,7 @@ void Cortex::unfreeze(int last) {
     int len, ic, oc;
     int viw, vih, vow, voh;
     int rad, freeze, relu;
-    double mul;
+    float mul;
     int dim;
     _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
@@ -2195,8 +2518,8 @@ void Cortex::unfreeze(int last) {
       return;
     }
 
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
+    assert(basei + len * sizeof(float) <= basen);
+    basei += len * sizeof(float);
 
     ++i;
   }
@@ -2216,7 +2539,7 @@ void Cortex::unfreeze(int last) {
     int len, ic, oc;
     int viw, vih, vow, voh;
     int rad, freeze, relu;
-    double mul;
+    float mul;
     int dim;
     _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
@@ -2228,8 +2551,8 @@ void Cortex::unfreeze(int last) {
     }
 
 
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
+    assert(basei + len * sizeof(float) <= basen);
+    basei += len * sizeof(float);
 
     ++i;
   }
@@ -2251,7 +2574,7 @@ void Cortex::dump(FILE *outfp) {
     int len, ic, oc;
     int viw, vih, vow, voh;
     int rad, freeze, relu;
-    double mul;
+    float mul;
     int dim;
     _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
@@ -2279,8 +2602,8 @@ void Cortex::dump(FILE *outfp) {
 
     fprintf(outfp, "\n");
 
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
+    assert(basei + len * sizeof(float) <= basen);
+    basei += len * sizeof(float);
 
     ++i;
   }
@@ -2311,17 +2634,17 @@ void Cortex::bindump(FILE *outfp, unsigned int a, unsigned int b) {
     memcpy(stype, &ntype, 4);
     stype[4] = 0;
 
-    assert(basei + len * sizeof(double) <= basen);
+    assert(basei + len * sizeof(float) <= basen);
     assert(i <= 4096);
 
     if (i >= a && i <= b) {
       int ret = fwrite(&hdr, 1, sizeof(hdr), outfp);
       assert(ret == sizeof(hdr));
-      ret = fwrite(base + basei, 1, len * sizeof(double), outfp);
-      assert(ret == len * sizeof(double));
+      ret = fwrite(base + basei, 1, len * sizeof(float), outfp);
+      assert(ret == len * sizeof(float));
     }
 
-    basei += len * sizeof(double);
+    basei += len * sizeof(float);
     ++i;
   }
   assert(basei == basen);
@@ -2341,6 +2664,14 @@ void Cortex::unprepare() {
   kfree(kbase);
   kbase = NULL;
 
+  if (kstylegrad) {
+    kfree(kstylegrad);
+    kstylegrad = NULL;
+  }
+  sdim = 0;
+  for (auto k : kstash) kfree(k);
+  kstash.clear();
+
   iw = ih = ic = 0;
   ow = oh = oc = 0;
   iwhc = owhc = 0;
@@ -2348,7 +2679,11 @@ void Cortex::unprepare() {
   is_prep = false;
 }
 
-bool Cortex::prepare(int _iw, int _ih) {
+bool Cortex::prepare(int _iw, int _ih, int _bn) {
+  assert(_bn > 0);
+  if (is_prep && _bn != bn)
+    unprepare();
+  bn = _bn;
   assert(is_open);
 
   if (is_prep) {
@@ -2368,12 +2703,15 @@ bool Cortex::prepare(int _iw, int _ih) {
 
   dwn = 0;
 
-  kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc, &dwn);
+  sdim = 0;
+  g_stash_sizes.clear();
+  kbufn = pipe_prep(base, basen, _iw, _ih, &vic, &ow, &oh, &voc, &dwn, bn, &sdim);
+  for (auto n : g_stash_sizes) { float *k; kmake(&k, n); kstash.push_back(k); }
   if (kbufn == 0)
     return false;
   assert(kbufn > 0);
   kmake(&kbuf, kbufn);
-  kinp = (double *)kbuf;
+  kinp = (float *)kbuf;
   kout = NULL;
 
   assert(vic == ic);
@@ -2399,34 +2737,46 @@ bool Cortex::prepare(int _iw, int _ih) {
     kfill(kdw, dwn, 0);
   }
 
+  if (sdim > 0) {
+    kmake(&kstylegrad, (unsigned int)sdim * bn);
+    kfill(kstylegrad, (unsigned int)sdim * bn, 0);
+  }
+
   is_prep = true;
   return true;
 }
 
-double *Cortex::synth() {
+float *Cortex::synth() {
+  g_noisecall = 0;
   assert(is_open);
   assert(is_prep);
-  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, rmul, rounds);
+  assert(sdim == 0 || kstyle);
+  g_kstyle = kstyle;
+  g_kstylegrad = kstylegrad;
+  g_stash = &kstash;
+  g_li = 0;
+  memset(g_slot_out, 0, sizeof(g_slot_out));
+  kout = pipe_synth(base, basen, kbase, iw, ih, kbuf, rmul, rounds, bn);
   return kout;
 }
 
-double *Cortex::synth(const double *_kinp) {
+float *Cortex::synth(const float *_kinp) {
   assert(is_open);
   assert(is_prep);
-  kcopy(_kinp, iwhc, kinp);
+  kcopy(_kinp, iwhc * bn, kinp);
   return synth();
 }
 
 void Cortex::stats() {
-  double nrms = sqrt(ksumsq(kout, owhc) / (double)owhc);
+  float nrms = sqrt(ksumsq(kout, owhc * bn) / (float)(owhc * bn));
 
-  double z = pow(1.0 - decay, (double)rounds);
+  float z = pow(1.0 - decay, (float)rounds);
   rms *= (1.0 - z);
   rms *= (1.0 - decay);
   rms += decay * nrms;
   rms *= 1.0 / (1.0 - z * (1.0 - decay));
 
-  double nmax = kmaxabs(kout, owhc);
+  float nmax = kmaxabs(kout, owhc * bn);
   max *= (1.0 - z);
   max *= (1.0 - decay);
   max += decay * nmax;
@@ -2436,50 +2786,71 @@ void Cortex::stats() {
   ++new_rounds;
 }
 
-void Cortex::target(const double *ktgt) {
+void Cortex::target(const float *ktgt) {
   assert(is_open);
   assert(is_prep);
   assert(kout);
   assert(owhc > 0);
-  ksubvec(ktgt, kout, owhc, kout);
+  ksubvec(ktgt, kout, owhc * bn, kout);
 }
 
-void Cortex::setloss(const double *ktgt) {
+void Cortex::setloss(const float *ktgt) {
   assert(is_open);
   assert(is_prep);
   assert(kout);
   assert(owhc > 0);
-  kcopy(ktgt, owhc, kout);
+  kcopy(ktgt, owhc * bn, kout);
 }
 
-double *Cortex::propback() {
+float *Cortex::propback() {
   assert(is_open);
   assert(is_prep);
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds, NULL);
+  g_kstyle = kstyle;
+  g_kstylegrad = kstylegrad;
+  g_stash = &kstash;
+  g_li = (int)kstash.size();
+  if (kstylegrad)
+    kfill(kstylegrad, (unsigned int)sdim * bn, 0);
+  memset(g_slot_grad, 0, sizeof(g_slot_grad));
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds, NULL, bn);
   return kinp;
 }
 
-double *Cortex::accumulate() {
+float *Cortex::accumulate() {
   assert(is_open);
   assert(is_prep);
+  g_kstyle = kstyle;
+  g_kstylegrad = kstylegrad;
+  g_stash = &kstash;
+  g_li = (int)kstash.size();
+  if (kstylegrad)
+    kfill(kstylegrad, (unsigned int)sdim * bn, 0);
   stats();
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds, kdw);
+  memset(g_slot_grad, 0, sizeof(g_slot_grad));
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, 0, b1, b2, eps, clip, rounds, kdw, bn);
   return kinp;
 }
 
-double *Cortex::learn(double mul) {
+float *Cortex::learn(float mul) {
   assert(is_open);
   assert(is_prep);
+  g_kstyle = kstyle;
+  g_kstylegrad = kstylegrad;
+  g_stash = &kstash;
+  g_li = (int)kstash.size();
+  if (kstylegrad)
+    kfill(kstylegrad, (unsigned int)sdim * bn, 0);
   stats();
-  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, clip, rounds, kdw);
+  memset(g_slot_grad, 0, sizeof(g_slot_grad));
+  pipe_learn(base, basen, kbase, iw, ih, kbuf, nu * mul, b1, b2, eps, clip, rounds, kdw, bn);
   return kinp;
 }
 
-double *Cortex::learn(const double *_kout, double mul) {
+float *Cortex::learn(const float *_kout, float mul) {
   assert(is_open);
   assert(is_prep);
   assert(kout);
-  kcopy(_kout, owhc, kout);
+  kcopy(_kout, owhc * bn, kout);
   return learn(mul);
 }
 
@@ -2534,8 +2905,29 @@ void Cortex::save() {
   ::msync(base - sizeof(Head), (basen + sizeof(Head) + 4095) & ~4095, MS_ASYNC);
 }
 
-void Cortex::scram(double dev) {
-  info(fmt("scrambling %s with dev=%g", fn.c_str(), dev));
+// exponential moving average of another (identically structured) cortex's weights
+// into this one: w = beta * w + (1 - beta) * src.w, on the device; call save() to persist
+void Cortex::ema(const Cortex &src, float beta) {
+  assert(is_prep && src.is_prep);
+  assert(basen == src.basen);
+  size_t off = 0;
+  while (off < basen) {
+    Segment hdr;
+    memcpy(&hdr, base + off, sizeof(hdr));
+    off += sizeof(hdr);
+    uint32_t type; int len;
+    _parse_header(hdr, &type, &len);
+    if (len > 0) {
+      int wn = len / 3;
+      kema((float *)(kbase + off), (const float *)(src.kbase + off), wn, beta);
+      off += (size_t)len * sizeof(float);
+    }
+  }
+  assert(off == basen);
+}
+
+void Cortex::scram(float dev, bool fanin) {
+  info(fmt("scrambling %s with dev=%g fanin=%d", fn.c_str(), dev, (int)fanin));
 
   assert(is_open);
   assert(!is_prep);
@@ -2549,31 +2941,80 @@ void Cortex::scram(double dev) {
     basei += sizeof(hdr);
 
     uint32_t type;
-    int len;
-    _parse_header(hdr, &type, &len);
+    int len, ic, oc, viw, vih, vow, voh, rad, freeze, relu, dim;
+    float mul;
+    _parse_header(hdr, &type, &len, &ic, &oc, &viw, &vih, &vow, &voh, &mul, &rad, &freeze, &relu, &dim);
 
     if (len == 0)
       continue;
     assert(len > 0);
 
     uint8_t *bwmv = base + basei;
-    double *wmv = (double *)bwmv;
+    float *wmv = (float *)bwmv;
     assert(len % 3 == 0);
 
-    for (int i = 0; i < len; i += 3) {
-      wmv[i + 0] = randgauss() * dev;
-      wmv[i + 1] = 0.0;
-      wmv[i + 2] = 1.0;
+    // number of leading bias entries and fan-in for He-style init
+    int nbias = 0, nin = 0;
+    switch (type) {
+    case TYPE_CONV: { int f = 2 * rad + 1; nbias = oc; nin = (dim == 1) ? ic * f : ic * f * f; break; }
+    case TYPE_CON0: case TYPE_RCN0: nbias = oc; nin = ic; break;
+    case TYPE_CON1: case TYPE_RCN1: nbias = oc; nin = (dim == 1) ? ic * 3 : ic * 9; break;
+    case TYPE_CON2: case TYPE_RCN2: nbias = oc; nin = (dim == 1) ? ic * 5 : ic * 25; break;
+    case TYPE_CON3: case TYPE_RCN3: nbias = oc; nin = (dim == 1) ? ic * 7 : ic * 49; break;
+    case TYPE_LOC0: nbias = vow * voh * oc; nin = ic; break;
+    case TYPE_LOC1: nbias = vow * voh * oc; nin = ic * 9; break;
+    case TYPE_LOC2: nbias = vow * voh * oc; nin = ic * 25; break;
+    case TYPE_NORM: case TYPE_BIAS: nbias = len / 3; nin = 0; break;
+    case TYPE_STYL: nbias = 2 * ic; nin = rad; break;
+    default: nbias = 0; nin = 0; break;
     }
 
-    assert(basei + len * sizeof(double) <= basen);
-    basei += len * sizeof(double);
+    if (type == TYPE_MCON) {
+      int wn = len / 3;
+      long offab = oc + 9L * oc * ic, offA = offab + ic;
+      bool eq = (relu & 2);
+      float wdev = eq ? dev : dev * sqrt(2.0 / (9.0 * ic));
+      float adev = eq ? dev : dev / sqrt((float)rad);
+      for (int i = 0; i < wn; ++i) {
+        float v;
+        if (i < oc) v = 0.0;
+        else if (i < offab) v = randgauss() * wdev;
+        else if (i < offA) v = 1.0;
+        else v = randgauss() * adev;
+        wmv[i] = v; wmv[wn + i] = 0.0; wmv[2 * wn + i] = 0.0;
+      }
+      assert(basei + len * sizeof(float) <= basen);
+      basei += len * sizeof(float);
+      continue;
+    }
+
+    float wdev = dev;
+    if (fanin)
+      wdev = (nin > 0) ? dev * sqrt(2.0 / (float)nin) : 0.0;
+    // equalized learning rate (relu bit 2 on con layers): weights stay N(0, dev), the
+    // fan-in scale is applied at runtime through the segment's mul field
+    if ((relu & 2) && nin > 0)
+      wdev = dev;
+    if (type == TYPE_STYL && !(relu & 2))
+      wdev = dev / sqrt((float)nin);
+
+    // segment layout: [w_0..w_wn-1][m_0..m_wn-1][v_0..v_wn-1]
+    int wn = len / 3;
+    for (int i = 0; i < wn; ++i) {
+      bool isbias = i < nbias;
+      wmv[i] = (fanin && isbias) ? 0.0 : randgauss() * wdev;
+      wmv[wn + i] = 0.0;
+      wmv[2 * wn + i] = 0.0;
+    }
+
+    assert(basei + len * sizeof(float) <= basen);
+    basei += len * sizeof(float);
   }
 
   assert(basei == basen);
 }
 
-void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh, double mul, int rad, int freeze, int relu, int dim) {
+void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, int now, int noh, float mul, int rad, int freeze, int relu, int dim) {
   if (noc <= 0) {
     int ric = nic;
 
@@ -2588,6 +3029,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     else if (stype == "grnd")	{ noc = (nic + 1); }
     else if (stype == "lrnd")	{ noc = (nic + 1); }
     else if (stype == "pad1")	{ noc = (nic + 1); }
+    else if (stype == "mbsd")	{ noc = (nic + 1); }
     else if (stype == "iden")	{ noc = nic; }
     else			{ noc = nic; }
 
@@ -2644,6 +3086,15 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_CONV:
     len = size_conv(rad, nic, oc, dim);
     break;
+  case TYPE_STYL:
+    assert(rad > 0);
+    assert(oc == nic);
+    len = size_styl(nic, rad);
+    break;
+  case TYPE_MCON:
+    assert(rad > 0);
+    len = size_mcon(nic, oc, rad);
+    break;
   case TYPE_CON0:
   case TYPE_RCN0:
     len = size_conv(0, nic, oc, dim);
@@ -2661,6 +3112,12 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     len = size_conv(3, nic, oc, dim);
     break;
   case TYPE_SCAL:
+  case TYPE_UPBL:
+  case TYPE_DNAV:
+  case TYPE_KEEP:
+  case TYPE_RCAL:
+  case TYPE_RADD:
+  case TYPE_MBSD:
   case TYPE_UPS1:
   case TYPE_UPS2:
   case TYPE_UPS3:
@@ -2674,6 +3131,8 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
   case TYPE_SIGM:
   case TYPE_CENT:
   case TYPE_RELU:
+  case TYPE_LRLU:
+  case TYPE_PNRM:
   case TYPE_CLMP:
   case TYPE_NERF:
   case TYPE_INRF:
@@ -2700,7 +3159,7 @@ void Cortex::push(const std::string &stype, int nic, int noc, int niw, int nih, 
     assert(0);
   }
 
-  size_t new_basen = basen + sizeof(Segment) + len * sizeof(double);
+  size_t new_basen = basen + sizeof(Segment) + len * sizeof(float);
 
   int ret = ::ftruncate(fd, new_basen + sizeof(Head));
   assert(ret == 0);

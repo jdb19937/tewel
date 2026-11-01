@@ -1,5 +1,6 @@
 *.o
 .*.sw*
+*.proj/*
 tewel
 tewel-*
 *.ctx

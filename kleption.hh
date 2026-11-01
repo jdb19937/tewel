@@ -74,6 +74,7 @@ struct Kleption {
   const static Flags FLAG_WRITER = (1 << 4);
   const static Flags FLAG_CENTER = (1 << 5);
   const static Flags FLAG_APPEND = (1 << 6);
+  const static Flags FLAG_FLIP = (1 << 7);     // random horizontal mirror on pick
 
   typedef enum {
     TRAV_NONE = 0,
@@ -98,7 +99,7 @@ struct Kleption {
   unsigned int sw, sh, sc;
   bool loaded;
 
-  double trim;
+  float trim;
 
   // pic, dat
   uint8_t *dat;
@@ -129,16 +130,16 @@ struct Kleption {
 
   // rvg
   class Rando *rvg;
-  double evolve;
-  double rvgmul;
+  float evolve;
+  float rvgmul;
 
   Kleption(
     const std::string &_fn,
     unsigned int _pw, unsigned int _ph, unsigned int _pc,
     Flags _flags = 0, Trav _trav = TRAV_RAND, Kind _kind = KIND_UNK,
     unsigned int _sw = 0, unsigned int _sh = 0, unsigned int _sc = 0,
-    const char *refsfn = NULL, double _evolve = 0, double _rvgmul = 1.0,
-    double trim = 0.0
+    const char *refsfn = NULL, float _evolve = 0, float _rvgmul = 1.0,
+    float trim = 0.0
   );
   ~Kleption();
 
@@ -147,15 +148,15 @@ struct Kleption {
 
   void reset();
 
-  bool pick(double *kdat, std::string *idp = NULL);
-  void find(const std::string &id, double *kdat);
+  bool pick(float *kdat, std::string *idp = NULL);
+  void find(const std::string &id, float *kdat);
 
   static std::string pick_pair(
-    Kleption *kl0, double *kdat0,
-    Kleption *kl1, double *kdat1
+    Kleption *kl0, float *kdat0,
+    Kleption *kl1, float *kdat1
   );
 
-  bool place(const std::string &id, const double *kdat);
+  bool place(const std::string &id, const float *kdat);
 };
 
 }

@@ -1,9 +1,9 @@
 CXX = g++
 NVCC = nvcc
 OPT = -O6
-NVCCFLAGS = $(OPT) -Xcompiler -fPIC
+NVCCFLAGS = $(OPT) -arch=native -Xcompiler -fPIC
 CXXFLAGS = $(OPT) -fPIC
-LDFLAGS = -lm -lpng -ljpeg
+LDFLAGS = -L/usr/local/cuda/lib64 -Wl,-rpath,/usr/local/cuda/lib64 -lm -lpng -ljpeg
 
 VERSION = 0.6
 
@@ -97,7 +97,7 @@ tewel-nocuda-nosdl: $(OBJ) colonel-nocuda.o display-nosdl.o
 	$(CXX) -o $@ $(CXXFLAGS) $^ $(LDFLAGS)
 
 $(OBJ): $(HDR)
-colonel-cuda.o: colonel-core.inc colonel-common.inc
+colonel-cuda.o: colonel-core.inc colonel-common.inc colonel-gemm.inc
 colonel-nocuda.o: colonel-core.inc colonel-common.inc
 
 %.tex: %.lyx
@@ -105,3 +105,8 @@ colonel-nocuda.o: colonel-core.inc colonel-common.inc
 %.pdf: %.tex
 	pdflatex $^
 	pdflatex $^
+
+# test and benchmark tools (link against everything but tewel.o)
+TOOLS = gradcheck prectest convbench actdump
+$(TOOLS): %: %.cc $(filter-out tewel.o,$(OBJ)) colonel-cuda.o display-sdl.o
+	$(CXX) -o $@ $(CXXFLAGS) -I/usr/local/cuda/include $^ $(LDFLAGS) -lcudart -lSDL2

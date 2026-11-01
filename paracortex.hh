@@ -12,29 +12,31 @@ struct Paracortex {
   ~Paracortex();
 
   bool prepared;
-  double rmul;
+  float rmul;
 
-  double *_kinp, *_kout;
+  float *_kinp, *_kout;
 
-  double *kinp();
-  double *kout();
+  float *kinp();
+  float *kout();
 
-  int iw, ih, ic, iwhc;
+  int bn;                 // batch size
+  int iw, ih, ic, iwhc;   // iwhc/owhc include the batch: bn * w * h * c
   int ow, oh, oc, owhc;
 
   std::vector<Cortex*> ctxv;
-  void prepare(int iw, int ih);
+  void prepare(int iw, int ih, int bn = 1);
   void push(const std::string &fn, int mode);
 
-  double *synth(double *kinp = NULL);
-  void learn(double mul);
-  void target(const double *);
+  float *synth(float *kinp = NULL);
+  void learn(float mul);
+  void accumulate();
+  void target(const float *);
 
   void load();
   void save();
 
   unsigned long rounds();
-  double rms();
+  float rms();
   std::string fn();
 };
 

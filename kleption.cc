@@ -33,7 +33,7 @@ Kleption::Kleption(
   unsigned int _pw, unsigned int _ph, unsigned int _pc,
   Flags _flags, Trav _trav, Kind _kind,
   unsigned int _sw, unsigned int _sh, unsigned int _sc,
-  const char *refsfn, double _evolve, double _rvgmul, double _trim
+  const char *refsfn, float _evolve, float _rvgmul, float _trim
 ) {
   fn = _fn;
 
@@ -645,9 +645,9 @@ void Kleption::load() {
 }
 
 static void _outcrop(
-  const uint8_t *tmpdat, double *kdat, Kleption::Flags flags,
+  const uint8_t *tmpdat, float *kdat, Kleption::Flags flags,
   int sw, int sh, int sc, int pw, int ph, int pc,
-  unsigned int *x0p, unsigned int *y0p, double trim
+  unsigned int *x0p, unsigned int *y0p, float trim
 ) {
   assert(pw <= sw);
   assert(ph <= sh);
@@ -674,15 +674,17 @@ static void _outcrop(
   }
   x1 = x0 + pw - 1;
   y1 = y0 + ph - 1;
+  bool flip = (flags & Kleption::FLAG_FLIP) && (randuint() & 1);
 
   unsigned int pwhc = pw * ph * pc;
-  double *ddat = new double[pwhc];
-  double *edat = ddat;
+  float *ddat = new float[pwhc];
+  float *edat = ddat;
 
   for (unsigned int y = y0; y <= y1; ++y)
     for (unsigned int x = x0; x <= x1; ++x) {
+      unsigned int xs = flip ? (x1 - (x - x0)) : x;
       for (unsigned int z = 0; z < sc; ++z)
-        *edat++ = (0.5 + (double)tmpdat[z + sc * (x + sw * y)]) / 256.0;
+        *edat++ = (0.5 + (float)tmpdat[z + sc * (xs + sw * y)]) / 256.0;
     }
 
   enk(ddat, pwhc, kdat);
@@ -694,9 +696,9 @@ static void _outcrop(
     *y0p = y0;
 }
 static void _outcrop(
-  const double *tmpdat, double *kdat, Kleption::Flags flags,
+  const float *tmpdat, float *kdat, Kleption::Flags flags,
   int sw, int sh, int sc, int pw, int ph, int pc,
-  unsigned int *x0p, unsigned int *y0p, double trim
+  unsigned int *x0p, unsigned int *y0p, float trim
 ) {
   assert(pw <= sw);
   assert(ph <= sh);
@@ -723,15 +725,17 @@ static void _outcrop(
   }
   x1 = x0 + pw - 1;
   y1 = y0 + ph - 1;
+  bool flip = (flags & Kleption::FLAG_FLIP) && (randuint() & 1);
 
   unsigned int pwhc = pw * ph * pc;
-  double *ddat = new double[pwhc];
-  double *edat = ddat;
+  float *ddat = new float[pwhc];
+  float *edat = ddat;
 
   for (unsigned int y = y0; y <= y1; ++y)
     for (unsigned int x = x0; x <= x1; ++x) {
+      unsigned int xs = flip ? (x1 - (x - x0)) : x;
       for (unsigned int z = 0; z < sc; ++z)
-        *edat++ = tmpdat[z + sc * (x + sw * y)];
+        *edat++ = tmpdat[z + sc * (xs + sw * y)];
     }
 
   enk(ddat, pwhc, kdat);
@@ -743,7 +747,7 @@ static void _outcrop(
     *y0p = y0;
 }
 
-static void cpumatvec(const double *a, const double *b, int aw, int ahbw, double *c) {
+static void cpumatvec(const float *a, const float *b, int aw, int ahbw, float *c) {
   int ah = ahbw;
   int bw = ahbw;
   int cw = aw;
@@ -756,7 +760,7 @@ static void cpumatvec(const double *a, const double *b, int aw, int ahbw, double
   }
 }
 
-bool Kleption::pick(double *kdat, std::string *idp) {
+bool Kleption::pick(float *kdat, std::string *idp) {
   load();
 
   switch (kind) {
@@ -815,7 +819,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
     {
       unsigned int swh = sw * sh;
       unsigned int swhc = swh * sc;
-      double *rnd = new double[swhc];
+      float *rnd = new float[swhc];
       for (int j = 0; j < swhc; ++j)
         rnd[j] = randgauss();
 
@@ -839,7 +843,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
 
       unsigned int swh = sw * sh;
       unsigned int swhc = swh * sc;
-      double *rnd = new double[swhc];
+      float *rnd = new float[swhc];
       for (int xy = 0; xy < swh; ++xy)
         rvg->generate(rnd + xy * sc, rvgmul, evolve);
 
@@ -1051,9 +1055,13 @@ bool Kleption::pick(double *kdat, std::string *idp) {
       assert(v < b);
 
       unsigned int swhc = sw * sh * sc;
-      const double *tmpdat = ((double *)dat) + (long)v * (long)swhc;
+      const double *dtmpdat = ((const double *)dat) + (long)v * (long)swhc;
+      float *tmpdat = new float[swhc];
+      for (unsigned int i = 0; i < swhc; ++i)
+        tmpdat[i] = (float)dtmpdat[i];
       unsigned int x0, y0;
       _outcrop(tmpdat, kdat, flags, sw, sh, sc, pw, ph, pc, &x0, &y0, trim);
+      delete[] tmpdat;
 
       if (idp) {
         char buf[256];
@@ -1069,7 +1077,7 @@ bool Kleption::pick(double *kdat, std::string *idp) {
   assert(0);
 }
 
-void Kleption::find(const std::string &id, double *kdat) {
+void Kleption::find(const std::string &id, float *kdat) {
   const char *cid = id.c_str();
   std::string pid, qid;
   if (const char *p = ::strchr(cid, '/')) {
@@ -1123,13 +1131,13 @@ void Kleption::find(const std::string &id, double *kdat) {
       assert(y1 < sh);
 
       unsigned int pwhc = pw * ph * pc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
+      float *ddat = new float[pwhc];
+      float *edat = ddat;
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)dat[z + sc * (x + sw * y)] / 255.0;
+            *edat++ = (float)dat[z + sc * (x + sw * y)] / 255.0;
         }
 
       enk(ddat, pwhc, kdat);
@@ -1170,13 +1178,13 @@ void Kleption::find(const std::string &id, double *kdat) {
       unsigned int pwhc = pw * ph * pc;
       unsigned int swhc = sw * sh * sc;
       const uint8_t *tmpdat = dat + (long)v * (long)swhc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
+      float *ddat = new float[pwhc];
+      float *edat = ddat;
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = (double)tmpdat[z + sc * (x + sw * y)] / 255.0;
+            *edat++ = (float)tmpdat[z + sc * (x + sw * y)] / 255.0;
         }
 
       enk(ddat, pwhc, kdat);
@@ -1214,14 +1222,14 @@ void Kleption::find(const std::string &id, double *kdat) {
 
       unsigned int pwhc = pw * ph * pc;
       unsigned int swhc = sw * sh * sc;
-      const double *tmpdat = ((double *)dat) + (long)v * (long)swhc;
-      double *ddat = new double[pwhc];
-      double *edat = ddat;
+      const double *tmpdat = ((const double *)dat) + (long)v * (long)swhc;
+      float *ddat = new float[pwhc];
+      float *edat = ddat;
 
       for (unsigned int y = y0; y <= y1; ++y)
         for (unsigned int x = x0; x <= x1; ++x) {
           for (unsigned int z = 0; z < sc; ++z)
-            *edat++ = tmpdat[z + sc * (x + sw * y)];
+            *edat++ = (float)tmpdat[z + sc * (x + sw * y)];
         }
 
       enk(ddat, pwhc, kdat);
@@ -1233,7 +1241,7 @@ void Kleption::find(const std::string &id, double *kdat) {
   }
 }
 
-bool Kleption::place(const std::string &id, const double *kdat) {
+bool Kleption::place(const std::string &id, const float *kdat) {
   info(fmt("placing %s", id.c_str()));
 
   assert(flags & FLAG_WRITER);
@@ -1262,7 +1270,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
 
       unsigned int pwh = pw * ph;
       unsigned int pwhc = pwh * pc;
-      double *ddat = new double[pwhc];
+      float *ddat = new float[pwhc];
       dek(kdat, pwhc, ddat);
 
       for (int xy = 0; xy < pwh; ++xy)
@@ -1280,7 +1288,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       }
 
       unsigned int pwhc = pw * ph * pc;
-      double *dtmp = new double[pwhc];
+      float *dtmp = new float[pwhc];
       uint8_t *tmp = new uint8_t[pwhc];
       dek(kdat, pwhc, dtmp);
       dedub(dtmp, pwhc, tmp);
@@ -1301,11 +1309,15 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       }
 
       unsigned int pwhc = pw * ph * pc;
-      double *dtmp = new double[pwhc];
+      float *dtmp = new float[pwhc];
       dek(kdat, pwhc, dtmp);
+      double *ddtmp = new double[pwhc];
+      for (unsigned int i = 0; i < pwhc; ++i)
+        ddtmp[i] = dtmp[i];
 
-      fwrite(dtmp, 1, pw * ph * pc * 8, datwriter);
+      fwrite(ddtmp, 1, pw * ph * pc * 8, datwriter);
 
+      delete[] ddtmp;
       delete[] dtmp;
     }
     return true;
@@ -1318,7 +1330,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       }
 
       unsigned int pwhc = pw * ph * pc;
-      double *dtmp = new double[pwhc];
+      float *dtmp = new float[pwhc];
       uint8_t *tmp = new uint8_t[pwhc];
       dek(kdat, pwhc, dtmp);
       dedub(dtmp, pwhc, tmp);
@@ -1352,7 +1364,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       assert(pc == 3);
 
       unsigned int pwhc = pw * ph * pc;
-      double *dtmp = new double[pwhc];
+      float *dtmp = new float[pwhc];
       uint8_t *tmp = new uint8_t[pwhc];
       dek(kdat, pwhc, dtmp);
       dedub(dtmp, pwhc, tmp);
@@ -1372,7 +1384,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       picwriter->open(fn);
 
       unsigned int pwhc = pw * ph * pc;
-      double *dtmp = new double[pwhc];
+      float *dtmp = new float[pwhc];
       uint8_t *tmp = new uint8_t[pwhc];
       dek(kdat, pwhc, dtmp);
       dedub(dtmp, pwhc, tmp);
@@ -1391,7 +1403,7 @@ bool Kleption::place(const std::string &id, const double *kdat) {
       assert(pc == 3);
 
       unsigned int pwhc = pw * ph * pc;
-      double *dtmp = new double[pwhc];
+      float *dtmp = new float[pwhc];
       uint8_t *tmp = new uint8_t[pwhc];
       dek(kdat, pwhc, dtmp);
       dedub(dtmp, pwhc, tmp);
@@ -1423,8 +1435,8 @@ bool Kleption::place(const std::string &id, const double *kdat) {
 
 // static 
 std::string Kleption::pick_pair(
-  Kleption *kl0, double *kdat0,
-  Kleption *kl1, double *kdat1
+  Kleption *kl0, float *kdat0,
+  Kleption *kl1, float *kdat1
 ) {
   std::string id;
   bool ret = kl0->pick(kdat0, &id);
