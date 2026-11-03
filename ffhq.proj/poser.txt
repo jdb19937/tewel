@@ -1,0 +1,37 @@
+# poser: 128x128x3 photo -> 1x1x6 marker coordinates (px,py,qx,qy,rx,ry in units of the frame), L2 regression.
+# Trained by learnfunc on ~/datasets/poser (make_poser.py: FFHQ faces under random similarity+stretch warps with the
+# aligned-crop landmarks warped along, no hand labels).  Replaces the old makemore Autoposer (sparse FC Multitron).
+v=2 rdev=1 init=he eqlr=1 nu=1e-3 b1=1.0 b2=0.01
+type=con1 ic=3 oc=32
+type=lrlu
+type=con1 oc=32
+type=lrlu
+type=dnav
+type=con1 oc=64
+type=lrlu
+type=con1 oc=64
+type=lrlu
+type=dnav
+type=con1 oc=128
+type=lrlu
+type=con1 oc=128
+type=lrlu
+type=dnav
+type=con1 oc=192
+type=lrlu
+type=con1 oc=192
+type=lrlu
+type=dnav
+type=con1 oc=256
+type=lrlu
+type=con1 oc=256
+type=lrlu
+type=dnav
+type=con1 oc=256
+type=lrlu
+type=dns2 oc=4096
+type=con0 oc=512
+type=lrlu
+type=con0 oc=256
+type=lrlu
+type=con0 oc=6

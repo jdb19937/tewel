@@ -1,0 +1,3 @@
+v=2 rdev=0
+type=inrf ic=1536 oc=1536
+type=con0 ic=1536 oc=512

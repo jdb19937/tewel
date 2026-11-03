@@ -1,0 +1,77 @@
+# dis11: 256x256x3 -> 1 logit, StyleGAN2-style residual discriminator (1x1 skip, 1/sqrt2), mbsd at 4x4, hidden fc
+v=2 rdev=1 init=he eqlr=1 nu=1e-3 b1=1.0 b2=0.01
+type=con1 ic=3 oc=32
+type=lrlu
+type=keep slot=1
+type=con1 oc=32
+type=lrlu
+type=con1 oc=64
+type=lrlu
+type=dnav
+type=keep slot=2
+type=rcal slot=1 oc=32
+type=dnav
+type=con0 oc=64
+type=radd slot=2 mul=0.7071
+type=keep slot=1
+type=con1 oc=64
+type=lrlu
+type=con1 oc=128
+type=lrlu
+type=dnav
+type=keep slot=2
+type=rcal slot=1 oc=64
+type=dnav
+type=con0 oc=128
+type=radd slot=2 mul=0.7071
+type=keep slot=1
+type=con1 oc=128
+type=lrlu
+type=con1 oc=256
+type=lrlu
+type=dnav
+type=keep slot=2
+type=rcal slot=1 oc=128
+type=dnav
+type=con0 oc=256
+type=radd slot=2 mul=0.7071
+type=keep slot=1
+type=con1 oc=256
+type=lrlu
+type=con1 oc=256
+type=lrlu
+type=dnav
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=dnav
+type=con0 oc=256
+type=radd slot=2 mul=0.7071
+type=keep slot=1
+type=con1 oc=256
+type=lrlu
+type=con1 oc=256
+type=lrlu
+type=dnav
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=dnav
+type=con0 oc=256
+type=radd slot=2 mul=0.7071
+type=keep slot=1
+type=con1 oc=256
+type=lrlu
+type=con1 oc=256
+type=lrlu
+type=dnav
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=dnav
+type=con0 oc=256
+type=radd slot=2 mul=0.7071
+type=mbsd
+type=con1 oc=256
+type=lrlu
+type=dns2 oc=4096
+type=con0 oc=256
+type=lrlu
+type=con0 oc=1

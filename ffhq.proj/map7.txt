@@ -1,0 +1,11 @@
+# mapping network: z (1x1x512, gaussian) -> w (1x1x512); StyleGAN uses a 100x lower lr here
+v=2 rdev=1 init=he eqlr=1 nu=1e-5 b1=1.0 b2=0.01
+type=pnrm ic=512 oc=512
+type=con0 oc=512
+type=lrlu
+type=con0 oc=512
+type=lrlu
+type=con0 oc=512
+type=lrlu
+type=con0 oc=512
+type=lrlu

@@ -1,0 +1,90 @@
+# gen11: 256x256 StyleGAN2-style generator (gan10 recipe, seven stages): modulated convs with
+# demodulation, noise channel before each conv, bilinear up, skip torgb (slot 1 = features, slot 2 = rgb)
+# widths 4..32: 256, 64: 128, 128: 64, 256: 32
+v=2 rdev=1 init=he eqlr=1 nu=1e-3 b1=1.0 b2=0.01
+type=con0 ic=512 oc=4096
+type=lrlu
+type=ups2 oc=256
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=keep slot=1
+type=con0 oc=3
+type=radd slot=2
+type=upbl
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=upbl
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=keep slot=1
+type=con0 oc=3
+type=radd slot=2
+type=upbl
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=upbl
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=keep slot=1
+type=con0 oc=3
+type=radd slot=2
+type=upbl
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=upbl
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=lrnd
+type=mcon sdim=512 oc=256
+type=lrlu
+type=keep slot=1
+type=con0 oc=3
+type=radd slot=2
+type=upbl
+type=keep slot=2
+type=rcal slot=1 oc=256
+type=upbl
+type=lrnd
+type=mcon sdim=512 oc=128
+type=lrlu
+type=lrnd
+type=mcon sdim=512 oc=128
+type=lrlu
+type=keep slot=1
+type=con0 oc=3
+type=radd slot=2
+type=upbl
+type=keep slot=2
+type=rcal slot=1 oc=128
+type=upbl
+type=lrnd
+type=mcon sdim=512 oc=64
+type=lrlu
+type=lrnd
+type=mcon sdim=512 oc=64
+type=lrlu
+type=keep slot=1
+type=con0 oc=3
+type=radd slot=2
+type=upbl
+type=keep slot=2
+type=rcal slot=1 oc=64
+type=upbl
+type=lrnd
+type=mcon sdim=512 oc=32
+type=lrlu
+type=lrnd
+type=mcon sdim=512 oc=32
+type=lrlu
+type=con0 oc=3
+type=radd slot=2
