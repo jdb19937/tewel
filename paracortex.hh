@@ -30,6 +30,7 @@ struct Paracortex {
   float *synth(float *kinp = NULL);
   void learn(float mul);
   void accumulate();
+  void propback();   // backprop only: no weight update, nothing accumulated
   void target(const float *);
 
   void load();

@@ -26,6 +26,10 @@ Chain::Chain() {
 }
 
 Chain::~Chain() {
+  for (auto k : klat)
+    if (k)
+      kfree(k);
+  klat.clear();
   for (auto ctx : ctxv)
     delete ctx;
 }
@@ -168,7 +172,7 @@ void Chain::target(const float *ktgt) {
 
 // latreg > 0 adds an L2 penalty on every intermediate (latent) activation:
 // gradient (ascent convention) is -latreg * z.
-void Chain::_backprop(float mul, float latreg, bool apply) {
+void Chain::_backprop(float mul, float latreg, int mode) {
   assert(prepared);
   int n = ctxv.size();
   assert(n > 0);
@@ -177,7 +181,7 @@ void Chain::_backprop(float mul, float latreg, bool apply) {
     for (int i = 1; i < n; ++i)
       kcopy(ctxv[i]->kinp(), ctxv[i]->iwhc, klat[i]);
 
-  if (apply) ctxv[n - 1]->learn(mul); else ctxv[n - 1]->accumulate();
+  if (mode == 0) ctxv[n - 1]->learn(mul); else if (mode == 1) ctxv[n - 1]->accumulate(); else ctxv[n - 1]->propback();
   for (int i = n - 2; i >= 0; --i) {
     if (tail_override && i == n - 2)
       kzero(ctxv[i]->kout(), ctxv[i]->owhc);   // the tail's input gradient belongs to the condition, not to us
@@ -189,16 +193,20 @@ void Chain::_backprop(float mul, float latreg, bool apply) {
       kmul(klat[i + 1], -latreg, ctxv[i]->owhc, klat[i + 1]);
       kaddvec(ctxv[i]->kout(), klat[i + 1], ctxv[i]->owhc, ctxv[i]->kout());
     }
-    if (apply) ctxv[i]->learn(mul); else ctxv[i]->accumulate();
+    if (mode == 0) ctxv[i]->learn(mul); else if (mode == 1) ctxv[i]->accumulate(); else ctxv[i]->propback();
   }
 }
 
 void Chain::learn(float mul, float latreg) {
-  _backprop(mul, latreg, true);
+  _backprop(mul, latreg, 0);
 }
 
 void Chain::accumulate(float latreg) {
-  _backprop(0.0, latreg, false);
+  _backprop(0.0, latreg, 1);
+}
+
+void Chain::propback(float latreg) {
+  _backprop(0.0, latreg, 2);
 }
 
 void Chain::load() {

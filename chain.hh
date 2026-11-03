@@ -37,7 +37,8 @@ struct Chain {
   float *synth(int stop = 0, float latnoise = 0.0, const float *tailin = NULL);
   void learn(float mul, float latreg = 0.0);
   void accumulate(float latreg = 0.0);
-  void _backprop(float mul, float latreg, bool apply);
+  void propback(float latreg = 0.0);   // backprop through frozen weights (input gradient only)
+  void _backprop(float mul, float latreg, int mode);   // 0 learn, 1 accumulate, 2 propback
   void target(const float *);
 
   void load();

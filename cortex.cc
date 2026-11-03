@@ -2182,6 +2182,8 @@ void Cortex::_clear() {
   kstyle = NULL;
   kstylegrad = NULL;
   sdim = 0;
+  kdw = NULL;
+  dwn = 0;
 
   nu = 1e-4;
   b1 = 0.1;
@@ -2671,6 +2673,11 @@ void Cortex::unprepare() {
   sdim = 0;
   for (auto k : kstash) kfree(k);
   kstash.clear();
+  if (kdw) {
+    kfree(kdw);
+    kdw = NULL;
+  }
+  dwn = 0;
 
   iw = ih = ic = 0;
   ow = oh = oc = 0;

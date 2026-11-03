@@ -1,17 +1,35 @@
+#include <stdint.h>
+// float4 paths for the big elementwise passes (GPU, 16-byte aligned, n % 4 == 0)
+static inline bool kvec4ok(const void *a, const void *b, const void *c, unsigned int n) {
+  return kdev && (n % 4 == 0) && ((((uintptr_t)a) | ((uintptr_t)b) | ((uintptr_t)c)) & 15) == 0;
+}
+
 void kaxpy(const float *x, float a, unsigned int n, float *y) {
+  if (kvec4ok(x, y, y, n)) { gpu_axpy4(x, a, n / 4, y); return; }
   CALL_KERNEL(kaxpy, n, x, a, n, y);
 }
 
 void kaddvec(const float *a, const float *b, unsigned int n, float *c) {
+  if (kvec4ok(a, b, c, n)) { gpu_addvec4(a, b, n / 4, c); return; }
   CALL_KERNEL(kaddvec, n, a, b, n, c);
 }
 
 void ksubvec(const float *a, const float *b, unsigned int n, float *c) {
+  if (kvec4ok(a, b, c, n)) { gpu_subvec4(a, b, n / 4, c); return; }
   CALL_KERNEL(ksubvec, n, a, b, n, c);
 }
 
 void kmul(const float *a, const float b, unsigned int n, float *c) {
+  if (kvec4ok(a, c, c, n)) { gpu_mul4(a, b, n / 4, c); return; }
   CALL_KERNEL(kmul, n, a, b, n, c);
+}
+
+// u8 image rows -> float samples on the device: upload the bytes, convert/crop/flip in a kernel
+void ku8crop(const unsigned char *rows, size_t nbytes, int sw, int sc, int x0, int pw, int ph, int pc, bool flip, float *kdat) {
+  unsigned char *ksrc; kmakev((void **)&ksrc, (unsigned int)nbytes);
+  enkv(rows, (unsigned int)nbytes, ksrc);
+  CALL_KERNEL(u8crop, (long)pw * ph * pc, ksrc, sw, sc, x0, pw, ph, pc, flip ? 1 : 0, kdat);
+  kfreev(ksrc);
 }
 
 float ksum(
@@ -1050,11 +1068,13 @@ void kcharb(float *e, unsigned int n, float delta) {
 
 void synth_lrlu(const float *in, int iw, int ih, float *out, int ic, float slope) {
   int outn = iw * ih * ic;
+  if (kvec4ok(in, out, out, outn)) { gpu_lrlu4_fwd(in, outn / 4, out, slope); return; }
   CALL_KERNEL(synth_lrlu, outn, in, iw, ih, out, ic, slope);
 }
 
 void learn_lrlu(float *fin, int iw, int ih, const float *fout, int ic, float slope) {
   int inn = iw * ih * ic;
+  if (kvec4ok(fin, fout, fout, inn)) { gpu_lrlu4_bwd(fin, inn / 4, fout, slope); return; }
   CALL_KERNEL(learn_lrlu, inn, fin, iw, ih, fout, ic, slope);
 }
 
@@ -1178,9 +1198,9 @@ void synth_mcon(const float *in, int iw, int ih, float *out, int ic, int oc, int
   CALL_KERNEL(mcon_w2, (long)oc * ic, wmv, ic, oc, wscale, w2);
   CALL_KERNEL(mcon_demod, (long)bn * oc, w2, ks, bn, ic, oc, kd);
   CALL_KERNEL(mcon_scale_in, (long)bn * pn * ic, in, ks, pn, ic, xs);
-  synth_conv(xs, iw, ih, out, 1, ic, oc, false, 0, 2, wmv, bn, wscale);
-  CALL_KERNEL(mcon_div_out, (long)bn * pn * oc, out, kd, pn, oc);
-  kcopy(out, (long)bn * pn * oc, stash);
+  // the raw conv output y goes to the stash (the backward needs it: dout/dd = -y/d^2), out = y / d
+  synth_conv(xs, iw, ih, stash, 1, ic, oc, false, 0, 2, wmv, bn, wscale);
+  CALL_KERNEL(mcon_divc, (long)bn * pn * oc, stash, kd, pn, oc, out);
   kfree(xs); kfree(kd); kfree(w2); kfree(ks);
 }
 
@@ -1196,12 +1216,14 @@ void learn_mcon(float *fin, int iw, int ih, float *fout, int ic, int oc, int bn,
   CALL_KERNEL(mcon_affine, (long)bn * ic, wmv, offab, offA, kstyle, bn, ic, sdim, wscaleA, ks);
   CALL_KERNEL(mcon_w2, (long)oc * ic, wmv, ic, oc, wscale, w2);
   CALL_KERNEL(mcon_demod, (long)bn * oc, w2, ks, bn, ic, oc, kd);
-  CALL_KERNEL(mcon_gd, (long)bn * oc, fout, stash, kd, pn, oc, kgd);
+  if (kdev) { gpu_dot_bc(fout, stash, bn, pn, oc, kgd); CALL_KERNEL(mcon_gd_fin, (long)bn * oc, kgd, kd); }
+  else CALL_KERNEL(mcon_gd, (long)bn * oc, fout, stash, kd, pn, oc, kgd);
   CALL_KERNEL(mcon_div_out, (long)bn * pn * oc, fout, kd, pn, oc);          // fout := g_y
   CALL_KERNEL(mcon_scale_in, (long)bn * pn * ic, fin, ks, pn, ic, xs);         // xs := x'
   // conv weight gradient into dwv (no update: nu = 0) and input gradient into xs
   learn_conv(xs, iw, ih, fout, 1, ic, oc, false, 0, 2, wmv, dwv, 0.0f, b1, b2, eps, clip, rounds, bn, wscale);
-  CALL_KERNEL(mcon_gs, (long)bn * ic, xs, fin, ks, kgd, kd, w2, pn, ic, oc, kgs);
+  if (kdev) { gpu_dot_bc(xs, fin, bn, pn, ic, kgs); CALL_KERNEL(mcon_gs_fin, (long)bn * ic, kgs, ks, kgd, kd, w2, ic, oc); }
+  else CALL_KERNEL(mcon_gs, (long)bn * ic, xs, fin, ks, kgd, kd, w2, pn, ic, oc, kgs);
   CALL_KERNEL(mcon_gx, (long)bn * pn * ic, xs, ks, pn, ic, fin);               // fin := g_x
   if (dwv) {
     CALL_KERNEL(mcon_dw_demod, 9L * oc * ic, wmv, ks, kgd, kd, bn, ic, oc, wscale, dwv);

@@ -212,6 +212,14 @@ extern void gpu_learn_conv_in16(float *fin, int bn, int iw, int ih, const float 
 extern void gpu_learn_pnrm(float *fin, int pn, int ic, const float *fout);
 extern void gpu_synth_pnrm(const float *in, long pn, int ic, float *out);
 extern void gpu_styl_dsc(const float *x, const float *g, long pn, int ic, int bn, float *kd);
+extern void gpu_dot_bc(const float *a, const float *c, int bn, long pn, int nc, float *out);
+extern void gpu_lrlu4_fwd(const float *in, long n4, float *out, float slope);
+extern void gpu_lrlu4_bwd(float *fin, long n4, const float *fout, float slope);
+extern void gpu_axpy4(const float *x, float a, long n4, float *y);
+extern void gpu_addvec4(const float *a, const float *b, long n4, float *c);
+extern void gpu_subvec4(const float *a, const float *b, long n4, float *c);
+extern void gpu_mul4(const float *a, float b, long n4, float *c);
+extern void ku8crop(const unsigned char *rows, size_t nbytes, int sw, int sc, int x0, int pw, int ph, int pc, bool flip, float *kdat);
 extern void gpu_learn_conv_in(float *fin, int bn, int iw, int ih, const float *fout, int d, int ic, int oc, bool relu, int freeze, int dim, const float *wmv, float wscale);
 
 

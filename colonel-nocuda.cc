@@ -229,6 +229,13 @@ void gpu_learn_conv_in16(float *, int, int, int, const float *, int, int, int, b
 void gpu_learn_pnrm(float *, int, int, const float *) { assert(!"no cuda"); }
 void gpu_synth_pnrm(const float *, long, int, float *) { assert(!"no cuda"); }
 void gpu_styl_dsc(const float *, const float *, long, int, int, float *) { assert(!"no cuda"); }
+void gpu_dot_bc(const float *, const float *, int, long, int, float *) { assert(0); }
+void gpu_lrlu4_fwd(const float *, long, float *, float) { assert(0); }
+void gpu_lrlu4_bwd(float *, long, const float *, float) { assert(0); }
+void gpu_axpy4(const float *, float, long, float *) { assert(0); }
+void gpu_addvec4(const float *, const float *, long, float *) { assert(0); }
+void gpu_subvec4(const float *, const float *, long, float *) { assert(0); }
+void gpu_mul4(const float *, float, long, float *) { assert(0); }
 void gpu_learn_conv_in(float *, int, int, int, const float *, int, int, int, bool, int, int, const float *, float) { assert(!"no cuda"); }
 
 #include "colonel-common.inc"

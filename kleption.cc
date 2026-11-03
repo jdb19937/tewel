@@ -676,19 +676,8 @@ static void _outcrop(
   y1 = y0 + ph - 1;
   bool flip = (flags & Kleption::FLAG_FLIP) && (randuint() & 1);
 
-  unsigned int pwhc = pw * ph * pc;
-  float *ddat = new float[pwhc];
-  float *edat = ddat;
-
-  for (unsigned int y = y0; y <= y1; ++y)
-    for (unsigned int x = x0; x <= x1; ++x) {
-      unsigned int xs = flip ? (x1 - (x - x0)) : x;
-      for (unsigned int z = 0; z < sc; ++z)
-        *edat++ = (0.5 + (float)tmpdat[z + sc * (xs + sw * y)]) / 256.0;
-    }
-
-  enk(ddat, pwhc, kdat);
-  delete[] ddat;
+  // rows y0..y1 go up as bytes; the kernel crops in x, mirrors and converts ((0.5 + v) / 256 is exact in float)
+  ku8crop((const unsigned char *)tmpdat + (size_t)sc * sw * y0, (size_t)sc * sw * ph, sw, sc, x0, pw, ph, pc, flip, kdat);
 
   if (x0p)
     *x0p = x0;

@@ -222,6 +222,33 @@ void Paracortex::accumulate() {
   assert(off == ic);
 }
 
+void Paracortex::propback() {
+  assert(prepared);
+  int n = ctxv.size();
+  assert(n > 0);
+
+  if (n == 1) {
+    ctxv[0]->propback();
+    return;
+  }
+
+  int off = 0;
+  for (int i = 0; i < n; ++i) {
+    ksplice(_kout, bn * ow * oh, oc, off, ctxv[i]->oc, ctxv[i]->kout, ctxv[i]->oc, 0);
+    off += ctxv[i]->oc;
+
+    ctxv[i]->propback();
+  }
+  assert(off == oc);
+
+  off = 0;
+  for (int i = 0; i < n; ++i) {
+    ksplice(ctxv[i]->kinp, bn * iw * ih, ctxv[i]->ic, 0, ctxv[i]->ic, _kinp, ic, off);
+    off += ctxv[i]->ic;
+  }
+  assert(off == ic);
+}
+
 void Paracortex::load() {
   for (auto ctx : ctxv)
     ctx->load();

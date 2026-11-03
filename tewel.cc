@@ -188,12 +188,17 @@ void learnhans(
   bool lossl1,
   double lossdelta,
   double latnoise,
-  double latreg
+  double latreg,
+  bool nsloss,                          // non-saturating logistic loss (else least squares on targets)
+  double r1, int r1int, double r1eps,   // lazy R1 penalty on the real batch (as in learngan)
+  Cortex *ema, Cortex *encema, double emabeta,   // EMA copies of the chain's tail (gen) and head (enc)
+  bool selfpair                         // src is tgt: pick once, so a random flip applies to both
 ) {
   Paracortex *gen = chn->tail;
   int bn = chn->bn;
   int sin = chn->head->iwhc / bn;
   int sout = gen->owhc / bn;
+  if (selfpair) assert(sin == sout);
 
   if (chn->rounds() >= stoprounds && stoprounds >= 0) {
     warning("genrounds reached stoprounds value, all done");
@@ -234,16 +239,26 @@ void learnhans(
   kmake(&kfake, disout);
   kfill(kfake, disout, 1.0);
 
+  float *krin; kmake(&krin, disin);   // real dis input, kept for the R1 step
+  float *kxp;  kmake(&kxp, disin);
+  float *kg;   kmake(&kg, disin);
+
   double t0 = now();
   int rep = 0;
   long it = 0;
-  double pixrms = 0, advrms = 0;
+  double pixrms = 0, advrms = 0, dreal = 0, dfake = 0, gnorm = 0;
 
   // pick a batch, run cnd and gen, fill dis->kinp = [gen out | cnd out],
   // keep a clean copy in ktmp and the gen output in kgen
   auto feed = [&](double nz) {
-    for (int b = 0; b < bn; ++b)
-      Kleption::pick_pair(src, chn->kinp() + b * sin, tgt, ktgt + b * sout);
+    for (int b = 0; b < bn; ++b) {
+      if (selfpair) {
+        tgt->pick(ktgt + b * sout);
+        kcopy(ktgt + b * sout, sout, chn->kinp() + b * sin);
+      } else {
+        Kleption::pick_pair(src, chn->kinp() + b * sin, tgt, ktgt + b * sout);
+      }
+    }
     if (cnd)
       ksplice(cnd->synth(chn->kinp()), pix, dis->ic - gen->oc, 0, dis->ic - gen->oc, dis->kinp, dis->ic, gen->oc);
     chn->synth(0, latnoise);
@@ -261,26 +276,56 @@ void learnhans(
     if (nzmul > 0 && dis->rms < 0.5 && dis->rms > 0)
       nz = (0.5 / dis->rms - 1.0) * nzmul;
 
+    bool dor1 = (r1 > 0 && r1int > 0 && it % r1int == 0);
+
     // discriminator phase
     for (long r = 0; r < disreps; ++r) {
       feed(nz);
       dis->synth();
-      dis->target(kfake);
+      if (report) dfake = ksum(dis->kout, disout) / disout;
+      if (nsloss) klogis(dis->kout, disout, -1); else dis->target(kfake);
       dis->accumulate();
 
       kcopy(ktmp, disin, dis->kinp);
       ksplice(ktgt, pix, gen->oc, 0, gen->oc, dis->kinp, dis->ic, 0);
       if (nz > 0)
         kaddnoise(dis->kinp, disin, nz);
+      kcopy(dis->kinp, disin, krin);
       dis->synth();
-      dis->target(kreal);
+      if (report) dreal = ksum(dis->kout, disout) / disout;
+      if (nsloss) klogis(dis->kout, disout, +1); else dis->target(kreal);
+
+      if (dor1 && r + 1 == disreps) {
+        dis->accumulate();
+
+        // lazy R1 by finite differences, as in learngan: g = d(sum D)/dx at the real batch
+        dis->synth(krin);
+        kfill(dis->kout, disout, 1.0);
+        dis->propback();
+        gnorm = sqrt(ksumsq(dis->kinp, disin));
+        double eps = r1eps * sqrt((double)disin);
+        if (gnorm > 0) {
+          kmul(dis->kinp, (float)(eps / gnorm), disin, kg);
+          kaddvec(krin, kg, disin, kxp);
+          dis->synth(kxp);
+          double s1 = ksum(dis->kout, disout);
+          dis->synth(krin);
+          double s0 = ksum(dis->kout, disout);
+          double delta = (s1 - s0) / eps;
+          double c = r1 * r1int * delta / eps;
+          kfill(dis->kout, disout, (float)c);
+          dis->accumulate();
+          dis->synth(kxp);
+          kfill(dis->kout, disout, (float)(-c));
+        }
+      }
       dis->learn(dismul0 * mul);
     }
 
     // generator phase
     feed(nz);
     dis->synth();
-    dis->target(kreal);
+    if (nsloss) klogis(dis->kout, disout, +1); else dis->target(kreal);
     dis->propback();
     ksplice(dis->kinp, pix, dis->ic, 0, gen->oc, gen->kout(), gen->oc, 0);
 
@@ -300,6 +345,11 @@ void learnhans(
 
     chn->learn(genmul0 * mul, latreg);
 
+    if (ema)
+      ema->ema(*gen->ctxv[0], (float)emabeta);
+    if (encema)
+      encema->ema(*chn->head->ctxv[0], (float)emabeta);
+
     ++it;
     if (report) {
       double t1 = now();
@@ -308,12 +358,14 @@ void learnhans(
 
       chn->save();
       dis->save();
+      if (ema) ema->save();
+      if (encema) encema->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g genrms=%g disrms=%g advrms=%g pixrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g dreal=%g dfake=%g gnorm=%g disrms=%g advrms=%g pixrms=%g\n",
          gen->fn().c_str(), gen->rounds(),
          dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
-        gen->rms(), dis->rms, advrms, pixrms
+        dreal, dfake, gnorm, dis->rms, advrms, pixrms
       );
 
       if (chn->rounds() >= stoprounds && stoprounds >= 0) {
@@ -331,6 +383,9 @@ void learnhans(
   kfree(kerr);
   kfree(kreal);
   kfree(kfake);
+  kfree(krin);
+  kfree(kxp);
+  kfree(kg);
 }
 
 // Unconditional GAN: gaussian latent -> generator chain -> image, versus a
@@ -355,7 +410,11 @@ void learngan(
   double emabeta,
   Cortex *disema, double disemabeta,   // optional EMA of the discriminator; the generator plays against it
   int replay, double replayfrac,       // optional ring buffer of past fake batches shown again to the discriminator
-  Kleption *cnd, int cc                // optional condition paired with tgt: the generator's tail input, spliced into dis input
+  Kleption *cnd, int cc,               // optional condition paired with tgt: the generator's tail input, spliced into dis input
+  Cortex *enc, Cortex *encema, double encmul,  // optional encoder: learns G(E(x)) = x by L2 pixel loss through the chain (weights not updated)
+  double enclat,                       // weight of the latent term E(G(z)) = pnrm(z) on the fake batch (anchors E to typical z)
+  double encpix,                       // weight of the pixel term G(E(x)) = x; 0 skips it (latent-only encoder, no chain propback)
+  int enclatw                          // latent term measured in w: map(E(G(z))) = map(z), gradient back through the map (weights not updated)
 ) {
   Paracortex *gen = chn->tail;
   int bn = chn->bn;
@@ -388,6 +447,16 @@ void learngan(
   float *kreal; kmake(&kreal, disout); kfill(kreal, disout, 0.0);
   float *kfake; kmake(&kfake, disout); kfill(kfake, disout, 1.0);
 
+  if (enc) {
+    assert(enc->bn == bn);
+    assert(enc->iw == gen->ow && enc->ih == gen->oh && enc->ic == goc);
+    assert(enc->owhc * bn == zn);
+  }
+  double encrms = 0, latrms = 0, latgn = 0, pixgn = 0;   // latgn/pixgn: norms of the two gradients on E's output (report rounds)
+  float *kz = NULL, *kzt = NULL, *kimg = NULL;   // the fake batch's z, its pixel-normed target, image part of the dis input
+  float *kw = NULL; int wn = chn->head->owhc;    // the fake batch's w = map(z) (enclatw target)
+  if (enc) { kmake(&kz, zn); kmake(&kzt, zn); kmake(&kw, wn); if (cc) kmake(&kimg, gen->owhc); }
+
   // replay ring of past fake batches
   float *kring = NULL; int ringn = 0, ringi = 0;
   if (replay > 0)
@@ -407,10 +476,12 @@ void learngan(
   auto gen_fake = [&]() {
     kzero(chn->kinp(), zn);
     kaddnoise(chn->kinp(), zn, 1.0);
+    if (kz) kcopy(chn->kinp(), zn, kz);
     if (cc)
       for (int b = 0; b < bn; ++b)
         cnd->pick(kcnd + b * cellc);
     chn->synth(0, 0.0, kcnd);
+    if (kw) kcopy(chn->head->kout(), wn, kw);
     splice_in(gen->kout(), kcnd, kfin);
     kcopy(kfin, disin, dis->kinp);
   };
@@ -424,7 +495,7 @@ void learngan(
     for (long r = 0; r < disreps; ++r) {
       gen_fake();
       dis->synth();
-      dfake = ksum(dis->kout, disout) / disout;
+      if (report) dfake = ksum(dis->kout, disout) / disout;
       if (nsloss) klogis(dis->kout, disout, -1); else dis->target(kfake);
       dis->accumulate();
 
@@ -449,7 +520,7 @@ void learngan(
       splice_in(ktgt, kcndr, krin);
       kcopy(krin, disin, dis->kinp);
       dis->synth();
-      dreal = ksum(dis->kout, disout) / disout;
+      if (report) dreal = ksum(dis->kout, disout) / disout;
       if (nsloss) klogis(dis->kout, disout, +1); else dis->target(kreal);
 
       if (dor1 && r + 1 == disreps) {
@@ -497,6 +568,73 @@ void learngan(
     if (disema)
       disema->ema(*dis, (float)disemabeta);
 
+    // encoder phase, two optional terms summed into one Adam step:
+    //   latent (enclat): E(G(z)) -> pnrm(z) on the generator phase's fake batch (the mapping net only sees the
+    //     direction of z); targets are typical z, so E lands at the right place and scale with no shared offset
+    //   pixel (encpix): E(x) -> chain with weights not updated -> x', L2 gradient (x - x') back through map and gen
+    //     into E only; x is the real batch the discriminator just saw.  L2 in pixels rewards a hedge (the blurry
+    //     mean face), so on gan14 this term left E with one big shared direction; encpix=0 drops it
+    if (enc) {
+      bool dolat = enclat > 0, dopix = encpix > 0;
+      if (dolat) {
+        const float *kfimg = kfin;
+        if (cc) { ksplice(kfin, pn, dis->ic, 0, goc, kimg, goc, 0); kfimg = kimg; }
+        enc->synth(kfimg);
+        if (enclatw) {
+          // w-space: the map only sees ~1/4 of z's directions (its Jacobian is ~rank 64-128 of 512), so
+          // E can never recover z itself; it only has to find some z whose w matches.  map(E(G(z))) -> w(z),
+          // L2 in w, gradient back through the map with its weights held into E.  latrms is relative: |dw|/|w|
+          Paracortex *map = chn->head;
+          map->synth(enc->kout);
+          double wsq = report ? ksumsq(kw, wn) : 0;
+          ksubvec(kw, map->kout(), wn, map->kout());     // out <- w(z) - map(E(G(z))), the output gradient
+          if (report)
+            latrms = sqrt(ksumsq(map->kout(), wn) / (wsq > 0 ? wsq : 1.0));
+          if (enclat != 1.0)
+            kmul(map->kout(), (float)enclat, wn, map->kout());
+          map->propback();
+          kcopy(map->kinp(), zn, enc->kout);
+        } else {
+          synth_pnrm(kz, 1, bn, kzt, zn / bn);
+          ksubvec(kzt, enc->kout, zn, enc->kout);
+          if (report)
+            latrms = sqrt(ksumsq(enc->kout, zn) / (double)zn);
+          if (enclat != 1.0)
+            kmul(enc->kout, (float)enclat, zn, enc->kout);
+        }
+        if (report)
+          latgn = sqrt(ksumsq(enc->kout, zn));
+        if (dopix)
+          enc->accumulate();
+        else
+          enc->learn(encmul * mul);
+      }
+      if (dopix) {
+        enc->synth(ktgt);
+        kcopy(enc->kout, zn, chn->kinp());
+        chn->synth(0, 0.0, kcndr);
+        chn->target(ktgt);
+        if (report)
+          encrms = sqrt(ksumsq(gen->kout(), gen->owhc) / (double)gen->owhc);
+        chn->propback();
+        if (encpix != 1.0)
+          kmul(chn->kinp(), (float)encpix, zn, chn->kinp());
+        if (report)
+          pixgn = sqrt(ksumsq(chn->kinp(), zn));
+        kcopy(chn->kinp(), zn, enc->kout);
+        enc->learn(encmul * mul);
+      } else if (report) {
+        // latent-only: still report the real-image reconstruction error (forward only, every repint rounds)
+        enc->synth(ktgt);
+        kcopy(enc->kout, zn, chn->kinp());
+        chn->synth(0, 0.0, kcndr);
+        chn->target(ktgt);
+        encrms = sqrt(ksumsq(gen->kout(), gen->owhc) / (double)gen->owhc);
+      }
+      if (encema)
+        encema->ema(*enc, (float)emabeta);
+    }
+
     ++it;
     if (report) {
       double t1 = now();
@@ -509,12 +647,16 @@ void learngan(
         ema->save();
       if (disema)
         disema->save();
+      if (enc)
+        enc->save();
+      if (encema)
+        encema->save();
 
       printf(
-        "gen=%s genrounds=%lu dt=%g eta=%g dreal=%g dfake=%g gnorm=%g disrms=%g\n",
+        "gen=%s genrounds=%lu dt=%g eta=%g dreal=%g dfake=%g gnorm=%g disrms=%g encrms=%g latrms=%g latgn=%g pixgn=%g\n",
          gen->fn().c_str(), gen->rounds(),
          dt, calceta(dt, rep, reps, gen->rounds(), stoprounds, repint),
-        dreal, dfake, gnorm, dis->rms
+        dreal, dfake, gnorm, dis->rms, encrms, latrms, latgn, pixgn
       );
 
       if (chn->rounds() >= stoprounds && stoprounds >= 0) {
@@ -537,6 +679,10 @@ void learngan(
   kfree(kfake);
   if (kring)
     kfree(kring);
+  if (kz) kfree(kz);
+  if (kzt) kfree(kzt);
+  if (kw) kfree(kw);
+  if (kimg) kfree(kimg);
 }
 
 void learn(
@@ -1779,15 +1925,47 @@ int main(int argc, char **argv) {
       assert(0);
     }
 
+    // src is tgt (autoencoder-style pairing): each sample is picked once from tgt and copied
+    // to the chain input, so a random flip applies to both sides
+    bool selfpair = (srcfn == tgtfn && iw == chn->tail->ow && ih == chn->tail->oh && ic == chn->tail->oc);
+    bool flip = (int)arg.get("flip", "0");
+    if (flip && !selfpair)
+      error("flip=1 requires src and tgt to be the same file and shape (pick_pair would flip them independently)");
+
     Kleption::Flags tgtflags = Kleption::FLAG_REPEAT;
     if (lowmem)
       tgtflags |= Kleption::FLAG_LOWMEM;
+    if (flip)
+      tgtflags |= Kleption::FLAG_FLIP;
 
     Kleption *tgt = new Kleption(
       tgtfn, chn->tail->ow, chn->tail->oh, chn->tail->oc,
       tgtflags, Kleption::TRAV_RAND, tgtkind,
       tw, th, tc
     );
+
+    // EMA copies: ema= of the tail (generator), encema= of the head (encoder)
+    auto mkema = [&](const std::string &key, Paracortex *pc) -> Cortex * {
+      if (!arg.present(key))
+        return NULL;
+      if (pc->ctxv.size() != 1)
+        error(key + " requires a single-ctx stage");
+      std::string emafn = arg.get(key);
+      if (!fexists(emafn)) {
+        info("creating " + emafn + " as a copy of " + pc->fn());
+        std::string fn0 = pc->fn();
+        FILE *fi = fopen(fn0.c_str(), "r"); if (!fi) error("can't open " + fn0);
+        FILE *fo = fopen(emafn.c_str(), "w"); if (!fo) error("can't create " + emafn);
+        char buf[65536]; size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), fi)) > 0) fwrite(buf, 1, n, fo);
+        fclose(fi); fclose(fo);
+      }
+      Cortex *e = new Cortex(emafn);
+      e->prepare(pc->ctxv[0]->iw, pc->ctxv[0]->ih, batch);
+      return e;
+    };
+    Cortex *ema = mkema("ema", chn->tail);
+    Cortex *encema = (chn->head != chn->tail) ? mkema("encema", chn->head) : NULL;
 
     long reps = strtol(arg.get("reps", diropt["reps"]));
     long stoprounds = strtol(arg.get("stoprounds", "-1"));
@@ -1802,17 +1980,28 @@ int main(int argc, char **argv) {
     double lossdelta = arg.get("lossdelta", "0.01");
     double latnoise = arg.get("latnoise", "0.0");
     double latreg = arg.get("latreg", "0.0");
+    std::string gloss = arg.get("gloss", "ns");   // adversarial loss: ns (logistic) or ls (least squares targets)
+    if (gloss != "ns" && gloss != "ls")
+      error("gloss must be ns or ls");
+    double r1 = arg.get("r1", "0.0");
+    int r1int = arg.get("r1int", "16");
+    double r1eps = arg.get("r1eps", "1e-3");
+    double emabeta = arg.get("emabeta", "0.999");
 
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    info(fmt("dim=%dx%d reps=%ld batch=%d disreps=%ld tether=%g", iw, ih, reps, batch, disreps, tether));
+    info(fmt("dim=%dx%d reps=%ld batch=%d disreps=%ld tether=%g gloss=%s r1=%g r1int=%d selfpair=%d flip=%d ema=%d encema=%d",
+      iw, ih, reps, batch, disreps, tether, gloss.c_str(), r1, r1int, selfpair ? 1 : 0, flip ? 1 : 0, ema ? 1 : 0, encema ? 1 : 0));
 
-    learnhans(src, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul, noise, tether, loss == "l1", lossdelta, latnoise, latreg);
+    learnhans(src, tgt, chn, dis, cnd, repint, mul, reps, disreps, stoprounds, genmul, dismul, noise, tether, loss == "l1", lossdelta, latnoise, latreg,
+      gloss == "ns", r1, r1int, r1eps, ema, encema, emabeta, selfpair);
 
     delete src;
     delete tgt;
     delete chn;
+    if (ema) delete ema;
+    if (encema) delete encema;
     delete dis;
     return 0;
   }
@@ -1929,18 +2118,51 @@ int main(int argc, char **argv) {
       disema->prepare(chn->tail->ow, chn->tail->oh, batch);
     }
 
+    // optional encoder trained alongside: image -> the chain's input latent, by G(E(x)) = x with G frozen
+    Cortex *enc = NULL, *encema = NULL;
+    double encmul = arg.get("encmul", "1.0");
+    double enclat = arg.get("enclat", "1.0");   // weight of E(G(z)) = pnrm(z); 0 disables
+    double encpix = arg.get("encpix", "1.0");   // weight of G(E(x)) = x pixel term; 0 disables (latent-only encoder)
+    int enclatw = arg.get("enclatw", "0");      // 1: latent term in w (through the map) instead of z
+    if (arg.present("enc")) {
+      enc = new Cortex(arg.get("enc"));
+      enc->prepare(chn->tail->ow, chn->tail->oh, batch);
+      if (enc->ic != chn->tail->oc)
+        error("enc ic doesn't match gen oc");
+      if (enc->ow * enc->oh * enc->oc * batch != chn->head->iwhc)
+        error("enc output dims don't match the chain's input dims");
+      if (arg.present("encema")) {
+        std::string fn2 = arg.get("encema");
+        if (!fexists(fn2)) {
+          info("creating " + fn2 + " as a copy of the encoder");
+          std::string efn = arg.get("enc");
+          FILE *fi = fopen(efn.c_str(), "r"); if (!fi) error("can't open " + efn);
+          FILE *fo = fopen(fn2.c_str(), "w"); if (!fo) error("can't create " + fn2);
+          char buf[65536]; size_t n;
+          while ((n = fread(buf, 1, sizeof(buf), fi)) > 0) fwrite(buf, 1, n, fo);
+          fclose(fi); fclose(fo);
+        }
+        encema = new Cortex(fn2);
+        encema->prepare(chn->tail->ow, chn->tail->oh, batch);
+      }
+    } else if (arg.present("encema")) {
+      error("encema requires enc");
+    }
+
     if (!arg.unused.empty())
       error("unrecognized options");
 
-    info(fmt("learngan batch=%d disreps=%ld loss=%s r1=%g r1int=%d replay=%d disema=%d cnd=%d", batch, disreps, loss.c_str(), r1, r1int, replay, disema ? 1 : 0, cc));
+    info(fmt("learngan batch=%d disreps=%ld loss=%s r1=%g r1int=%d replay=%d disema=%d cnd=%d enc=%d encmul=%g enclat=%g encpix=%g enclatw=%d", batch, disreps, loss.c_str(), r1, r1int, replay, disema ? 1 : 0, cc, enc ? 1 : 0, encmul, enclat, encpix, enclatw));
 
-    learngan(tgt, chn, dis, ema, repint, mul, reps, disreps, stoprounds, genmul, dismul, loss == "ns", r1, r1int, r1eps, emabeta, disema, disemabeta, replay, replayfrac, cnd, cc);
+    learngan(tgt, chn, dis, ema, repint, mul, reps, disreps, stoprounds, genmul, dismul, loss == "ns", r1, r1int, r1eps, emabeta, disema, disemabeta, replay, replayfrac, cnd, cc, enc, encema, encmul, enclat, encpix, enclatw);
 
     delete tgt;
     delete chn;
     delete dis;
     if (ema) delete ema;
     if (disema) delete disema;
+    if (enc) delete enc;
+    if (encema) delete encema;
     return 0;
   }
 

@@ -429,9 +429,13 @@ __global__ void __launch_bounds__(CW_THREADS) _wmma_conv_fwd(
   constexpr int FM = BM / WM / 16, FN = BN / WN / 16;
   __shared__ CwSmem<BM, BN> sm;
   const int P = bn * ih * iw, K = ic * fw * fh;
+  // channel counts that are not a multiple of 16 (lrnd adds a noise channel: 33, 65, ...) index K with each
+  // tap's channel run padded to 16, so a 16-slab never straddles a tap and loads stay contiguous (padding is zero)
+  const bool padk = (ic % 16 != 0) && (ic >= 16);
+  const int icp = padk ? (ic + 15) / 16 * 16 : ic, Kp = icp * fw * fh;
   const int p0 = blockIdx.x * BM, n0 = blockIdx.y * BN;
   const int ka = part ? blockIdx.z * kchunk : 0;
-  const int kb = part ? min(K, ka + kchunk) : K;
+  const int kb = part ? min(Kp, ka + kchunk) : Kp;
   const int tid = threadIdx.x, warp = tid >> 5, lane = tid & 31, wm = warp / WN, wn = warp % WN;
   const bool active = warp < WM * WN;
   const bool fast = (ic % 16 == 0) && ((((uintptr_t)in) & 15) == 0);
@@ -445,8 +449,17 @@ __global__ void __launch_bounds__(CW_THREADS) _wmma_conv_fwd(
   for (int k0 = ka; k0 < kb; k0 += CW_BK) {
     if (a_ld) {
       int k = k0 + ak;
-      int iz = k % ic; int t = k / ic; int dx = t % fw; int dy = t / fw;
-      if (a_ok && k + 15 < kb && iz + 16 <= ic) {
+      int iz = padk ? k % icp : k % ic; int t = padk ? k / icp : k / ic; int dx = t % fw; int dy = t / fw;
+      if (padk) {
+        int run = ic - iz; if (run > 16) run = 16; if (k >= kb) run = 0;   // slabs are 16-aligned, kb too
+        const float *src = NULL;
+        if (a_ok && run > 0) { int ix = (a_ox - dxo + dx + iw) % iw, iy = (a_oy - dyo + dy + ih) % ih; src = in + iz + ic * (ix + iw * (iy + ih * a_b)); }
+        for (int j = 0; j < 16; ++j) {
+          float v = 0;
+          if (src && j < run) { v = src[j]; if (relu && !(v > 0) && iz + j >= freeze) v = 0; }
+          sm.As[am * CW_LD + ak + j] = __float2half(v);
+        }
+      } else if (a_ok && k + 15 < kb && iz + 16 <= ic) {
         // the 16-slab lies inside one pixel: contiguous channels
         int ix = (a_ox - dxo + dx + iw) % iw, iy = (a_oy - dyo + dy + ih) % ih;
         const float *src = in + iz + ic * (ix + iw * (iy + ih * a_b));
@@ -475,7 +488,11 @@ __global__ void __launch_bounds__(CW_THREADS) _wmma_conv_fwd(
     if (b_ld) {
       int oz = n0 + bm, k = k0 + bk;
       const float *w = wmv + oc + (long)K * oz + k;
-      if (oz < oc && k + 15 < kb && ((((uintptr_t)w) & 15) == 0)) {
+      if (padk) {
+        int iz = k % icp, tap = k / icp; int run = ic - iz; if (run > 16) run = 16; if (k >= kb) run = 0;
+        const float *wp = wmv + oc + (long)K * oz + iz + ic * tap;
+        for (int j = 0; j < 16; ++j) { float v = 0; if (oz < oc && j < run) v = wp[j] * wscale; sm.Bs[bm * CW_LD + bk + j] = __float2half(v); }
+      } else if (oz < oc && k + 15 < kb && ((((uintptr_t)w) & 15) == 0)) {
         const float4 *src = (const float4 *)w;
         for (int j = 0; j < 4; ++j) { float4 v = src[j]; v.x *= wscale; v.y *= wscale; v.z *= wscale; v.w *= wscale; st_half4(sm.Bs + bm * CW_LD + bk + 4 * j, v); }
       } else {
@@ -606,6 +623,34 @@ __global__ void _conv_bwd_in_fin(const float *part, long n, int ic, int oc, cons
   fin[i] = v;
 }
 
+// Weight gradient with coalesced loads.  As holds [k = pixel][m = oz] (col-major for matrix_a) and Bs
+// holds [k = pixel][n = patch] (row-major for matrix_b), so each thread copies 16 contiguous floats
+// from global memory into 16 contiguous halfs of shared memory, and the lanes of a warp cover
+// consecutive channel slabs of the same pixel.  (The old layout had lanes striding over pixels.)
+template <int BM, int BN> struct CwSmemW {
+  static constexpr int LDA = BM + 8, LDB = BN + 8;   // halfs; rows stay 16-byte aligned, padding dodges bank conflicts
+  __align__(32) half As[CW_BK * LDA];
+  __align__(32) half Bs[CW_BK * LDB];
+  __align__(32) float Cs[8][16 * 16];
+};
+
+template <int BM, int BN, int WM, int WN>
+__device__ __forceinline__ void cw_mma_w(CwSmemW<BM, BN> &sm,
+  wmma::fragment<wmma::accumulator, 16, 16, 16, float> (&acc)[BM / WM / 16][BN / WN / 16], int wm, int wn, bool active) {
+  constexpr int FM = BM / WM / 16, FN = BN / WN / 16, LDA = CwSmemW<BM, BN>::LDA, LDB = CwSmemW<BM, BN>::LDB;
+  __syncthreads();
+  if (active) {
+    for (int kk = 0; kk < CW_BK; kk += 16) {
+      wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::col_major> a[FM];
+      wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::row_major> b[FN];
+      for (int i = 0; i < FM; ++i) wmma::load_matrix_sync(a[i], sm.As + kk * LDA + wm * (BM / WM) + i * 16, LDA);
+      for (int j = 0; j < FN; ++j) wmma::load_matrix_sync(b[j], sm.Bs + kk * LDB + wn * (BN / WN) + j * 16, LDB);
+      for (int i = 0; i < FM; ++i) for (int j = 0; j < FN; ++j) wmma::mma_sync(acc[i][j], a[i], b[j], acc[i][j]);
+    }
+  }
+  __syncthreads();
+}
+
 template <int BM, int BN, int WM, int WN>
 __global__ void __launch_bounds__(CW_THREADS) _wmma_conv_bwd_w(
   const float *in, int bn, int iw, int ih, int ic, const float *fout, int oc,
@@ -613,52 +658,56 @@ __global__ void __launch_bounds__(CW_THREADS) _wmma_conv_bwd_w(
 ) {
   // dW[oz][k] += sum_p fout[p][oz] * patch(p, k): M = oc, N = K, reduction over pixels split across blockIdx.z
   constexpr int FM = BM / WM / 16, FN = BN / WN / 16;
-  __shared__ CwSmem<BM, BN> sm;
+  constexpr int LDA = CwSmemW<BM, BN>::LDA, LDB = CwSmemW<BM, BN>::LDB;
+  constexpr int ASL = BM / 16, BSL = BN / 16;   // 16-wide slabs per pixel row
+  __shared__ CwSmemW<BM, BN> sm;
   const int P = bn * ih * iw, K = ic * fw * fh;
+  const bool padk = (ic % 16 != 0) && (ic >= 16);   // padded channel runs, as in the forward kernel
+  const int icp = padk ? (ic + 15) / 16 * 16 : ic, Kn = icp * fw * fh;   // Kn: the N extent the grid covers
   const int m0 = blockIdx.y * BM, n0 = blockIdx.x * BN;
   const int pa = blockIdx.z * pchunk, pb = min(P, pa + pchunk);
   const int tid = threadIdx.x, warp = tid >> 5, lane = tid & 31, wm = warp / WN, wn = warp % WN;
   const bool active = warp < WM * WN;
   const bool fast = (ic % 16 == 0) && ((((uintptr_t)in) & 15) == 0);
   const bool fout_al = (oc % 16 == 0) && ((((uintptr_t)fout) & 15) == 0);
-  // thread owns pixel column ak = tid & 31 and the 16-row slab am = (tid >> 5) * 16 of As (rows < BM) and Bs (rows < BN)
-  const int ak = tid & 31, am = (tid >> 5) * 16;
+  // loads: thread t < 32 * ASL fills pixel row t / ASL, oz slab (t % ASL) * 16 of As; Bs likewise with BSL
+  const int a_p = tid / ASL, a_s = (tid % ASL) * 16; const bool a_ld = tid < CW_BK * ASL;
+  const int b_p = tid / BSL, b_s = (tid % BSL) * 16; const bool b_ld = tid < CW_BK * BSL;
+  const int b_k = n0 + b_s, b_iz = padk ? b_k % icp : b_k % ic, b_t = padk ? b_k / icp : b_k / ic, b_dx = b_t % fw, b_dy = b_t / fw;
+  int b_run = 16;
+  if (padk) { b_run = ic - b_iz; if (b_run > 16) b_run = 16; if (b_run < 0 || b_k >= Kn) b_run = 0; }
+  const bool b_slab = padk ? (b_run > 0) : ((b_k + 15 < K) && (b_iz + 16 <= ic));   // the slab lies inside one pixel: contiguous channels
   wmma::fragment<wmma::accumulator, 16, 16, 16, float> acc[FM][FN];
   for (int i = 0; i < FM; ++i) for (int j = 0; j < FN; ++j) wmma::fill_fragment(acc[i][j], 0.0f);
   for (int q0 = pa; q0 < pb; q0 += CW_BK) {
-    int p = q0 + ak; bool pok = (p < pb);
-    int ox = 0, oy = 0, b = 0;
-    if (pok) { ox = p % iw; int t2 = p / iw; oy = t2 % ih; b = t2 / ih; }
-    if (am < BM) {
-      int oz0 = m0 + am;
-      if (pok && fout_al && oz0 + 15 < oc) {
+    if (a_ld) {
+      int p = q0 + a_p, oz0 = m0 + a_s;
+      half *dst = sm.As + a_p * LDA + a_s;
+      if (p < pb && fout_al && oz0 + 15 < oc) {
         const float4 *src = (const float4 *)(fout + oz0 + oc * (long)p);
-        for (int j = 0; j < 4; ++j) { float4 v = src[j]; sm.As[(am + 4*j) * CW_LD + ak] = __float2half(v.x); sm.As[(am + 4*j + 1) * CW_LD + ak] = __float2half(v.y); sm.As[(am + 4*j + 2) * CW_LD + ak] = __float2half(v.z); sm.As[(am + 4*j + 3) * CW_LD + ak] = __float2half(v.w); }
+        for (int j = 0; j < 4; ++j) st_half4(dst + 4 * j, src[j]);
       } else {
-        for (int j = 0; j < 16; ++j) { float v = 0; if (pok && oz0 + j < oc) v = fout[oz0 + j + oc * (long)p]; sm.As[(am + j) * CW_LD + ak] = __float2half(v); }
+        for (int j = 0; j < 16; ++j) { float v = 0; if (p < pb && oz0 + j < oc) v = fout[oz0 + j + oc * (long)p]; dst[j] = __float2half(v); }
       }
     }
-    if (am < BN) {
-      int k = n0 + am;
-      int iz = k % ic; int t = k / ic; int dx = t % fw; int dy = t / fw;
-      if (pok && k + 15 < K && iz + 16 <= ic) {
-        int ix = (ox - dxo + dx + iw) % iw, iy = (oy - dyo + dy + ih) % ih;
-        const float *src = in + iz + ic * (ix + iw * (iy + ih * b));
+    if (b_ld) {
+      int p = q0 + b_p;
+      half *dst = sm.Bs + b_p * LDB + b_s;
+      if (p < pb && b_slab) {
+        int ox = p % iw; int t2 = p / iw; int oy = t2 % ih; int b = t2 / ih;
+        int ix = (ox - dxo + b_dx + iw) % iw, iy = (oy - dyo + b_dy + ih) % ih;
+        const float *src = in + b_iz + ic * (ix + iw * (iy + ih * b));
         if (fast) {
           const float4 *src4 = (const float4 *)src;
-          for (int j = 0; j < 4; ++j) {
-            float4 v = src4[j];
-            if (relu) v = relu4(v, iz + 4 * j, freeze);
-            sm.Bs[(am + 4*j) * CW_LD + ak] = __float2half(v.x); sm.Bs[(am + 4*j + 1) * CW_LD + ak] = __float2half(v.y); sm.Bs[(am + 4*j + 2) * CW_LD + ak] = __float2half(v.z); sm.Bs[(am + 4*j + 3) * CW_LD + ak] = __float2half(v.w);
-          }
+          for (int j = 0; j < 4; ++j) { float4 v = src4[j]; if (relu) v = relu4(v, b_iz + 4 * j, freeze); st_half4(dst + 4 * j, v); }
         } else {
-          for (int j = 0; j < 16; ++j) { float v = src[j]; if (relu && !(v > 0) && iz + j >= freeze) v = 0; sm.Bs[(am + j) * CW_LD + ak] = __float2half(v); }
+          for (int j = 0; j < 16; ++j) { float v = 0; if (j < b_run) { v = src[j]; if (relu && !(v > 0) && b_iz + j >= freeze) v = 0; } dst[j] = __float2half(v); }
         }
       } else {
-        for (int j = 0; j < 16; ++j) { float v = 0; if (pok && k + j < K) v = gather1(in, iw, ih, ic, fw, dxo, dyo, p, k + j, relu, freeze); sm.Bs[(am + j) * CW_LD + ak] = __float2half(v); }
+        for (int j = 0; j < 16; ++j) { float v = 0; if (!padk && p < pb && b_k + j < K) v = gather1(in, iw, ih, ic, fw, dxo, dyo, p, b_k + j, relu, freeze); dst[j] = __float2half(v); }
       }
     }
-    cw_mma<BM, BN, WM, WN>(sm, acc, wm, wn, active);
+    cw_mma_w<BM, BN, WM, WN>(sm, acc, wm, wn, active);
   }
   if (!active) return;
   for (int i = 0; i < FM; ++i)
@@ -668,12 +717,90 @@ __global__ void __launch_bounds__(CW_THREADS) _wmma_conv_bwd_w(
       int mb = m0 + wm * (BM / WM) + i * 16, nb = n0 + wn * (BN / WN) + j * 16;
       for (int e = lane; e < 256; e += 32) {
         int r = e >> 4, c = e & 15;
-        int oz = mb + r, k = nb + c;
-        if (oz < oc && oz >= freeze && k < K)
-          atomicAdd(&dwv[oc + k + (long)K * oz], sm.Cs[warp][e] * wscale);
+        int oz = mb + r, k = nb + c, kr = k;
+        if (padk) { int iz = k % icp, tap = k / icp; if (iz >= ic) continue; kr = iz + ic * tap; }
+        if (oz < oc && oz >= freeze && k < Kn)
+          atomicAdd(&dwv[oc + kr + (long)K * oz], sm.Cs[warp][e] * wscale);
       }
       __syncwarp();
     }
+}
+
+// float4 elementwise kernels (callers check alignment and n % 4)
+__global__ void _lrlu4_fwd(const float4 *in, long n4, float4 *out, float slope) {
+  long i = (long)blockIdx.x * blockDim.x + threadIdx.x; if (i >= n4) return;
+  float4 v = in[i];
+  v.x = (v.x > 0) ? v.x : v.x * slope; v.y = (v.y > 0) ? v.y : v.y * slope;
+  v.z = (v.z > 0) ? v.z : v.z * slope; v.w = (v.w > 0) ? v.w : v.w * slope;
+  out[i] = v;
+}
+__global__ void _lrlu4_bwd(float4 *fin, long n4, const float4 *fout, float slope) {
+  long i = (long)blockIdx.x * blockDim.x + threadIdx.x; if (i >= n4) return;
+  float4 x = fin[i], g = fout[i];
+  x.x = (x.x > 0) ? g.x : g.x * slope; x.y = (x.y > 0) ? g.y : g.y * slope;
+  x.z = (x.z > 0) ? g.z : g.z * slope; x.w = (x.w > 0) ? g.w : g.w * slope;
+  fin[i] = x;
+}
+__global__ void _axpy4(const float4 *x, float a, long n4, float4 *y) {
+  long i = (long)blockIdx.x * blockDim.x + threadIdx.x; if (i >= n4) return;
+  float4 u = x[i], v = y[i];
+  v.x += a * u.x; v.y += a * u.y; v.z += a * u.z; v.w += a * u.w;
+  y[i] = v;
+}
+__global__ void _addvec4(const float4 *a, const float4 *b, long n4, float4 *c) {
+  long i = (long)blockIdx.x * blockDim.x + threadIdx.x; if (i >= n4) return;
+  float4 u = a[i], v = b[i];
+  u.x += v.x; u.y += v.y; u.z += v.z; u.w += v.w;
+  c[i] = u;
+}
+__global__ void _subvec4(const float4 *a, const float4 *b, long n4, float4 *c) {
+  long i = (long)blockIdx.x * blockDim.x + threadIdx.x; if (i >= n4) return;
+  float4 u = a[i], v = b[i];
+  u.x -= v.x; u.y -= v.y; u.z -= v.z; u.w -= v.w;
+  c[i] = u;
+}
+__global__ void _mul4(const float4 *a, float b, long n4, float4 *c) {
+  long i = (long)blockIdx.x * blockDim.x + threadIdx.x; if (i >= n4) return;
+  float4 u = a[i];
+  u.x *= b; u.y *= b; u.z *= b; u.w *= b;
+  c[i] = u;
+}
+#define LAUNCH4(k, n4, ...) do { if ((n4) > 0) k<<<(unsigned)(((n4) + 255) / 256), 256>>>(__VA_ARGS__); } while (0)
+void gpu_lrlu4_fwd(const float *in, long n4, float *out, float slope) { LAUNCH4(_lrlu4_fwd, n4, (const float4 *)in, n4, (float4 *)out, slope); }
+void gpu_lrlu4_bwd(float *fin, long n4, const float *fout, float slope) { LAUNCH4(_lrlu4_bwd, n4, (float4 *)fin, n4, (const float4 *)fout, slope); }
+void gpu_axpy4(const float *x, float a, long n4, float *y) { LAUNCH4(_axpy4, n4, (const float4 *)x, a, n4, (float4 *)y); }
+void gpu_addvec4(const float *a, const float *b, long n4, float *c) { LAUNCH4(_addvec4, n4, (const float4 *)a, (const float4 *)b, n4, (float4 *)c); }
+void gpu_subvec4(const float *a, const float *b, long n4, float *c) { LAUNCH4(_subvec4, n4, (const float4 *)a, (const float4 *)b, n4, (float4 *)c); }
+void gpu_mul4(const float *a, float b, long n4, float *c) { LAUNCH4(_mul4, n4, (const float4 *)a, b, n4, (float4 *)c); }
+
+// per-(sample, channel) dot products over pixels: out[b][z] += sum_p a[q] * c[q], q = (b * pn + p) * nc + z
+// grid = (pixel chunks, samples); threads stride over channels with coalesced reads, block partials atomically added
+__global__ void _dot_bc_blk(const float *a, const float *c, long pn, int nc, long pchunk, float *out) {
+  extern __shared__ float sacc[];
+  const int tid = threadIdx.x, nt = blockDim.x;
+  const long b = blockIdx.y, pa = blockIdx.x * pchunk, pb = min(pn, pa + pchunk);
+  for (int z = tid; z < nc; z += nt) sacc[z] = 0;
+  __syncthreads();
+  const long base = b * pn * nc;
+  const int nl = nt / nc;
+  if (nl > 0) {
+    if (tid < nl * nc) {
+      int z = tid % nc, lane = tid / nc;
+      float s = 0;
+      for (long p = pa + lane; p < pb; p += nl) { long q = base + p * nc + z; s += a[q] * c[q]; }
+      atomicAdd(&sacc[z], s);
+    }
+  } else {
+    for (long e = pa * (long)nc + tid; e < pb * (long)nc; e += nt) { int z = e % nc; long q = base + e; atomicAdd(&sacc[z], a[q] * c[q]); }
+  }
+  __syncthreads();
+  for (int z = tid; z < nc; z += nt) atomicAdd(&out[b * nc + z], sacc[z]);
+}
+void gpu_dot_bc(const float *a, const float *c, int bn, long pn, int nc, float *out) {
+  kfill(out, (unsigned)((long)bn * nc), 0);
+  long pchunk = (pn + 15) / 16; if (pchunk < 64) pchunk = 64;
+  dim3 grid((unsigned)((pn + pchunk - 1) / pchunk), bn);
+  _dot_bc_blk<<<grid, 256, nc * sizeof(float)>>>(a, c, pn, nc, pchunk, out);
 }
 
 // wt[iz][k2] = wscale * W[oz][dy][dx][iz] (0 for frozen output channels), k2 = oz + oc * (dx + fw * dy)
@@ -718,7 +845,8 @@ static void cw_plan(long rows, long cols, long K, int *bmp, int *bnp, int *split
 
 void gpu_synth_conv16(const float *in, int bn, int iw, int ih, float *out, int d, int ic, int oc, bool relu, int freeze, int dim, const float *wmv, float wscale) {
   int fw, fh, dxo, dyo; _conv_geom(d, dim, &fw, &fh, &dxo, &dyo);
-  long P = (long)bn * ih * iw, K = (long)ic * fw * fh;
+  long P = (long)bn * ih * iw;
+  long K = (long)((ic % 16 != 0 && ic >= 16) ? (ic + 15) / 16 * 16 : ic) * fw * fh;   // padded as in the kernel
   int bm, bnn, splits, kchunk;
   cw_plan(P, oc, K, &bm, &bnn, &splits, &kchunk);
   float *part = NULL;
@@ -759,7 +887,7 @@ void gpu_learn_conv_in16(float *fin, int bn, int iw, int ih, const float *fout, 
 void gpu_learn_conv_w16(const float *in, int bn, int iw, int ih, const float *fout, int d, int ic, int oc, bool relu, int freeze, int dim, float *dwv, float wscale) {
   int fw, fh, dxo, dyo; _conv_geom(d, dim, &fw, &fh, &dxo, &dyo);
   long P = (long)bn * ih * iw;
-  int K = ic * fw * fh;
+  int K = ((ic % 16 != 0 && ic >= 16) ? (ic + 15) / 16 * 16 : ic) * fw * fh;   // padded N extent, as in the kernel
   int bm = cw_pick(oc), bnn = cw_pick(K);
   long tiles = ((K + bnn - 1) / bnn) * ((oc + bm - 1) / bm);
   // aim for ~256 blocks, each reducing at least 256 pixels

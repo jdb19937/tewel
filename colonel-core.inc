@@ -2805,6 +2805,21 @@ DEFN_KERNEL(mcon_scale_in, const float *x, const float *ks, long pn, int ic, flo
   xs[i] = x[i] * ks[(long)b * ic + c];
 }
 
+// out = y / d, reading the raw conv output y (kept as the stash for the backward pass)
+DEFN_KERNEL(mcon_divc, const float *y, const float *kd, long pn, int oc, float *out) {
+  PREF_KERNEL;   // i over bn * pn * oc
+  int c = i % oc; int b = i / (pn * oc);
+  out[i] = y[i] / kd[(long)b * oc + c];
+}
+
+// u8 image rows -> float, cropped in x and optionally mirrored: out[z + pc*(x + pw*y)] = (0.5 + v) / 256
+DEFN_KERNEL(u8crop, const unsigned char *src, int sw, int sc, int x0, int pw, int ph, int pc, int flip, float *out) {
+  PREF_KERNEL;   // i over pw * ph * pc
+  int z = i % pc; long t = i / pc; int x = t % pw; int y = t / pw;
+  int xs = flip ? (pw - 1 - x) : x;
+  out[i] = (0.5f + (float)src[z + sc * (x0 + xs + (long)sw * y)]) / 256.0f;
+}
+
 DEFN_KERNEL(mcon_div_out, float *out, const float *kd, long pn, int oc) {
   PREF_KERNEL;   // i over bn * pn * oc, in place
   int c = i % oc; int b = i / (pn * oc);
@@ -2818,10 +2833,23 @@ DEFN_KERNEL(mcon_gd, const float *g, const float *outs, const float *kd, long pn
   long base = (long)b * pn * oc;
   float v = 0;
   for (long p = 0; p < pn; ++p) { long q = base + p * oc + oz; v += g[q] * outs[q]; }
-  kgd[i] = -v / kd[i];
+  kgd[i] = -v / (kd[i] * kd[i]);   // outs is the raw conv output y = out * d
 }
 
 // g_s[b,iz] = sum_p g_x' * x  +  sum_oz g_d[b,oz] * s[b,iz] * W2[oz,iz] / d[b,oz]
+// finishing steps after gpu_dot_bc computed the pixel sums (GPU path)
+DEFN_KERNEL(mcon_gd_fin, float *kgd, const float *kd) {
+  PREF_KERNEL;   // i over bn * oc; kgd holds sum_p g * y, y = out * d
+  kgd[i] = -kgd[i] / (kd[i] * kd[i]);
+}
+DEFN_KERNEL(mcon_gs_fin, float *kgs, const float *ks, const float *kgd, const float *kd, const float *w2, int ic, int oc) {
+  PREF_KERNEL;   // i over bn * ic; kgs holds sum_p gxs * x
+  int iz = i % ic; int b = i / ic;
+  float s = ks[i], u = 0;
+  for (int oz = 0; oz < oc; ++oz) u += kgd[(long)b * oc + oz] * w2[(long)oz * ic + iz] / kd[(long)b * oc + oz];
+  kgs[i] = kgs[i] + s * u;
+}
+
 DEFN_KERNEL(mcon_gs, const float *gxs, const float *x, const float *ks, const float *kgd, const float *kd, const float *w2, long pn, int ic, int oc, float *kgs) {
   PREF_KERNEL;   // i over bn * ic
   int iz = i % ic; int b = i / ic;
